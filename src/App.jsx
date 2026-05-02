@@ -16,7 +16,7 @@ export default function App() {
       <div className="navbar">
         <div className="page">
           <div className="navbar-inner">
-            <img src="/logo.png" alt="logo" />
+            
 
             <NavLink to="/" end>Clients</NavLink>
             <NavLink to="/sedation">Sedation</NavLink>
