@@ -12,13 +12,10 @@ const DRUG_MAP = {
 
 function normaliseDrugName(name) {
   if (!name) return "";
-
   const clean = name.toLowerCase().trim();
 
   for (const [key, aliases] of Object.entries(DRUG_MAP)) {
-    if (aliases.some(a => clean.includes(a))) {
-      return key;
-    }
+    if (aliases.some(a => clean.includes(a))) return key;
   }
 
   return clean;
@@ -43,6 +40,9 @@ export default function Sedation() {
   const [expiry, setExpiry] = useState("");
   const [qty, setQty] = useState("");
   const [conc, setConc] = useState("");
+
+  // 🔥 NEW SEARCH STATE
+  const [historySearch, setHistorySearch] = useState("");
 
   useEffect(() => {
     fetchPatients();
@@ -73,10 +73,7 @@ export default function Sedation() {
   }
 
   async function fetchStock() {
-    const { data, error } = await supabase.from("stock").select("*");
-
-    if (error) console.error(error);
-
+    const { data } = await supabase.from("stock").select("*");
     setStock(data || []);
   }
 
@@ -134,7 +131,6 @@ export default function Sedation() {
       return;
     }
 
-    // 🔥 enforce batch selection
     for (const r of results) {
       if (!r.batchId) {
         alert(`Select batch for ${r.label || r.drug}`);
@@ -142,50 +138,22 @@ export default function Sedation() {
       }
     }
 
-    // 🔥 deduct stock
-    for (const r of results) {
-      const stockItem = stock.find(s => String(s.id) === String(r.batchId));
+    console.log("SENDING TO FUNCTION:", results);
 
-      if (!stockItem) {
-        alert(`Stock not found for ${r.drug}`);
-        return;
-      }
-
-      const used = Number(r.ml);
-      const remaining = (stockItem.total_ml || 0) - used;
-
-      if (remaining < 0) {
-        alert(`Not enough ${r.drug} in batch ${stockItem.batch}`);
-        return;
-      }
-
-      const { error } = await supabase
-        .from("stock")
-        .update({ total_ml: remaining })
-        .eq("id", r.batchId);
-
-      if (error) {
-        console.error(error);
-        alert("Stock update failed");
-        return;
-      }
-    }
-
-    // 🔥 save record
-    const { error } = await supabase.from("sedation_records").insert([
-      {
-        patient_id: patientId,
-        protocol_id: protocolId,
-        weight,
-        results
-      }
-    ]);
+    const { error } = await supabase.rpc("use_stock_and_save", {
+      p_patient_id: patientId,
+      p_protocol_id: protocolId,
+      p_weight: Number(weight),
+      p_results: results
+    });
 
     if (error) {
       console.error(error);
-      alert("Save failed");
+      alert(error.message);
       return;
     }
+
+    alert("Saved successfully");
 
     setResults([]);
     fetchHistory();
@@ -197,42 +165,6 @@ export default function Sedation() {
     fetchHistory();
   }
 
-  async function addStock() {
-    if (!drugName.trim() || !qty) {
-      alert("Drug name and quantity required");
-      return;
-    }
-
-    const payload = {
-      drug: drugName.trim(),
-      batch: batch || null,
-      expiry: expiry || null,
-      total_ml: Number(qty),
-      mg_per_ml: conc ? Number(conc) : null
-    };
-
-    const { error } = await supabase.from("stock").insert([payload]);
-
-    if (error) {
-      console.error(error);
-      alert(error.message);
-      return;
-    }
-
-    setDrugName("");
-    setBatch("");
-    setExpiry("");
-    setQty("");
-    setConc("");
-
-    fetchStock();
-  }
-
-  async function deleteStock(id) {
-    await supabase.from("stock").delete().eq("id", id);
-    fetchStock();
-  }
-
   function getStockForDrug(drug) {
     const target = normaliseDrugName(drug);
 
@@ -241,6 +173,17 @@ export default function Sedation() {
       return stockName === target;
     });
   }
+
+  // 🔥 FILTERED HISTORY
+  const filteredHistory = history.filter(h => {
+    const search = historySearch.toLowerCase();
+
+    return (
+      h.patients?.name?.toLowerCase().includes(search) ||
+      h.patients?.species?.toLowerCase().includes(search) ||
+      h.patients?.clients?.surname?.toLowerCase().includes(search)
+    );
+  });
 
   return (
     <div className="page">
@@ -304,7 +247,7 @@ export default function Sedation() {
 
                   {getStockForDrug(r.drug).map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.drug} | Batch: {s.batch || "—"} | {s.total_ml.toFixed(2)} ml
+                      {s.drug} | Batch: {s.batch || "—"} | {s.total_ml?.toFixed(2)} ml
                     </option>
                   ))}
                 </select>
@@ -318,46 +261,21 @@ export default function Sedation() {
             )}
           </>
         )}
-
-        {tab === "stock" && (
-          <>
-            <div className="card">
-              <h3>Add Drug</h3>
-
-              <input placeholder="Drug name" value={drugName} onChange={(e) => setDrugName(e.target.value)} />
-              <input placeholder="Batch number" value={batch} onChange={(e) => setBatch(e.target.value)} />
-              <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
-              <input placeholder="Quantity (ml)" value={qty} onChange={(e) => setQty(e.target.value)} />
-              <input placeholder="mg/ml" value={conc} onChange={(e) => setConc(e.target.value)} />
-
-              <button onClick={addStock}>Add Stock</button>
-            </div>
-
-            <div className="card">
-              <h3>Current Stock</h3>
-
-              {stock.length === 0 && <p>No stock added yet</p>}
-
-              {stock.map(s => (
-                <div key={s.id} className="output-row">
-                  <strong>{s.drug}</strong><br />
-                  Batch: {s.batch || "-"} <br />
-                  Exp: {s.expiry || "-"} <br />
-                  {s.total_ml} ml @ {s.mg_per_ml || "-"} mg/ml
-
-                  <button onClick={() => deleteStock(s.id)}>Delete</button>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
       </div>
 
       {tab === "calculator" && (
         <div className="card">
           <h3>History</h3>
 
-          {history.map(h => (
+          {/* 🔥 SEARCH INPUT */}
+          <input
+            placeholder="Search patient, species, or client..."
+            value={historySearch}
+            onChange={(e) => setHistorySearch(e.target.value)}
+            style={{ marginBottom: "10px", width: "100%" }}
+          />
+
+          {filteredHistory.map(h => (
             <div key={h.id} className="output-row">
               <strong>
                 {h.patients?.name} ({h.patients?.species}) – {h.patients?.clients?.surname}

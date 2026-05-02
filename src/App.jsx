@@ -4,6 +4,7 @@ import Sedation from "./pages/Sedation";
 import Protocols from "./pages/Protocols";
 import Login from "./pages/Login";
 import ClientDetail from "./pages/ClientDetail";
+import PatientDetail from "./pages/PatientDetail"; // 🔥 ADD THIS
 
 import "./index.css";
 
@@ -29,10 +30,11 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Clients />} />
         
-        {/* CLIENT PAGE */}
         <Route path="/client/:id" element={<ClientDetail />} />
 
-        {/* 🔥 SEDATION (normal + preloaded) */}
+        {/* 🔥 NEW PATIENT PAGE */}
+        <Route path="/patient/:id" element={<PatientDetail />} />
+
         <Route path="/sedation" element={<Sedation />} />
         <Route path="/sedation/:patientId" element={<Sedation />} />
 

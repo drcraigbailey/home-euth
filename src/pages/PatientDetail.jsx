@@ -1,75 +1,64 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "../supabase";
 
 export default function PatientDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
 
   const [patient, setPatient] = useState(null);
-  const [name, setName] = useState("");
-  const [species, setSpecies] = useState("");
-  const [weight, setWeight] = useState("");
+  const [history, setHistory] = useState([]);
 
   useEffect(() => {
-    loadPatient();
-  }, [id]);
+    fetchPatient();
+    fetchHistory();
+  }, []);
 
-  async function loadPatient() {
+  async function fetchPatient() {
     const { data } = await supabase
       .from("patients")
-      .select("*")
+      .select("*, clients(name)")
       .eq("id", id)
       .single();
 
     setPatient(data);
-    if (data) {
-      setName(data.name || "");
-      setSpecies(data.species || "");
-      setWeight(data.weight || "");
-    }
   }
 
-  async function updatePatient() {
-    await supabase
-      .from("patients")
-      .update({ name, species, weight })
-      .eq("id", id);
+  async function fetchHistory() {
+    const { data } = await supabase
+      .from("sedation_records")
+      .select("*")
+      .eq("patient_id", id)
+      .order("created_at", { ascending: false });
 
-    navigate(-1);
+    setHistory(data || []);
   }
-
-  async function deletePatient() {
-    await supabase.from("patients").delete().eq("id", id);
-    navigate(-1);
-  }
-
-  if (!patient) return <p>Loading...</p>;
 
   return (
     <div className="page">
-      <h2>Edit Patient</h2>
+      <h1>{patient?.name}</h1>
 
       <div className="card">
-        <input value={name} onChange={(e) => setName(e.target.value)} />
-        <input
-          placeholder="Species"
-          value={species}
-          onChange={(e) => setSpecies(e.target.value)}
-        />
-        <input
-          placeholder="Weight (kg)"
-          value={weight}
-          onChange={(e) => setWeight(e.target.value)}
-        />
+        <strong>{patient?.species}</strong><br />
+        Weight: {patient?.weight} kg<br />
+        Owner: {patient?.clients?.name}
+      </div>
 
-        <button onClick={updatePatient}>Save</button>
-        <button
-          onClick={deletePatient}
-          style={{ background: "#c0392b", marginTop: "10px" }}
-        >
-          Delete
-        </button>
+      <div className="card">
+        <h3>Sedation History</h3>
+
+        {history.length === 0 && <p>No sedation records</p>}
+
+        {history.map((h) => (
+          <div key={h.id} className="output-row">
+            <strong>{new Date(h.created_at).toLocaleString()}</strong>
+
+            {h.results?.map((r, i) => (
+              <div key={i}>
+                {r.drug}: {r.ml} ml
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
