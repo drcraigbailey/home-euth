@@ -1,47 +1,136 @@
-import { BrowserRouter as Router, Routes, Route, NavLink } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, NavLink, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "./supabase";
+
+// pages
+import Login from "./pages/Login";
 import Clients from "./pages/Clients";
+import ClientDetail from "./pages/ClientDetail";
+import PatientDetail from "./pages/PatientDetail";
 import Sedation from "./pages/Sedation";
 import Protocols from "./pages/Protocols";
-import Login from "./pages/Login";
-import ClientDetail from "./pages/ClientDetail";
-import PatientDetail from "./pages/PatientDetail"; // 🔥 ADD THIS
 
-import "./index.css";
+// 🔒 Protected route
+function ProtectedRoute({ children }) {
+  const [session, setSession] = useState(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  if (session === undefined) return <div>Loading...</div>;
+
+  if (!session) {
+    window.location.href = "/login";
+    return null;
+  }
+
+  return children;
+}
+
+// 🔥 NAVBAR
+function Navbar() {
+  const location = useLocation();
+
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  }
+
+  if (location.pathname === "/login") return null;
+
+  return (
+    <div className="navbar">
+      <div className="page">
+        <div className="navbar-inner">
+
+          <NavLink to="/" end className="nav-btn">Clients</NavLink>
+          <NavLink to="/sedation" className="nav-btn">Sedation</NavLink>
+          <NavLink to="/protocols" className="nav-btn">Protocols</NavLink>
+
+          <button onClick={logout} className="nav-btn logout-btn">
+            Logout
+          </button>
+
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   return (
     <Router>
+      <Navbar />
 
-      {/* NAVBAR */}
-      <div className="navbar">
-        <div className="page">
-          <div className="navbar-inner">
-            
-
-            <NavLink to="/" end>Clients</NavLink>
-            <NavLink to="/sedation">Sedation</NavLink>
-            <NavLink to="/protocols">Protocols</NavLink>
-            <NavLink to="/login">Login</NavLink>
-          </div>
-        </div>
-      </div>
-
-      {/* ROUTES */}
       <Routes>
-        <Route path="/" element={<Clients />} />
-        
-        <Route path="/client/:id" element={<ClientDetail />} />
 
-        {/* 🔥 NEW PATIENT PAGE */}
-        <Route path="/patient/:id" element={<PatientDetail />} />
-
-        <Route path="/sedation" element={<Sedation />} />
-        <Route path="/sedation/:patientId" element={<Sedation />} />
-
-        <Route path="/protocols" element={<Protocols />} />
         <Route path="/login" element={<Login />} />
-      </Routes>
 
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Clients />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/client/:id"
+          element={
+            <ProtectedRoute>
+              <ClientDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/:id"
+          element={
+            <ProtectedRoute>
+              <PatientDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ✅ FIX: support BOTH routes */}
+        <Route
+          path="/sedation"
+          element={
+            <ProtectedRoute>
+              <Sedation />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/sedation/:id"
+          element={
+            <ProtectedRoute>
+              <Sedation />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/protocols"
+          element={
+            <ProtectedRoute>
+              <Protocols />
+            </ProtectedRoute>
+          }
+        />
+
+      </Routes>
     </Router>
   );
 }
