@@ -179,7 +179,12 @@ export default function Sedation() {
       mg_per_ml: Number(conc)
     }]);
 
-    setDrugName(""); setBatch(""); setExpiry(""); setQty(""); setConc("");
+    setDrugName("");
+    setBatch("");
+    setExpiry("");
+    setQty("");
+    setConc("");
+
     fetchStock();
   }
 
@@ -248,7 +253,11 @@ export default function Sedation() {
             ))}
           </select>
 
-          <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" />
+          <input
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            placeholder="Weight"
+          />
 
           <button style={{ marginTop: "10px" }} onClick={calculate}>
             Calculate
@@ -313,54 +322,56 @@ export default function Sedation() {
         </div>
       )}
 
-      {/* HISTORY */}
-      <div className="card">
-        <h3>History</h3>
+      {/* HISTORY ONLY ON CALCULATOR */}
+      {tab === "calculator" && (
+        <div className="card">
+          <h3>History</h3>
 
-        {history.map(h => (
-          <div key={h.id} style={{ marginBottom: "20px" }}>
+          {history.map(h => (
+            <div key={h.id} style={{ marginBottom: "20px" }}>
 
-            <strong>{h.patients?.name}</strong>
+              <strong>{h.patients?.name}</strong>
 
-            {editingId === h.id ? (
-              <>
-                {editResults.map((r, i) => (
-                  <div key={i} style={{ marginTop: "5px" }}>
-                    {r.drug}
-                    <input
-                      value={r.ml}
-                      onChange={(e) => updateEditDose(i, e.target.value)}
-                      style={{ marginLeft: "8px", width: "80px" }}
-                    />
-                  </div>
-                ))}
-
-                <button style={{ marginTop: "10px" }} onClick={() => saveEdit(h.id)}>
-                  Save
-                </button>
-              </>
-            ) : (
-              <>
-                <div style={{ marginTop: "8px" }}>
-                  {h.results?.map((r, i) => (
-                    <div key={i}>{r.drug}: {r.ml}</div>
+              {editingId === h.id ? (
+                <>
+                  {editResults.map((r, i) => (
+                    <div key={i} style={{ marginTop: "5px" }}>
+                      {r.drug}
+                      <input
+                        value={r.ml}
+                        onChange={(e) => updateEditDose(i, e.target.value)}
+                        style={{ marginLeft: "8px", width: "80px" }}
+                      />
+                    </div>
                   ))}
-                </div>
 
-                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                  <button onClick={() => startEdit(h)}>Edit</button>
-                  <button
-                    onClick={() => deleteRow(h.id)}
-                    style={{ background: "#e74c3c" }}
-                  >
-                    Delete
+                  <button style={{ marginTop: "10px" }} onClick={() => saveEdit(h.id)}>
+                    Save
                   </button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ marginTop: "8px" }}>
+                    {h.results?.map((r, i) => (
+                      <div key={i}>{r.drug}: {r.ml}</div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                    <button onClick={() => startEdit(h)}>Edit</button>
+                    <button
+                      onClick={() => deleteRow(h.id)}
+                      style={{ background: "#e74c3c" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
