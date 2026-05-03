@@ -6,60 +6,161 @@ export default function PatientDetail() {
   const { id } = useParams();
 
   const [patient, setPatient] = useState(null);
-  const [history, setHistory] = useState([]);
+
+  const [editMode, setEditMode] = useState(false);
+
+  const [editName, setEditName] = useState("");
+  const [editSpecies, setEditSpecies] = useState("");
+  const [editWeight, setEditWeight] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+
+  const [savedMessage, setSavedMessage] = useState("");
 
   useEffect(() => {
     fetchPatient();
-    fetchHistory();
   }, []);
 
   async function fetchPatient() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("patients")
-      .select("*, clients(name)")
+      .select("*")
       .eq("id", id)
       .single();
 
+    if (error) {
+      console.error(error);
+      return;
+    }
+
     setPatient(data);
+
+    if (data) {
+      setEditName(data.name || "");
+      setEditSpecies(data.species || "");
+      setEditWeight(data.weight || "");
+      setEditNotes(data.notes || "");
+    }
   }
 
-  async function fetchHistory() {
-    const { data } = await supabase
-      .from("sedation_records")
-      .select("*")
-      .eq("patient_id", id)
-      .order("created_at", { ascending: false });
+  async function updatePatient() {
+    const { error } = await supabase
+      .from("patients")
+      .update({
+        name: editName,
+        species: editSpecies,
+        weight: Number(editWeight),
+        notes: editNotes
+      })
+      .eq("id", id);
 
-    setHistory(data || []);
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      return;
+    }
+
+    setSavedMessage("✅ Saved");
+    setEditMode(false);
+
+    fetchPatient();
+
+    // auto clear message
+    setTimeout(() => setSavedMessage(""), 2000);
   }
 
   return (
     <div className="page">
-      <h1>{patient?.name}</h1>
+      <h1>{patient?.name || "Patient"}</h1>
 
-      <div className="card">
-        <strong>{patient?.species}</strong><br />
-        Weight: {patient?.weight} kg<br />
-        Owner: {patient?.clients?.name}
-      </div>
+      {/* 🔥 DISPLAY MODE */}
+      {!editMode && (
+        <div className="card">
+          <h3>Patient Details</h3>
 
-      <div className="card">
-        <h3>Sedation History</h3>
+          <p><strong>Species:</strong> {patient?.species}</p>
+          <p><strong>Weight:</strong> {patient?.weight} kg</p>
 
-        {history.length === 0 && <p>No sedation records</p>}
-
-        {history.map((h) => (
-          <div key={h.id} className="output-row">
-            <strong>{new Date(h.created_at).toLocaleString()}</strong>
-
-            {h.results?.map((r, i) => (
-              <div key={i}>
-                {r.drug}: {r.ml} ml
-              </div>
-            ))}
+          {/* 🔥 NOTES DISPLAY */}
+          <div style={{ marginTop: "15px" }}>
+            <strong>Notes:</strong>
+            <div
+              style={{
+                marginTop: "5px",
+                padding: "10px",
+                background: "#f8f9fb",
+                borderRadius: "10px",
+                minHeight: "60px"
+              }}
+            >
+              {patient?.notes || "No notes yet"}
+            </div>
           </div>
-        ))}
-      </div>
+
+          <button
+            style={{ marginTop: "15px" }}
+            onClick={() => setEditMode(true)}
+          >
+            Edit
+          </button>
+
+          {savedMessage && (
+            <div style={{ marginTop: "10px", color: "green" }}>
+              {savedMessage}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🔥 EDIT MODE */}
+      {editMode && (
+        <div className="card">
+          <h3>Edit Patient</h3>
+
+          <input
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Name"
+          />
+
+          <input
+            value={editSpecies}
+            onChange={(e) => setEditSpecies(e.target.value)}
+            placeholder="Species"
+          />
+
+          <input
+            type="number"
+            step="0.1"
+            value={editWeight}
+            onChange={(e) => setEditWeight(e.target.value)}
+            placeholder="Weight"
+          />
+
+          <textarea
+            value={editNotes}
+            onChange={(e) => setEditNotes(e.target.value)}
+            placeholder="Patient notes..."
+            rows={5}
+            style={{
+              width: "100%",
+              marginTop: "10px",
+              padding: "10px",
+              borderRadius: "10px",
+              border: "1px solid #ddd"
+            }}
+          />
+
+          <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+            <button onClick={updatePatient}>Save</button>
+            <button
+              onClick={() => setEditMode(false)}
+              style={{ background: "#aaa" }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

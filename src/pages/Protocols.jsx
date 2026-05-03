@@ -9,7 +9,6 @@ export default function Protocol() {
 
   const [editingProtocolId, setEditingProtocolId] = useState(null);
 
-  // 🔥 NEW: drug builder
   const [drugs, setDrugs] = useState([]);
   const [drugName, setDrugName] = useState("");
   const [mgPerKg, setMgPerKg] = useState("");
@@ -20,30 +19,40 @@ export default function Protocol() {
   }, []);
 
   async function fetchProtocols() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("protocols")
-      .select(`
-        *,
-        protocol_drugs (*)
-      `)
+      .select(`*, protocol_drugs (*)`)
       .order("name");
+
+    if (error) {
+      console.error("FETCH ERROR:", error);
+      return;
+    }
 
     setProtocols(data || []);
   }
 
-  // 🔥 ADD DRUG TO TEMP LIST
+  // 🔥 ADD DRUG (FIXED)
   function addDrug() {
-    if (!drugName || !mgPerKg || !mgPerMl) {
-      alert("Fill all drug fields");
+    const mgKg = parseFloat(mgPerKg);
+    const mgMl = parseFloat(mgPerMl);
+
+    if (!drugName.trim()) {
+      alert("Drug name required");
       return;
     }
 
-    setDrugs([
-      ...drugs,
+    if (isNaN(mgKg) || isNaN(mgMl)) {
+      alert("mg/kg and mg/ml must be valid numbers");
+      return;
+    }
+
+    setDrugs(prev => [
+      ...prev,
       {
-        drug_name: drugName,
-        mg_per_kg: Number(mgPerKg),
-        mg_per_ml: Number(mgPerMl)
+        drug_name: drugName.trim(),
+        mg_per_kg: mgKg,
+        mg_per_ml: mgMl
       }
     ]);
 
@@ -58,47 +67,67 @@ export default function Protocol() {
     setDrugs(updated);
   }
 
-  // 🔥 SAVE PROTOCOL + DRUGS
+  // 🔥 SAVE PROTOCOL (FIXED HARD)
   async function saveProtocol() {
-    if (!name) {
+    if (!name.trim()) {
       alert("Protocol name required");
+      return;
+    }
+
+    if (drugs.length === 0) {
+      alert("Add at least one drug");
       return;
     }
 
     let protocolId = editingProtocolId;
 
-    if (editingProtocolId) {
-      await supabase
-        .from("protocols")
-        .update({ name, species })
-        .eq("id", editingProtocolId);
+    // 🔥 TRY WITH SPECIES FIRST
+    let insertResult = await supabase
+      .from("protocols")
+      .insert([{ name, species }])
+      .select()
+      .single();
 
-      // delete old drugs
-      await supabase
-        .from("protocol_drugs")
-        .delete()
-        .eq("protocol_id", editingProtocolId);
-    } else {
-      const { data } = await supabase
+    // 🔥 FALLBACK IF SPECIES COLUMN DOESN’T EXIST
+    if (insertResult.error) {
+      console.warn("Retrying without species:", insertResult.error);
+
+      insertResult = await supabase
         .from("protocols")
-        .insert([{ name, species }])
+        .insert([{ name }])
         .select()
         .single();
-
-      protocolId = data.id;
     }
 
-    // insert drugs
-    if (drugs.length > 0) {
-      const rows = drugs.map(d => ({
-        protocol_id: protocolId,
-        ...d
-      }));
-
-      await supabase.from("protocol_drugs").insert(rows);
+    if (insertResult.error) {
+      console.error("SAVE ERROR:", insertResult.error);
+      alert(insertResult.error.message);
+      return;
     }
 
-    // reset
+    protocolId = insertResult.data.id;
+
+    // 🔥 INSERT DRUGS (FILTER CLEAN DATA ONLY)
+    const cleanDrugs = drugs.filter(
+      d => !isNaN(d.mg_per_kg) && !isNaN(d.mg_per_ml)
+    );
+
+    const { error: drugError } = await supabase
+      .from("protocol_drugs")
+      .insert(
+        cleanDrugs.map(d => ({
+          protocol_id: protocolId,
+          ...d
+        }))
+      );
+
+    if (drugError) {
+      console.error("DRUG SAVE ERROR:", drugError);
+      alert(drugError.message);
+      return;
+    }
+
+    // RESET
     setName("");
     setSpecies("");
     setDrugs([]);
@@ -107,7 +136,6 @@ export default function Protocol() {
     fetchProtocols();
   }
 
-  // 🔥 EDIT
   function startEdit(p) {
     setEditingProtocolId(p.id);
     setName(p.name || "");
@@ -115,12 +143,11 @@ export default function Protocol() {
     setDrugs(p.protocol_drugs || []);
   }
 
-  // 🔥 DELETE
   async function deleteProtocol(id) {
     if (!window.confirm("Delete protocol?")) return;
 
-    await supabase.from("protocols").delete().eq("id", id);
     await supabase.from("protocol_drugs").delete().eq("protocol_id", id);
+    await supabase.from("protocols").delete().eq("id", id);
 
     fetchProtocols();
   }
@@ -145,10 +172,9 @@ export default function Protocol() {
           onChange={(e) => setSpecies(e.target.value)}
         />
 
-        {/* 🔥 DRUG BUILDER */}
         <h4 style={{ marginTop: "15px" }}>Add Drug</h4>
 
-        <div style={{ display: "grid", gap: "6px" }}>
+        <div style={{ display: "grid", gap: "8px" }}>
           <input
             placeholder="Drug name"
             value={drugName}
@@ -166,24 +192,30 @@ export default function Protocol() {
           />
         </div>
 
-        <button style={{ marginTop: "8px" }} onClick={addDrug}>
+        <button style={{ marginTop: "10px" }} onClick={addDrug}>
           Add Drug
         </button>
 
-        {/* 🔥 DRUG LIST */}
-        {drugs.map((d, i) => (
-          <div key={i} style={{ marginTop: "8px" }}>
-            {d.drug_name} — {d.mg_per_kg} mg/kg
-            <button
-              onClick={() => removeDrug(i)}
-              style={{ marginLeft: "10px", background: "#e74c3c" }}
-            >
-              Remove
-            </button>
-          </div>
-        ))}
+        {/* DRUG LIST */}
+        {drugs
+          .filter(d => !isNaN(d.mg_per_kg) && !isNaN(d.mg_per_ml))
+          .map((d, i) => (
+            <div key={i} style={{ marginTop: "10px" }}>
+              {d.drug_name} — {d.mg_per_kg} mg/kg
 
-        <button style={{ marginTop: "15px" }} onClick={saveProtocol}>
+              <button
+                onClick={() => removeDrug(i)}
+                style={{
+                  marginLeft: "10px",
+                  background: "#e74c3c"
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+
+        <button style={{ marginTop: "20px" }} onClick={saveProtocol}>
           {editingProtocolId ? "Update Protocol" : "Add Protocol"}
         </button>
       </div>
@@ -204,6 +236,7 @@ export default function Protocol() {
 
             <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
               <button onClick={() => startEdit(p)}>Edit</button>
+
               <button
                 onClick={() => deleteProtocol(p.id)}
                 style={{ background: "#e74c3c" }}
