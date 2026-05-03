@@ -175,12 +175,12 @@ export default function ClientDetail() {
             <div style={{ display: "flex", gap: "8px" }}>
               
               {/* 🟦 SEDATE BUTTON */}
-              <button
-  style={{
-    background: "#27ae60",
-    color: "white"
+            <button
+  style={{ background: "#27ae60", color: "white" }}
+  onClick={(e) => {
+    e.stopPropagation(); // 🔥 STOP row click
+    navigate(`/sedation/${p.id}`); // 🔥 USE PATIENT ID
   }}
-  onClick={() => navigate(`/sedation/${p.id}`)}
 >
   Sedate
 </button>
