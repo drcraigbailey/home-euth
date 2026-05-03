@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../supabase";
 
-// 🔥 DRUG NORMALISATION MAP
 const DRUG_MAP = {
   ketamine: ["ket", "ketamine"],
   butorphanol: ["but", "butorphanol"],
@@ -38,17 +37,20 @@ export default function Sedation() {
 
   const [results, setResults] = useState([]);
 
-  const [drugName, setDrugName] = useState("");
-  const [batch, setBatch] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [qty, setQty] = useState("");
-  const [conc, setConc] = useState("");
-
   const [historySearch, setHistorySearch] = useState("");
   const [stockSearch, setStockSearch] = useState("");
 
   const [patientSearch, setPatientSearch] = useState("");
   const [showPatientResults, setShowPatientResults] = useState(false);
+
+  const [editingId, setEditingId] = useState(null);
+  const [editResults, setEditResults] = useState([]);
+
+  const [drugName, setDrugName] = useState("");
+  const [batch, setBatch] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [qty, setQty] = useState("");
+  const [conc, setConc] = useState("");
 
   useEffect(() => {
     fetchPatients();
@@ -57,36 +59,28 @@ export default function Sedation() {
     fetchStock();
   }, []);
 
-  // 🔥 AUTO LOAD PATIENT FROM ROUTE
   useEffect(() => {
     if (!routePatientId) return;
 
     const loadPatient = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("patients")
-        .select("*, clients(surname)")
+        .select("*")
         .eq("id", routePatientId)
         .single();
 
-      if (error || !data) {
-        console.error("Failed to load patient:", error);
-        return;
-      }
+      if (!data) return;
 
       setPatientId(data.id);
       setWeight(data.weight || "");
-      setPatientSearch(
-        `${data.name} (${data.species}) – ${data.clients?.surname || ""}`
-      );
+      setPatientSearch(data.name);
     };
 
     loadPatient();
   }, [routePatientId]);
 
   async function fetchPatients() {
-    const { data } = await supabase
-      .from("patients")
-      .select("*, clients(surname)");
+    const { data } = await supabase.from("patients").select("*");
     setPatients(data || []);
   }
 
@@ -98,7 +92,7 @@ export default function Sedation() {
   async function fetchHistory() {
     const { data } = await supabase
       .from("sedation_records")
-      .select(`*, patients(name, species, clients(surname))`)
+      .select(`*, patients(name, species, weight)`)
       .order("created_at", { ascending: false });
 
     setHistory(data || []);
@@ -113,18 +107,9 @@ export default function Sedation() {
     setStock(data || []);
   }
 
-  const filteredPatients = patients.filter(p => {
-    const search = patientSearch.toLowerCase();
-
-    return (
-      p.name?.toLowerCase().includes(search) ||
-      p.clients?.surname?.toLowerCase().includes(search)
-    );
-  });
-
   async function calculate() {
     if (!protocolId || !weight) {
-      alert("Select protocol and ensure weight is set");
+      alert("Select protocol + weight");
       return;
     }
 
@@ -138,96 +123,63 @@ export default function Sedation() {
       const ml = mg / d.mg_per_ml;
 
       return {
-        drug: normaliseDrugName(d.drug_name),
-        label: d.drug_name,
-        ml: Number(ml.toFixed(2)),
-        manual: false,
-        batchId: ""
+        drug: d.drug_name,
+        ml: Number(ml.toFixed(2))
       };
     });
 
     setResults(calc);
   }
 
-  function updateDose(index, value) {
-    const updated = [...results];
-    updated[index].ml = value;
-    updated[index].manual = true;
-    setResults(updated);
-  }
-
-  function updateBatch(index, batchId) {
-    const updated = [...results];
-    updated[index].batchId = batchId;
-    setResults(updated);
-  }
-
   async function save() {
-    if (!patientId || !protocolId || results.length === 0) {
-      alert("Missing data");
-      return;
-    }
-
-    for (const r of results) {
-      if (!r.batchId) {
-        alert(`Select batch for ${r.label || r.drug}`);
-        return;
-      }
-    }
-
-    const { error } = await supabase.rpc("use_stock_and_save", {
+    await supabase.rpc("use_stock_and_save", {
       p_patient_id: patientId,
       p_protocol_id: protocolId,
       p_weight: Number(weight),
       p_results: results
     });
 
-    if (error) {
-      console.error(error);
-      alert(error.message);
-      return;
-    }
-
-    alert("Saved successfully");
-
     setResults([]);
     fetchHistory();
-    fetchStock();
+  }
+
+  function startEdit(h) {
+    setEditingId(h.id);
+    setEditResults(h.results || []);
+  }
+
+  function updateEditDose(i, val) {
+    const updated = [...editResults];
+    updated[i].ml = parseFloat(val) || 0;
+    setEditResults(updated);
+  }
+
+  async function saveEdit(id) {
+    await supabase
+      .from("sedation_records")
+      .update({ results: editResults })
+      .eq("id", id);
+
+    setEditingId(null);
+    fetchHistory();
   }
 
   async function deleteRow(id) {
+    if (!window.confirm("Delete record?")) return;
     await supabase.from("sedation_records").delete().eq("id", id);
     fetchHistory();
   }
 
   async function addStock() {
-    if (!drugName.trim() || !qty) {
-      alert("Drug name and quantity required");
-      return;
-    }
-
-    const payload = {
-      drug: drugName.trim(),
-      batch: batch || null,
-      expiry: expiry || null,
+    await supabase.from("stock").insert([{
+      drug: drugName,
+      batch,
+      expiry,
       total_ml: Number(qty),
-      mg_per_ml: conc ? Number(conc) : null
-    };
+      mg_per_ml: Number(conc)
+    }]);
 
-    const { error } = await supabase.from("stock").insert([payload]);
-
-    if (error) {
-      console.error(error);
-      alert(error.message);
-      return;
-    }
-
-    setDrugName("");
-    setBatch("");
-    setExpiry("");
-    setQty("");
-    setConc("");
-
+    setDrugName(""); setBatch(""); setExpiry(""); setQty(""); setConc("");
     fetchStock();
   }
 
@@ -237,29 +189,10 @@ export default function Sedation() {
   }
 
   async function deleteStock(id) {
-    if (!window.confirm("Permanently delete this stock?")) return;
+    if (!window.confirm("Delete stock?")) return;
     await supabase.from("stock").delete().eq("id", id);
     fetchStock();
   }
-
-  function getStockForDrug(drug) {
-    const target = normaliseDrugName(drug);
-
-    return stock.filter(s => {
-      const stockName = normaliseDrugName(s.drug);
-      return stockName === target;
-    });
-  }
-
-  const filteredHistory = history.filter(h => {
-    const search = historySearch.toLowerCase();
-
-    return (
-      h.patients?.name?.toLowerCase().includes(search) ||
-      h.patients?.species?.toLowerCase().includes(search) ||
-      h.patients?.clients?.surname?.toLowerCase().includes(search)
-    );
-  });
 
   const filteredStock = stock.filter(s =>
     (s.batch || "").toLowerCase().includes(stockSearch.toLowerCase())
@@ -269,128 +202,165 @@ export default function Sedation() {
     <div className="page">
       <h1>Sedation</h1>
 
-      <div className="card">
-        <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
-          <button onClick={() => setTab("calculator")}>Calculator</button>
-          <button onClick={() => setTab("stock")}>Stock</button>
-        </div>
+      {/* TABS */}
+      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+        <button onClick={() => setTab("calculator")}>Calculator</button>
+        <button onClick={() => setTab("stock")}>Stock</button>
+      </div>
 
-        {tab === "calculator" && (
-          <>
-            <input
-              placeholder="Search patient or client..."
-              value={patientSearch}
-              onChange={(e) => {
-                setPatientSearch(e.target.value);
-                setShowPatientResults(e.target.value.length > 0);
-              }}
-              onFocus={() => {
-                if (patientSearch.length > 0) setShowPatientResults(true);
-              }}
-              style={{ marginBottom: "10px" }}
-            />
+      {/* CALCULATOR */}
+      {tab === "calculator" && (
+        <div className="card">
 
-            {showPatientResults && (
-              <div style={{ maxHeight: "180px", overflowY: "auto", background: "white", borderRadius: "10px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", marginBottom: "10px" }}>
-                {filteredPatients.slice(0, 6).map(p => (
-                  <div
-                    key={p.id}
+          <input
+            placeholder="Search patient..."
+            value={patientSearch}
+            onChange={(e) => {
+              setPatientSearch(e.target.value);
+              setShowPatientResults(true);
+            }}
+          />
+
+          {showPatientResults && (
+            <div style={{ marginTop: "10px", marginBottom: "10px" }}>
+              {patients
+                .filter(p => p.name.toLowerCase().includes(patientSearch.toLowerCase()))
+                .slice(0, 5)
+                .map(p => (
+                  <div key={p.id}
+                    style={{ padding: "8px", cursor: "pointer" }}
                     onClick={() => {
                       setPatientId(p.id);
                       setWeight(p.weight || "");
-                      setPatientSearch(`${p.name} (${p.clients?.surname || ""})`);
+                      setPatientSearch(p.name);
                       setShowPatientResults(false);
-                    }}
-                    style={{ cursor: "pointer", padding: "10px", borderBottom: "1px solid #eee" }}
-                  >
-                    <strong>{p.name}</strong> ({p.species}) – {p.clients?.surname}
+                    }}>
+                    {p.name}
                   </div>
-                ))}
-              </div>
-            )}
-
-            <select value={protocolId} onChange={(e) => setProtocolId(e.target.value)}>
-              <option value="">Select protocol</option>
-              {protocols.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-
-            <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" />
-
-            <button onClick={calculate}>Calculate</button>
-
-            {results.map((r, i) => (
-              <div key={i} className="output-row">
-                <strong>{r.label || r.drug}</strong>
-
-                <input type="number" step="0.01" value={r.ml}
-                  onChange={(e) => updateDose(i, parseFloat(e.target.value) || 0)}
-                  style={{ width: "70px", marginLeft: "10px" }}
-                />
-
-                ml
-
-                <select value={r.batchId} onChange={(e) => updateBatch(i, e.target.value)}>
-                  <option value="">Select batch</option>
-                  {getStockForDrug(r.drug).map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.drug} | Batch: {s.batch || "—"} | {s.total_ml?.toFixed(2)} ml
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-
-            {results.length > 0 && (
-              <button onClick={save}>Save to History</button>
-            )}
-          </>
-        )}
-
-        {tab === "stock" && (
-          <>
-            <div className="card">
-              <h3>Current Stock</h3>
-
-              <input
-                placeholder="Search batch number..."
-                value={stockSearch}
-                onChange={(e) => setStockSearch(e.target.value)}
-              />
-
-              {filteredStock.map(s => (
-                <div key={s.id} className="output-row">
-                  <strong>{s.drug}</strong><br />
-                  Batch: {s.batch} <br />
-                  {s.total_ml} ml
-
-                  <button onClick={() => archiveStock(s.id)}>Archive</button>
-                  <button onClick={() => deleteStock(s.id)}>Delete</button>
-                </div>
               ))}
             </div>
-          </>
-        )}
-      </div>
+          )}
 
-      {tab === "calculator" && (
+          <select value={protocolId} onChange={(e) => setProtocolId(e.target.value)}>
+            <option value="">Select protocol</option>
+            {protocols.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+
+          <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" />
+
+          <button style={{ marginTop: "10px" }} onClick={calculate}>
+            Calculate
+          </button>
+
+          <div style={{ marginTop: "15px" }}>
+            {results.map((r, i) => (
+              <div key={i}>{r.drug}: {r.ml} ml</div>
+            ))}
+          </div>
+
+          {results.length > 0 && (
+            <button style={{ marginTop: "15px" }} onClick={save}>
+              Save
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* STOCK */}
+      {tab === "stock" && (
         <div className="card">
-          <h3>History</h3>
+
+          <h3>Add Stock</h3>
+
+          <div style={{ display: "grid", gap: "8px" }}>
+            <input placeholder="Drug" value={drugName} onChange={(e) => setDrugName(e.target.value)} />
+            <input placeholder="Batch" value={batch} onChange={(e) => setBatch(e.target.value)} />
+            <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} />
+            <input placeholder="Qty ml" value={qty} onChange={(e) => setQty(e.target.value)} />
+            <input placeholder="mg/ml" value={conc} onChange={(e) => setConc(e.target.value)} />
+          </div>
+
+          <button style={{ marginTop: "10px" }} onClick={addStock}>Add</button>
+
+          <h3 style={{ marginTop: "20px" }}>Stock</h3>
 
           <input
-            placeholder="Search..."
-            value={historySearch}
-            onChange={(e) => setHistorySearch(e.target.value)}
+            placeholder="Search batch..."
+            value={stockSearch}
+            onChange={(e) => setStockSearch(e.target.value)}
+            style={{ marginBottom: "10px" }}
           />
 
-          {filteredHistory.map(h => (
-            <div key={h.id} className="output-row">
-              <strong>{h.patients?.name}</strong>
+          {filteredStock.map(s => (
+            <div key={s.id} style={{ marginBottom: "15px" }}>
+              <div>
+                {s.drug} | {s.batch} | {s.total_ml} ml
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", marginTop: "5px" }}>
+                <button onClick={() => archiveStock(s.id)}>Archive</button>
+                <button
+                  onClick={() => deleteStock(s.id)}
+                  style={{ background: "#e74c3c" }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* HISTORY */}
+      <div className="card">
+        <h3>History</h3>
+
+        {history.map(h => (
+          <div key={h.id} style={{ marginBottom: "20px" }}>
+
+            <strong>{h.patients?.name}</strong>
+
+            {editingId === h.id ? (
+              <>
+                {editResults.map((r, i) => (
+                  <div key={i} style={{ marginTop: "5px" }}>
+                    {r.drug}
+                    <input
+                      value={r.ml}
+                      onChange={(e) => updateEditDose(i, e.target.value)}
+                      style={{ marginLeft: "8px", width: "80px" }}
+                    />
+                  </div>
+                ))}
+
+                <button style={{ marginTop: "10px" }} onClick={() => saveEdit(h.id)}>
+                  Save
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{ marginTop: "8px" }}>
+                  {h.results?.map((r, i) => (
+                    <div key={i}>{r.drug}: {r.ml}</div>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                  <button onClick={() => startEdit(h)}>Edit</button>
+                  <button
+                    onClick={() => deleteRow(h.id)}
+                    style={{ background: "#e74c3c" }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
