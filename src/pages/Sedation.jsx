@@ -203,6 +203,14 @@ export default function Sedation() {
     (s.batch || "").toLowerCase().includes(stockSearch.toLowerCase())
   );
 
+  // 🔥 HISTORY FILTER (name + drug)
+  const filteredHistory = history.filter(h =>
+    (h.patients?.name || "").toLowerCase().includes(historySearch.toLowerCase()) ||
+    (h.results || []).some(r =>
+      r.drug.toLowerCase().includes(historySearch.toLowerCase())
+    )
+  );
+
   return (
     <div className="page">
       <h1>Sedation</h1>
@@ -322,12 +330,19 @@ export default function Sedation() {
         </div>
       )}
 
-      {/* HISTORY ONLY ON CALCULATOR */}
+      {/* HISTORY */}
       {tab === "calculator" && (
         <div className="card">
           <h3>History</h3>
 
-          {history.map(h => (
+          <input
+            placeholder="Search history..."
+            value={historySearch}
+            onChange={(e) => setHistorySearch(e.target.value)}
+            style={{ marginBottom: "10px" }}
+          />
+
+          {filteredHistory.map(h => (
             <div key={h.id} style={{ marginBottom: "20px" }}>
 
               <strong>{h.patients?.name}</strong>
