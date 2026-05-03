@@ -19,10 +19,18 @@ export default function PatientDetail() {
   const [consentName, setConsentName] = useState("");
   const sigPadRef = useRef(null);
 
+  // 🔥 FIXED: runs when patient changes
   useEffect(() => {
     fetchPatient();
     fetchConsentHistory();
-  }, []);
+
+    // 🔥 SCROLL TO TOP
+    window.scrollTo({
+      top: 0,
+      behavior: "instant"
+    });
+
+  }, [id]);
 
   async function fetchPatient() {
     const { data } = await supabase
@@ -140,7 +148,6 @@ export default function PatientDetail() {
           <p><strong>Species:</strong> {patient?.species}</p>
           <p><strong>Weight:</strong> {patient?.weight} kg</p>
 
-          {/* 📝 NOTES DISPLAY */}
           <div style={{ marginTop: "10px" }}>
             <strong>Notes:</strong>
             <div style={{
@@ -171,7 +178,6 @@ export default function PatientDetail() {
           <input value={editSpecies} onChange={(e) => setEditSpecies(e.target.value)} />
           <input value={editWeight} onChange={(e) => setEditWeight(e.target.value)} />
 
-          {/* 📝 NOTES EDIT */}
           <textarea
             rows={5}
             value={editNotes}
@@ -192,7 +198,6 @@ export default function PatientDetail() {
       <div className="card">
         <h3>Consent</h3>
 
-        {/* 📜 CONSENT TEXT */}
         <div style={{
           fontSize: "14px",
           marginBottom: "10px",
@@ -231,7 +236,7 @@ export default function PatientDetail() {
             onClick={saveAndReturn}
             style={{ background: "#27ae60", color: "white" }}
           >
-            Save & Return
+            Save & Sedate
           </button>
         </div>
       </div>
