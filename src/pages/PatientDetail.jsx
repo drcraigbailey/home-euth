@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import SignatureCanvas from "react-signature-canvas";
 
 export default function PatientDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [patient, setPatient] = useState(null);
-  const [consents, setConsents] = useState([]);
+  const [consentHistory, setConsentHistory] = useState([]);
 
   const [editMode, setEditMode] = useState(false);
   const [editName, setEditName] = useState("");
@@ -14,15 +16,12 @@ export default function PatientDetail() {
   const [editWeight, setEditWeight] = useState("");
   const [editNotes, setEditNotes] = useState("");
 
-  const [savedMessage, setSavedMessage] = useState("");
-
-  // 🔥 CONSENT
   const [consentName, setConsentName] = useState("");
-  const canvasRef = useRef(null);
-  const [drawing, setDrawing] = useState(false);
+  const sigPadRef = useRef(null);
 
   useEffect(() => {
     fetchPatient();
+    fetchConsentHistory();
   }, []);
 
   async function fetchPatient() {
@@ -40,14 +39,16 @@ export default function PatientDetail() {
       setEditWeight(data.weight || "");
       setEditNotes(data.notes || "");
     }
+  }
 
-    const { data: consentData } = await supabase
+  async function fetchConsentHistory() {
+    const { data } = await supabase
       .from("consent_records")
       .select("*")
       .eq("patient_id", id)
       .order("created_at", { ascending: false });
 
-    setConsents(consentData || []);
+    setConsentHistory(data || []);
   }
 
   async function updatePatient() {
@@ -61,102 +62,68 @@ export default function PatientDetail() {
       })
       .eq("id", id);
 
-    setSavedMessage("✅ Saved");
     setEditMode(false);
     fetchPatient();
-
-    setTimeout(() => setSavedMessage(""), 2000);
-  }
-
-  // 🎨 SIGNATURE PAD
-  function startDraw(e) {
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-    setDrawing(true);
-  }
-
-  function draw(e) {
-    if (!drawing) return;
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY);
-    ctx.stroke();
-  }
-
-  function endDraw() {
-    setDrawing(false);
   }
 
   function clearSignature() {
-    const ctx = canvasRef.current.getContext("2d");
-    ctx.clearRect(0, 0, 300, 150);
+    sigPadRef.current.clear();
   }
 
-  // 🔥 SAVE CONSENT
-  async function saveConsent(redirect = false) {
-    if (!consentName) {
-      alert("Enter name");
-      return;
+  async function insertConsent() {
+    const signature = sigPadRef.current.toDataURL();
+
+    const { error } = await supabase
+      .from("consent_records")
+      .insert([
+        {
+          patient_id: id,
+          name: consentName,
+          signature: signature
+        }
+      ]);
+
+    if (error) {
+      alert(error.message);
+      return false;
     }
 
-    const signature = canvasRef.current.toDataURL();
+    return true;
+  }
 
-    const consentText = [
-      "I certify that I am the owner or authorized agent of the above-described animal and have the authority to consent to its euthanasia.",
-      "I understand that euthanasia involves the termination of the animal’s life to prevent further pain or suffering.",
-      "I have discussed the option of euthanasia with a veterinary surgeon, including alternatives such as monitoring or treatment.",
-      "I understand the procedure and potential risks involved."
-    ].join("\n");
+  async function saveConsent() {
+    if (!consentName) return alert("Enter name");
+    if (!sigPadRef.current || sigPadRef.current.isEmpty())
+      return alert("Please sign");
 
-    const { data: lastRecord } = await supabase
-      .from("sedation_records")
-      .select("id")
-      .eq("patient_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+    const ok = await insertConsent();
+    if (!ok) return;
 
-    await supabase.from("consent_records").insert([
-      {
-        patient_id: id,
-        sedation_record_id: lastRecord?.id || null,
-        name: consentName,
-        signature,
-        consent_text: consentText
-      }
-    ]);
-
-    if (lastRecord) {
-      await supabase
-        .from("sedation_records")
-        .update({ consent_signed: true })
-        .eq("id", lastRecord.id);
-    }
-
-    clearSignature();
+    sigPadRef.current.clear();
     setConsentName("");
-
-    fetchPatient();
-
-    if (redirect) {
-      window.location.href = `/sedation/${id}`;
-    } else {
-      alert("Consent saved");
-    }
+    fetchConsentHistory();
   }
 
-  // 🔥 DELETE CONSENT
+  async function saveAndReturn() {
+    if (!consentName) return alert("Enter name");
+    if (!sigPadRef.current || sigPadRef.current.isEmpty())
+      return alert("Please sign");
+
+    const ok = await insertConsent();
+    if (!ok) return;
+
+    navigate(`/sedation/${id}`);
+  }
+
   async function deleteConsent(consentId) {
-    if (!window.confirm("Delete this consent record?")) return;
+    if (!window.confirm("Delete this consent?")) return;
 
     await supabase
       .from("consent_records")
       .delete()
       .eq("id", consentId);
 
-    fetchPatient();
+    fetchConsentHistory();
   }
 
   return (
@@ -173,7 +140,8 @@ export default function PatientDetail() {
           <p><strong>Species:</strong> {patient?.species}</p>
           <p><strong>Weight:</strong> {patient?.weight} kg</p>
 
-          <div style={{ marginTop: "15px" }}>
+          {/* 📝 NOTES DISPLAY */}
+          <div style={{ marginTop: "10px" }}>
             <strong>Notes:</strong>
             <div style={{
               marginTop: "5px",
@@ -185,10 +153,16 @@ export default function PatientDetail() {
             </div>
           </div>
 
-          <button onClick={() => setEditMode(true)}>Edit</button>
+          <button
+            style={{ marginTop: "15px" }}
+            onClick={() => setEditMode(true)}
+          >
+            Edit
+          </button>
         </div>
       )}
 
+      {/* EDIT MODE */}
       {editMode && (
         <div className="card">
           <h3>Edit Patient</h3>
@@ -197,10 +171,12 @@ export default function PatientDetail() {
           <input value={editSpecies} onChange={(e) => setEditSpecies(e.target.value)} />
           <input value={editWeight} onChange={(e) => setEditWeight(e.target.value)} />
 
+          {/* 📝 NOTES EDIT */}
           <textarea
+            rows={5}
             value={editNotes}
             onChange={(e) => setEditNotes(e.target.value)}
-            rows={5}
+            placeholder="Notes..."
           />
 
           <div style={{ display: "flex", gap: "10px" }}>
@@ -214,7 +190,21 @@ export default function PatientDetail() {
       {/* CONSENT */}
       {/* ===================== */}
       <div className="card">
-        <h3>New Consent</h3>
+        <h3>Consent</h3>
+
+        {/* 📜 CONSENT TEXT */}
+        <div style={{
+          fontSize: "14px",
+          marginBottom: "10px",
+          background: "#f8f9fb",
+          padding: "10px",
+          borderRadius: "10px"
+        }}>
+          <p>• I certify that I am the owner or authorized agent of the above-described animal and have the authority to consent to its euthanasia.</p>
+          <p>• I understand that euthanasia involves the termination of the animal’s life to prevent further pain or suffering.</p>
+          <p>• I have discussed the option of euthanasia with a veterinary surgeon, including alternatives such as monitoring or treatment.</p>
+          <p>• I understand the procedure and potential risks involved.</p>
+        </div>
 
         <input
           placeholder="Full name"
@@ -222,24 +212,24 @@ export default function PatientDetail() {
           onChange={(e) => setConsentName(e.target.value)}
         />
 
-        <canvas
-          ref={canvasRef}
-          width={300}
-          height={150}
-          style={{ border: "1px solid #ccc", marginTop: "10px" }}
-          onMouseDown={startDraw}
-          onMouseMove={draw}
-          onMouseUp={endDraw}
-          onMouseLeave={endDraw}
-        />
-
-        <button onClick={clearSignature}>Clear</button>
+        <div style={{
+          border: "1px solid #ccc",
+          borderRadius: "10px",
+          marginTop: "10px"
+        }}>
+          <SignatureCanvas
+            penColor="black"
+            canvasProps={{ width: 300, height: 150 }}
+            ref={sigPadRef}
+          />
+        </div>
 
         <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-          <button onClick={() => saveConsent(false)}>Save Consent</button>
+          <button onClick={clearSignature}>Clear</button>
+          <button onClick={saveConsent}>Save</button>
           <button
-            onClick={() => saveConsent(true)}
-            style={{ background: "#27ae60" }}
+            onClick={saveAndReturn}
+            style={{ background: "#27ae60", color: "white" }}
           >
             Save & Return
           </button>
@@ -252,12 +242,12 @@ export default function PatientDetail() {
       <div className="card">
         <h3>Consent History</h3>
 
-        {consents.length === 0 && <div>No consents yet</div>}
-
-        {consents.map(c => (
+        {consentHistory.map(c => (
           <div key={c.id} style={{
-            borderBottom: "1px solid #eee",
-            padding: "10px 0"
+            marginBottom: "15px",
+            padding: "10px",
+            background: "#f8f9fb",
+            borderRadius: "10px"
           }}>
             <strong>{c.name}</strong>
 
@@ -268,25 +258,19 @@ export default function PatientDetail() {
             <img
               src={c.signature}
               alt="signature"
-              style={{
-                marginTop: "10px",
-                border: "1px solid #ccc",
-                width: "200px"
-              }}
+              style={{ marginTop: "10px", border: "1px solid #ccc" }}
             />
 
             <button
+              style={{ marginTop: "10px", background: "#e74c3c" }}
               onClick={() => deleteConsent(c.id)}
-              style={{
-                marginTop: "8px",
-                background: "#e74c3c",
-                color: "white"
-              }}
             >
               Delete
             </button>
           </div>
         ))}
+
+        {consentHistory.length === 0 && <p>No consent history</p>}
       </div>
     </div>
   );
