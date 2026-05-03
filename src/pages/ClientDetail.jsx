@@ -176,18 +176,14 @@ export default function ClientDetail() {
               
               {/* 🟦 SEDATE BUTTON */}
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/sedation/${p.id}`);
-                }}
-                style={{
-                  width: "auto",
-                  padding: "8px 12px",
-                  background: "#1a73e8"
-                }}
-              >
-                Sedate
-              </button>
+  style={{
+    background: "#27ae60",
+    color: "white"
+  }}
+  onClick={() => navigate(`/sedation/${p.id}`)}
+>
+  Sedate
+</button>
 
               {/* 🟥 DELETE BUTTON */}
               <button
