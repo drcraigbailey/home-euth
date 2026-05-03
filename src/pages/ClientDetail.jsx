@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 
+// 🔥 WEIGHT VALIDATION
+function isValidWeight(value) {
+  if (!value) return false;
+  return /^\d+(\.\d+)?$/.test(value);
+}
+
 export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -52,11 +58,17 @@ export default function ClientDetail() {
   async function addPatient() {
     if (!name) return;
 
+    // 🔥 VALIDATION
+    if (!isValidWeight(weight)) {
+      alert("⚠️ Weight must be a number in kg (e.g. 10 or 10.5)");
+      return;
+    }
+
     await supabase.from("patients").insert([
       {
         name,
         species,
-        weight,
+        weight: Number(weight),
         client_id: id
       }
     ]);
@@ -127,7 +139,14 @@ export default function ClientDetail() {
 
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <input placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} />
-        <input placeholder="Weight" value={weight} onChange={(e) => setWeight(e.target.value)} />
+
+        <input
+          type="number"
+          step="0.1"
+          placeholder="Weight (kg)"
+          value={weight}
+          onChange={(e) => setWeight(e.target.value)}
+        />
 
         <button onClick={addPatient}>Add Patient</button>
       </div>
@@ -152,19 +171,40 @@ export default function ClientDetail() {
               {p.species} – {p.weight} kg
             </div>
 
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                deletePatient(p.id);
-              }}
-              style={{
-                width: "auto",
-                padding: "8px 12px",
-                background: "#e74c3c"
-              }}
-            >
-              Delete
-            </button>
+            {/* 🔥 BUTTON GROUP */}
+            <div style={{ display: "flex", gap: "8px" }}>
+              
+              {/* 🟦 SEDATE BUTTON */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/sedation/${p.id}`);
+                }}
+                style={{
+                  width: "auto",
+                  padding: "8px 12px",
+                  background: "#1a73e8"
+                }}
+              >
+                Sedate
+              </button>
+
+              {/* 🟥 DELETE BUTTON */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deletePatient(p.id);
+                }}
+                style={{
+                  width: "auto",
+                  padding: "8px 12px",
+                  background: "#e74c3c"
+                }}
+              >
+                Delete
+              </button>
+
+            </div>
           </div>
         ))}
 

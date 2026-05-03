@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { supabase } from "../supabase";
 
 // 🔥 DRUG NORMALISATION MAP
@@ -22,6 +23,8 @@ function normaliseDrugName(name) {
 }
 
 export default function Sedation() {
+  const { patientId: routePatientId } = useParams();
+
   const [tab, setTab] = useState("calculator");
 
   const [patients, setPatients] = useState([]);
@@ -41,8 +44,11 @@ export default function Sedation() {
   const [qty, setQty] = useState("");
   const [conc, setConc] = useState("");
 
-  // 🔥 NEW SEARCH STATE
   const [historySearch, setHistorySearch] = useState("");
+  const [stockSearch, setStockSearch] = useState("");
+
+  const [patientSearch, setPatientSearch] = useState("");
+  const [showPatientResults, setShowPatientResults] = useState(false);
 
   useEffect(() => {
     fetchPatients();
@@ -50,6 +56,32 @@ export default function Sedation() {
     fetchHistory();
     fetchStock();
   }, []);
+
+  // 🔥 AUTO LOAD PATIENT FROM ROUTE
+  useEffect(() => {
+    if (!routePatientId) return;
+
+    const loadPatient = async () => {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("*, clients(surname)")
+        .eq("id", routePatientId)
+        .single();
+
+      if (error || !data) {
+        console.error("Failed to load patient:", error);
+        return;
+      }
+
+      setPatientId(data.id);
+      setWeight(data.weight || "");
+      setPatientSearch(
+        `${data.name} (${data.species}) – ${data.clients?.surname || ""}`
+      );
+    };
+
+    loadPatient();
+  }, [routePatientId]);
 
   async function fetchPatients() {
     const { data } = await supabase
@@ -73,17 +105,22 @@ export default function Sedation() {
   }
 
   async function fetchStock() {
-    const { data } = await supabase.from("stock").select("*");
+    const { data } = await supabase
+      .from("stock")
+      .select("*")
+      .eq("archived", false);
+
     setStock(data || []);
   }
 
-  function handlePatient(e) {
-    const id = e.target.value;
-    setPatientId(id);
+  const filteredPatients = patients.filter(p => {
+    const search = patientSearch.toLowerCase();
 
-    const p = patients.find(x => String(x.id) === id);
-    if (p) setWeight(p.weight || "");
-  }
+    return (
+      p.name?.toLowerCase().includes(search) ||
+      p.clients?.surname?.toLowerCase().includes(search)
+    );
+  });
 
   async function calculate() {
     if (!protocolId || !weight) {
@@ -138,8 +175,6 @@ export default function Sedation() {
       }
     }
 
-    console.log("SENDING TO FUNCTION:", results);
-
     const { error } = await supabase.rpc("use_stock_and_save", {
       p_patient_id: patientId,
       p_protocol_id: protocolId,
@@ -165,6 +200,48 @@ export default function Sedation() {
     fetchHistory();
   }
 
+  async function addStock() {
+    if (!drugName.trim() || !qty) {
+      alert("Drug name and quantity required");
+      return;
+    }
+
+    const payload = {
+      drug: drugName.trim(),
+      batch: batch || null,
+      expiry: expiry || null,
+      total_ml: Number(qty),
+      mg_per_ml: conc ? Number(conc) : null
+    };
+
+    const { error } = await supabase.from("stock").insert([payload]);
+
+    if (error) {
+      console.error(error);
+      alert(error.message);
+      return;
+    }
+
+    setDrugName("");
+    setBatch("");
+    setExpiry("");
+    setQty("");
+    setConc("");
+
+    fetchStock();
+  }
+
+  async function archiveStock(id) {
+    await supabase.from("stock").update({ archived: true }).eq("id", id);
+    fetchStock();
+  }
+
+  async function deleteStock(id) {
+    if (!window.confirm("Permanently delete this stock?")) return;
+    await supabase.from("stock").delete().eq("id", id);
+    fetchStock();
+  }
+
   function getStockForDrug(drug) {
     const target = normaliseDrugName(drug);
 
@@ -174,7 +251,6 @@ export default function Sedation() {
     });
   }
 
-  // 🔥 FILTERED HISTORY
   const filteredHistory = history.filter(h => {
     const search = historySearch.toLowerCase();
 
@@ -184,6 +260,10 @@ export default function Sedation() {
       h.patients?.clients?.surname?.toLowerCase().includes(search)
     );
   });
+
+  const filteredStock = stock.filter(s =>
+    (s.batch || "").toLowerCase().includes(stockSearch.toLowerCase())
+  );
 
   return (
     <div className="page">
@@ -197,29 +277,46 @@ export default function Sedation() {
 
         {tab === "calculator" && (
           <>
-            <select value={patientId} onChange={handlePatient}>
-              <option value="">Select patient</option>
-              {patients.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.species})
-                </option>
-              ))}
-            </select>
+            <input
+              placeholder="Search patient or client..."
+              value={patientSearch}
+              onChange={(e) => {
+                setPatientSearch(e.target.value);
+                setShowPatientResults(e.target.value.length > 0);
+              }}
+              onFocus={() => {
+                if (patientSearch.length > 0) setShowPatientResults(true);
+              }}
+              style={{ marginBottom: "10px" }}
+            />
+
+            {showPatientResults && (
+              <div style={{ maxHeight: "180px", overflowY: "auto", background: "white", borderRadius: "10px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)", marginBottom: "10px" }}>
+                {filteredPatients.slice(0, 6).map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => {
+                      setPatientId(p.id);
+                      setWeight(p.weight || "");
+                      setPatientSearch(`${p.name} (${p.clients?.surname || ""})`);
+                      setShowPatientResults(false);
+                    }}
+                    style={{ cursor: "pointer", padding: "10px", borderBottom: "1px solid #eee" }}
+                  >
+                    <strong>{p.name}</strong> ({p.species}) – {p.clients?.surname}
+                  </div>
+                ))}
+              </div>
+            )}
 
             <select value={protocolId} onChange={(e) => setProtocolId(e.target.value)}>
               <option value="">Select protocol</option>
               {protocols.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
 
-            <input
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              placeholder="Weight"
-            />
+            <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" />
 
             <button onClick={calculate}>Calculate</button>
 
@@ -227,32 +324,21 @@ export default function Sedation() {
               <div key={i} className="output-row">
                 <strong>{r.label || r.drug}</strong>
 
-                <input
-                  type="number"
-                  step="0.01"
-                  value={r.ml}
-                  onChange={(e) =>
-                    updateDose(i, parseFloat(e.target.value) || 0)
-                  }
+                <input type="number" step="0.01" value={r.ml}
+                  onChange={(e) => updateDose(i, parseFloat(e.target.value) || 0)}
                   style={{ width: "70px", marginLeft: "10px" }}
                 />
 
                 ml
 
-                <select
-                  value={r.batchId}
-                  onChange={(e) => updateBatch(i, e.target.value)}
-                >
+                <select value={r.batchId} onChange={(e) => updateBatch(i, e.target.value)}>
                   <option value="">Select batch</option>
-
                   {getStockForDrug(r.drug).map(s => (
                     <option key={s.id} value={s.id}>
                       {s.drug} | Batch: {s.batch || "—"} | {s.total_ml?.toFixed(2)} ml
                     </option>
                   ))}
                 </select>
-
-                {r.manual && <span style={{ color: "orange" }}> manual</span>}
               </div>
             ))}
 
@@ -261,33 +347,46 @@ export default function Sedation() {
             )}
           </>
         )}
+
+        {tab === "stock" && (
+          <>
+            <div className="card">
+              <h3>Current Stock</h3>
+
+              <input
+                placeholder="Search batch number..."
+                value={stockSearch}
+                onChange={(e) => setStockSearch(e.target.value)}
+              />
+
+              {filteredStock.map(s => (
+                <div key={s.id} className="output-row">
+                  <strong>{s.drug}</strong><br />
+                  Batch: {s.batch} <br />
+                  {s.total_ml} ml
+
+                  <button onClick={() => archiveStock(s.id)}>Archive</button>
+                  <button onClick={() => deleteStock(s.id)}>Delete</button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {tab === "calculator" && (
         <div className="card">
           <h3>History</h3>
 
-          {/* 🔥 SEARCH INPUT */}
           <input
-            placeholder="Search patient, species, or client..."
+            placeholder="Search..."
             value={historySearch}
             onChange={(e) => setHistorySearch(e.target.value)}
-            style={{ marginBottom: "10px", width: "100%" }}
           />
 
           {filteredHistory.map(h => (
             <div key={h.id} className="output-row">
-              <strong>
-                {h.patients?.name} ({h.patients?.species}) – {h.patients?.clients?.surname}
-              </strong>
-
-              {h.results?.map((r, i) => (
-                <div key={i}>
-                  {r.drug}: {r.ml} ml
-                </div>
-              ))}
-
-              <button onClick={() => deleteRow(h.id)}>Delete</button>
+              <strong>{h.patients?.name}</strong>
             </div>
           ))}
         </div>
