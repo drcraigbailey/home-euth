@@ -2,6 +2,29 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 
+// Standardized UI constants
+const greenBtn = {
+  flex: 1,
+  background: "#27ae60",
+  color: "white",
+  border: "none",
+  borderRadius: "12px",
+  padding: "10px",
+  cursor: "pointer",
+  fontWeight: "500"
+};
+
+const redBtn = {
+  flex: 1,
+  background: "#e74c3c",
+  color: "white",
+  border: "none",
+  borderRadius: "12px",
+  padding: "10px",
+  cursor: "pointer",
+  fontWeight: "500"
+};
+
 export default function Patients() {
   const [patients, setPatients] = useState([]);
   const [search, setSearch] = useState("");
@@ -34,6 +57,7 @@ export default function Patients() {
     <div className="page">
       <h1>Patients</h1>
 
+      {/* Search Bar Section */}
       <div className="card">
         <input 
           placeholder="Search patients..." 
@@ -42,15 +66,28 @@ export default function Patients() {
         />
       </div>
 
-      <div className="card">
+      {/* Continuous Grey Container Wrapper */}
+      <div style={{ 
+        marginTop: "20px", 
+        background: "#f8f9fb", 
+        padding: "20px", 
+        borderRadius: "20px", 
+        border: "1px solid #eee" 
+      }}>
+        <h3 style={{ marginBottom: "20px" }}>Patient List</h3>
+
         {filtered.map((p) => (
+          /* Individual White Shadow-Box Cards */
           <div key={p.id} style={{ 
+            background: "white",
+            padding: "20px",
+            borderRadius: "15px",
+            marginBottom: "15px",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+            border: "1px solid #eee",
             display: "flex", 
             justifyContent: "space-between", 
-            alignItems: "center", 
-            marginBottom: "10px", 
-            paddingBottom: "10px", 
-            borderBottom: "1px solid #eee" 
+            alignItems: "center"
           }}>
             
             <div 
@@ -64,16 +101,15 @@ export default function Patients() {
               {p.species} – {p.weight} kg
             </div>
 
-            <div style={{ display: "flex", gap: "8px" }}>
-              {/* UPDATED: Navigates to /sedation and passes the ID in state */}
+            <div style={{ display: "flex", gap: "8px", minWidth: "200px" }}>
               <button 
-                style={{ background: "#27ae60", width: "auto", padding: "8px 15px", fontSize: "14px" }}
+                style={greenBtn}
                 onClick={() => navigate("/sedation", { state: { incomingPatientId: p.id } })}
               >
                 Sedate
               </button>
               <button 
-                style={{ background: "#e74c3c", width: "auto", padding: "8px 15px", fontSize: "14px" }}
+                style={redBtn}
                 onClick={() => deletePatient(p.id)}
               >
                 Delete
@@ -81,7 +117,12 @@ export default function Patients() {
             </div>
           </div>
         ))}
-        {filtered.length === 0 && <p>No patients found.</p>}
+        
+        {filtered.length === 0 && (
+          <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>
+            No patients found.
+          </p>
+        )}
       </div>
     </div>
   );
