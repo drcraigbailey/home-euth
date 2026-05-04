@@ -19,11 +19,11 @@ function normaliseDrugName(name) {
   return clean;
 }
 
+// Global button and container styles[cite: 9]
 const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
 const blueBtn = { flex: 1, background: "#5b8fb9", color: "white", border: "none", borderRadius: "12px", padding: "10px", cursor: "pointer" };
 const redBtn = { flex: 1, background: "#e74c3c", color: "white", border: "none", borderRadius: "12px", padding: "10px", cursor: "pointer" };
 const yellowBtn = { flex: 1, background: "#f39c12", color: "white", border: "none", borderRadius: "12px", padding: "10px", cursor: "pointer" };
-// Added greenBtn style[cite: 8]
 const greenBtn = { flex: 1, background: "#27ae60", color: "white", border: "none", borderRadius: "12px", padding: "10px", cursor: "pointer" };
 const drugResultStyle = { marginBottom: "15px", display: "flex", flexDirection: "column", gap: "5px" };
 
@@ -33,6 +33,16 @@ const greyBox = {
   borderRadius: "20px", 
   border: "1px solid #eee",
   marginTop: "20px"
+};
+
+// Standardized White Shadow Box style to match other pages[cite: 9]
+const whiteShadowBox = {
+  background: "white",
+  padding: "20px",
+  borderRadius: "15px",
+  marginBottom: "15px",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+  border: "1px solid #eee"
 };
 
 export default function Sedation() {
@@ -288,7 +298,6 @@ export default function Sedation() {
 
             {results.length > 0 && (
               <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-                {/* Updated Save button to green and Consent button to yellow[cite: 8] */}
                 <button onClick={save} style={greenBtn}>Save</button>
                 <button onClick={goToConsent} style={yellowBtn}>Consent</button>
               </div>
@@ -304,17 +313,20 @@ export default function Sedation() {
             />
           </div>
 
+          {/* Updated History list with white shadow boxes[cite: 9] */}
           <div style={greyBox}>
             <h3 style={{ marginBottom: "20px" }}>History List</h3>
             
             {filteredHistory.map(h => (
-              <div key={h.id} className="card" style={{ marginBottom: "15px" }}>
-                <strong style={{ fontSize: "18px", display: "block", marginBottom: "10px" }}>
-                  {h.patients?.name} 
-                  <span style={{ color: "#7f8c8d", fontSize: "14px", fontWeight: "normal", marginLeft: "5px" }}>
-                    ({h.patients?.clients?.surname || "No Client"})
-                  </span>
-                </strong>
+              <div key={h.id} style={whiteShadowBox}>
+                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <strong style={{ fontSize: "18px", display: "block", marginBottom: "10px" }}>
+                    {h.patients?.name} 
+                    <span style={{ color: "#7f8c8d", fontSize: "14px", fontWeight: "normal", marginLeft: "5px" }}>
+                      ({h.patients?.clients?.surname || "No Client"})
+                    </span>
+                  </strong>
+                </div>
                 {editingHistoryId === h.id ? (
                   <>
                     {editHistoryResults.map((r, i) => (
@@ -359,10 +371,11 @@ export default function Sedation() {
              <input placeholder="Search stock..." style={{ background: "white" }} />
           </div>
 
+          {/* Updated Stock list with white shadow boxes[cite: 9] */}
           <div style={greyBox}>
             <h3 style={{ marginBottom: "20px" }}>Stock List</h3>
             {stock.filter(s => !s.is_archived).map(s => (
-              <div key={s.id} className="card" style={{ marginBottom: "15px" }}>
+              <div key={s.id} style={whiteShadowBox}>
                 {editingStockId === s.id ? (
                   <>
                     <input value={editStockData.drug} onChange={e => setEditStockData({ ...editStockData, drug: e.target.value })} />
