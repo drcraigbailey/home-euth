@@ -5,12 +5,13 @@ import { supabase } from "./supabase";
 // pages
 import Login from "./pages/Login";
 import Clients from "./pages/Clients";
+import Patients from "./pages/Patients"; 
 import ClientDetail from "./pages/ClientDetail";
 import PatientDetail from "./pages/PatientDetail";
 import Sedation from "./pages/Sedation";
 import Protocols from "./pages/Protocols";
 
-// 🔒 Protected route
+// 🔒 Protected route component[cite: 5]
 function ProtectedRoute({ children }) {
   const [session, setSession] = useState(undefined);
 
@@ -36,7 +37,7 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// 🔥 NAVBAR
+// 🔥 NAVBAR[cite: 5]
 function Navbar() {
   const location = useLocation();
 
@@ -49,10 +50,12 @@ function Navbar() {
 
   return (
     <div className="navbar">
-      <div className="page">
+      {/* Container to keep the grey pill centered and correctly sized */}
+      <div className="page" style={{ margin: '15px auto 0 auto' }}>
         <div className="navbar-inner">
 
           <NavLink to="/" end className="nav-btn">Clients</NavLink>
+          <NavLink to="/patients" className="nav-btn">Patients</NavLink> 
           <NavLink to="/sedation" className="nav-btn">Sedation</NavLink>
           <NavLink to="/protocols" className="nav-btn">Protocols</NavLink>
 
@@ -102,7 +105,15 @@ export default function App() {
           }
         />
 
-        {/* ✅ FIX: support BOTH routes */}
+        <Route
+          path="/patients"
+          element={
+            <ProtectedRoute>
+              <Patients />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/sedation"
           element={

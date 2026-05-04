@@ -122,7 +122,7 @@ button:hover {
 /* ===== MOBILE ===== */
 @media (max-width: 600px) {
   .page {
-    margin: 20px auto; /* Reduced top margin for mobile */
+    margin: 20px auto; 
   }
 
   h1 {
@@ -140,26 +140,25 @@ button:hover {
     padding: 16px;
   }
 
-  /* 🔥 FIX FOR OVERFLOWING NAVBAR */
   .navbar-inner {
     padding: 8px 12px;
-    gap: 5px;           /* Reduce space between buttons */
-    flex-wrap: wrap;    /* Allow buttons to drop to a new line if needed */
+    gap: 4px;           /* Reduced gap for 4-button layout */
+    flex-wrap: wrap;    /* Wraps if buttons cannot fit on one line */
     justify-content: center;
-    border-radius: 20px; /* Adjust radius for wrapped look */
+    border-radius: 20px; 
   }
 
   .nav-btn, 
   .navbar-inner a {
-    padding: 8px 12px; /* Smaller padding on mobile */
-    font-size: 14px;   /* Smaller font size on mobile */
+    padding: 6px 10px; /* Slimmer buttons for mobile */
+    font-size: 13px;   /* Smaller text for better fit */
   }
 
   .logout-btn {
-    margin-left: 0;    /* Remove the 'push' on mobile so it centers with others */
-    width: 100%;       /* Optional: makes logout a full-width button at bottom of nav */
+    margin-left: 0;    
+    width: 100%;       
     text-align: center;
-    margin-top: 5px;
+    margin-top: 8px;
   }
 
   .navbar-inner img {
