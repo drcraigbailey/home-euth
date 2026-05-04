@@ -1,133 +1,165 @@
-/* ===== 1. CORE DEFAULTS ===== */
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* ===== RESET ===== */
+* {
+  box-sizing: border-box;
+}
 
+/* ===== BODY ===== */
 body {
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #f1f5f9; /* Light grey background makes the white navbar pop */
-  color: #1e293b;
-  line-height: 1.5;
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #F5F7F9;
+  color: #2c3e50;
 }
 
-/* ===== 2. THE NAVBAR (THE FIX) ===== */
-.nav-header {
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  background: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Professional Shadow */
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.nav-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  height: 65px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-}
-
-.nav-brand-group {
-  display: flex;
-  align-items: center;
-  gap: 30px;
-}
-
-.nav-logo-text {
-  font-weight: 800;
-  font-size: 20px;
-  color: #4F8FBF;
-  letter-spacing: -0.5px;
-}
-
-/* Hide mobile links on desktop */
-.nav-menu-mobile { display: none; }
-
-.nav-menu-desktop {
-  display: flex;
-  gap: 8px;
-}
-
-.nav-item {
-  text-decoration: none;
-  color: #64748b;
-  font-weight: 600;
-  font-size: 14px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  transition: 0.2s;
-}
-
-.nav-item.active {
-  background: #eef6fc;
-  color: #4F8FBF;
-}
-
-/* 🔥 FORCED SMALL LOGOUT BUTTON */
-.nav-logout-btn {
-  width: auto !important; /* Prevents stretching */
-  background: #fff1f2 !important;
-  color: #e11d48 !important;
-  border: 1px solid #ffe4e6 !important;
-  padding: 8px 16px !important;
-  border-radius: 8px !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  cursor: pointer;
-}
-
-/* ===== 3. MOBILE RESPONSIVE FIX ===== */
-@media (max-width: 768px) {
-  .nav-menu-desktop { display: none; }
-  
-  .nav-menu-mobile {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px 15px;
-    border-top: 1px solid #f1f5f9;
-  }
-  
-  .nav-item {
-    font-size: 12px;
-    padding: 6px 4px;
-  }
-}
-
-/* ===== 4. PAGE & CARDS ===== */
+/* ===== MASTER CONTAINER ===== */
 .page {
-  max-width: 600px;
-  margin: 30px auto;
+  max-width: 520px;
+  margin: 50px auto;
   padding: 0 20px;
+}
+
+/* ===== NAVBAR LAYOUT ===== */
+.navbar-container {
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.top-bar {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  justify-content: space-between; /* Spreads brand and logout */
+  align-items: center;
+  padding: 0 20px;
+  margin-bottom: 12px;
+}
+
+.brand-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  color: #2c3e50;
+  font-size: 17px;
+}
+
+.nav-logo-img {
+  height: 35px;
+}
+
+.logout-text-btn {
+  background: none;
+  border: none;
+  color: #7f8c8d;
+  font-size: 14px;
+  cursor: pointer;
+  width: auto; /* Fixes blue button issue */
+  padding: 5px;
+  text-decoration: underline;
+}
+
+.logout-text-btn:hover {
+  color: #e74c3c;
+}
+
+.navbar {
+  width: 100%;
+  max-width: 520px;
+  padding: 0 15px;
+}
+
+.navbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e5e7eb; /* Pill background */
+  padding: 6px;
+  border-radius: 999px;
+  width: 100%;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+}
+
+/* Nav Button Style */
+.nav-btn {
+  padding: 10px 5px;
+  border-radius: 25px;
+  text-decoration: none;
+  background: transparent;
+  color: #5F6B73;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  text-align: center;
+  flex: 1; /* Shared width */
+}
+
+.nav-btn.active {
+  background: #4F8FBF;
+  color: white;
+}
+
+/* ===== HEADINGS & CARDS ===== */
+h1 {
+  font-size: 28px;
+  margin-bottom: 25px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .card {
-  background: white;
+  background: #EEF2F4;
   padding: 25px;
   border-radius: 18px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  margin-bottom: 20px;
-  border: 1px solid #e2e8f0;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
-/* Standard UI Elements */
+/* ===== INPUTS & BUTTONS ===== */
 input, select {
   width: 100%;
-  padding: 12px;
-  margin-bottom: 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #D3D9DD;
   font-size: 15px;
+  background: #fff;
 }
 
-/* All other buttons stretch to fill their containers */
-button:not(.nav-logout-btn) {
+button:not(.logout-text-btn) {
   width: 100%;
   padding: 14px;
+  border-radius: 12px;
+  border: none;
   background: #4F8FBF;
   color: white;
-  border: none;
-  border-radius: 10px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* ===== MOBILE OPTIMIZATION ===== */
+@media (max-width: 600px) {
+  .page {
+    margin: 10px auto;
+    padding: 0 15px;
+  }
+
+  .nav-btn {
+    padding: 10px 2px;
+    font-size: 12px; /* Smaller text for mobile */
+  }
+  
+  .brand-header span {
+    font-size: 15px; /* Shorter name for mobile */
+  }
+
+  .navbar-inner {
+    padding: 4px;
+  }
 }
