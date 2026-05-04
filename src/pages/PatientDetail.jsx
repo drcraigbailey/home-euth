@@ -112,16 +112,23 @@ export default function PatientDetail() {
     fetchConsentHistory();
   }
 
-  async function saveAndReturn() {
-    if (!consentName) return alert("Enter name");
-    if (!sigPadRef.current || sigPadRef.current.isEmpty())
-      return alert("Please sign");
+ async function saveAndReturn() {
+  console.log("CLICK");
 
-    const ok = await insertConsent();
-    if (!ok) return;
+  if (!consentName) return alert("Enter name");
+  if (!sigPadRef.current || sigPadRef.current.isEmpty())
+    return alert("Please sign");
 
-    navigate(`/sedation/${id}`);
-  }
+  const ok = await insertConsent();
+
+  console.log("RESULT:", ok);
+
+  if (!ok) return;
+
+  console.log("GOING TO SEDATION");
+
+  navigate(`/sedation/${id}`);
+}
 
   async function deleteConsent(consentId) {
     if (!window.confirm("Delete this consent?")) return;
