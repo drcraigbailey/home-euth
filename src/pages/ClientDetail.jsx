@@ -23,14 +23,14 @@ export default function ClientDetail() {
   const [species, setSpecies] = useState("");
   const [weight, setWeight] = useState("");
 
-  // Client Edit State (matches database columns)[cite: 3]
+  // Client Edit State (matches database columns)[cite: 7]
   const [editName, setEditName] = useState("");
   const [editSurname, setEditSurname] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAddress, setEditAddress] = useState("");
-  const [editCity, setEditCity] = useState("");      // New State
-  const [editPostcode, setEditPostcode] = useState(""); // New State
+  const [editCity, setEditCity] = useState("");      
+  const [editPostcode, setEditPostcode] = useState(""); 
 
   useEffect(() => {
     fetchClient();
@@ -46,7 +46,7 @@ export default function ClientDetail() {
 
     if (data) {
       setClient(data);
-      // Sync edit state with fetched data[cite: 3]
+      // Sync edit state with fetched data[cite: 7]
       setEditName(data.name || "");
       setEditSurname(data.surname || "");
       setEditPhone(data.phone || "");
@@ -97,13 +97,13 @@ export default function ClientDetail() {
         phone: editPhone, 
         email: editEmail, 
         address: editAddress,
-        city: editCity,      // Saving new field
-        postcode: editPostcode // Saving new field
+        city: editCity,      
+        postcode: editPostcode 
       })
       .eq("id", id);
 
     if (!error) {
-      setIsEditing(false); // Switch back to view mode[cite: 3]
+      setIsEditing(false); // Switch back to view mode[cite: 7]
       fetchClient();
     } else {
       alert("Error updating: " + error.message);
@@ -130,7 +130,15 @@ export default function ClientDetail() {
           ) : (
             <button 
               onClick={() => { setIsEditing(false); fetchClient(); }} 
-              style={{ background: "#95a5a6", padding: "8px 20px", width: "auto" }}
+              style={{ 
+                background: "#f39c12", // Standard Yellow
+                color: "white", 
+                padding: "8px 20px", 
+                width: "auto",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer"
+              }}
             >
               Cancel
             </button>
@@ -200,7 +208,16 @@ export default function ClientDetail() {
             
             <button 
               onClick={updateClient} 
-              style={{ background: "#2ecc71", color: "white", marginTop: "10px" }}
+              style={{ 
+                background: "#27ae60", // Standard Green
+                color: "white", 
+                marginTop: "10px",
+                padding: "12px",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "600"
+              }}
             >
               Save Changes
             </button>
