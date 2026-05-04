@@ -1,43 +1,3 @@
-import { BrowserRouter as Router, Routes, Route, NavLink, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { supabase } from "./supabase";
-
-// pages
-import Login from "./pages/Login";
-import Clients from "./pages/Clients";
-import Patients from "./pages/Patients"; 
-import ClientDetail from "./pages/ClientDetail";
-import PatientDetail from "./pages/PatientDetail";
-import Sedation from "./pages/Sedation";
-import Protocols from "./pages/Protocols";
-
-// 🔒 Protected route component
-function ProtectedRoute({ children }) {
-  const [session, setSession] = useState(undefined);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  if (session === undefined) return <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>;
-
-  if (!session) {
-    window.location.href = "/login";
-    return null;
-  }
-
-  return children;
-}
-
-// 🔥 INLINE-STYLED NAVBAR (Prevents CSS Conflicts)
 function Navbar() {
   const location = useLocation();
 
@@ -48,83 +8,32 @@ function Navbar() {
 
   if (location.pathname === "/login") return null;
 
-  const linkStyle = (isActive) => ({
-    textDecoration: "none",
-    color: isActive ? "#4F8FBF" : "#64748b",
-    fontWeight: "700",
-    fontSize: "15px",
-    padding: "10px 5px",
-    borderBottom: isActive ? "3px solid #4F8FBF" : "3px solid transparent",
-    transition: "0.2s"
-  });
-
   return (
-    <nav style={{
-      position: "sticky",
-      top: 0,
-      zIndex: 1000,
-      background: "white",
-      boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
-      borderBottom: "1px solid #eee",
-      height: "70px",
-      display: "flex",
-      alignItems: "center",
-      padding: "0 20px"
-    }}>
-      <div style={{
-        maxWidth: "1100px",
-        width: "100%",
-        margin: "0 auto",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "30px" }}>
-          <div style={{ fontWeight: '900', color: '#4F8FBF', fontSize: '22px' }}>VETAPP</div>
+    <nav className="nav-header">
+      <div className="nav-inner">
+        <div className="nav-brand-group">
+          <div className="nav-logo-text">VETAPP</div>
           
-          <div style={{ display: "flex", gap: "15px" }}>
-            <NavLink to="/" end style={({ isActive }) => linkStyle(isActive)}>Clients</NavLink>
-            <NavLink to="/patients" style={({ isActive }) => linkStyle(isActive)}>Patients</NavLink> 
-            <NavLink to="/sedation" style={({ isActive }) => linkStyle(isActive)}>Sedation</NavLink>
-            <NavLink to="/protocols" style={({ isActive }) => linkStyle(isActive)}>Protocols</NavLink>
+          <div className="nav-menu-desktop">
+            <NavLink to="/" end className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>Clients</NavLink>
+            <NavLink to="/patients" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>Patients</NavLink> 
+            <NavLink to="/sedation" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>Sedation</NavLink>
+            <NavLink to="/protocols" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>Protocols</NavLink>
           </div>
         </div>
 
-        <button 
-          onClick={logout} 
-          style={{
-            background: "#fff5f5",
-            color: "#e74c3c",
-            border: "1px solid #ffdada",
-            padding: "8px 16px",
-            borderRadius: "10px",
-            fontWeight: "700",
-            cursor: "pointer",
-            width: "auto", // Fixes giant blue bar
-            fontSize: "14px"
-          }}
-        >
+        <button onClick={logout} className="nav-logout-btn">
           Logout
         </button>
       </div>
-    </nav>
-  );
-}
 
-export default function App() {
-  return (
-    <Router>
-      <Navbar />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-        <Route path="/client/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
-        <Route path="/patient/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
-        <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
-        <Route path="/sedation" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
-        <Route path="/sedation/:id" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
-        <Route path="/protocols" element={<ProtectedRoute><Protocols /></ProtectedRoute>} />
-      </Routes>
-    </Router>
+      {/* This only shows on phones */}
+      <div className="nav-menu-mobile">
+        <NavLink to="/" end className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>Clients</NavLink>
+        <NavLink to="/patients" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>Patients</NavLink> 
+        <NavLink to="/sedation" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>Sedation</NavLink>
+        <NavLink to="/protocols" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>Protocols</NavLink>
+      </div>
+    </nav>
   );
 }
