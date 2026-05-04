@@ -14,15 +14,23 @@ export default function ClientDetail() {
 
   const [client, setClient] = useState(null);
   const [patients, setPatients] = useState([]);
+  
+  // Toggle for Edit Mode
+  const [isEditing, setIsEditing] = useState(false);
 
+  // Patient Form State
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("");
   const [weight, setWeight] = useState("");
 
+  // Client Edit State (matches database columns)[cite: 3]
   const [editName, setEditName] = useState("");
+  const [editSurname, setEditSurname] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAddress, setEditAddress] = useState("");
+  const [editCity, setEditCity] = useState("");      // New State
+  const [editPostcode, setEditPostcode] = useState(""); // New State
 
   useEffect(() => {
     fetchClient();
@@ -36,13 +44,16 @@ export default function ClientDetail() {
       .eq("id", id)
       .single();
 
-    setClient(data);
-
     if (data) {
+      setClient(data);
+      // Sync edit state with fetched data[cite: 3]
       setEditName(data.name || "");
+      setEditSurname(data.surname || "");
       setEditPhone(data.phone || "");
       setEditEmail(data.email || "");
       setEditAddress(data.address || "");
+      setEditCity(data.city || "");
+      setEditPostcode(data.postcode || "");
     }
   }
 
@@ -54,33 +65,21 @@ export default function ClientDetail() {
     setPatients(data || []);
   }
 
-  // Standard Add Patient function[cite: 6]
   async function addPatient() {
     if (!name) return;
-
     if (!isValidWeight(weight)) {
-      alert("⚠️ Weight must be a number in kg (e.g. 10 or 10.5)");
+      alert("⚠️ Weight must be a number");
       return;
     }
 
     const { error } = await supabase.from("patients").insert([
-      {
-        name,
-        species,
-        weight: Number(weight),
-        client_id: id
-      }
+      { name, species, weight: Number(weight), client_id: id }
     ]);
 
-    if (error) {
-      alert("Error adding patient: " + error.message);
-      return;
+    if (!error) {
+      setName(""); setSpecies(""); setWeight("");
+      fetchPatients();
     }
-
-    setName("");
-    setSpecies("");
-    setWeight("");
-    fetchPatients();
   }
 
   async function deletePatient(patientId) {
@@ -90,25 +89,127 @@ export default function ClientDetail() {
   }
 
   async function updateClient() {
-    await supabase
+    const { error } = await supabase
       .from("clients")
-      .update({ name: editName, phone: editPhone, email: editEmail, address: editAddress })
+      .update({ 
+        name: editName, 
+        surname: editSurname,
+        phone: editPhone, 
+        email: editEmail, 
+        address: editAddress,
+        city: editCity,      // Saving new field
+        postcode: editPostcode // Saving new field
+      })
       .eq("id", id);
-    fetchClient();
+
+    if (!error) {
+      setIsEditing(false); // Switch back to view mode[cite: 3]
+      fetchClient();
+    } else {
+      alert("Error updating: " + error.message);
+    }
   }
 
   return (
     <div className="page">
-      <h1>{client?.name || "Client"}</h1>
+      <h1 style={{ textAlign: "center" }}>
+        {client ? `${client.name} ${client.surname}` : "Loading..."}
+      </h1>
 
+      {/* --- CLIENT INFO CARD --- */}
       <div className="card">
-        <h3>Edit Client</h3>
-        <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
-        <input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="Phone" />
-        <button onClick={updateClient}>Save Changes</button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <h3 style={{ margin: 0 }}>Client Information</h3>
+          {!isEditing ? (
+            <button 
+              onClick={() => setIsEditing(true)}
+              style={{ padding: "8px 20px", width: "auto" }}
+            >
+              Edit Details
+            </button>
+          ) : (
+            <button 
+              onClick={() => { setIsEditing(false); fetchClient(); }} 
+              style={{ background: "#95a5a6", padding: "8px 20px", width: "auto" }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+
+        {!isEditing ? (
+          /* VIEW MODE */
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <p><strong>Name:</strong> {client?.name} {client?.surname}</p>
+            
+            {/* Clickable Phone Number */}
+            <p>
+              <strong>Phone:</strong> {client?.phone ? (
+                <a href={`tel:${client.phone}`} style={{ color: "#3498db", textDecoration: "none" }}>
+                  {client.phone}
+                </a>
+              ) : "None"}
+            </p>
+
+            {/* Clickable Email Address */}
+            <p>
+              <strong>Email:</strong> {client?.email ? (
+                <a href={`mailto:${client.email}`} style={{ color: "#3498db", textDecoration: "none" }}>
+                  {client.email}
+                </a>
+              ) : "None"}
+            </p>
+
+            <p><strong>Address:</strong> {client?.address || "None"}</p>
+            <p><strong>City:</strong> {client?.city || "None"}</p>
+            <p><strong>Postcode:</strong> {client?.postcode || "None"}</p>
+          </div>
+        ) : (
+          /* EDIT MODE */
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div>
+                    <label style={{ fontSize: "12px", color: "#666" }}>First Name</label>
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                </div>
+                <div>
+                    <label style={{ fontSize: "12px", color: "#666" }}>Surname</label>
+                    <input value={editSurname} onChange={(e) => setEditSurname(e.target.value)} />
+                </div>
+            </div>
+            
+            <label style={{ fontSize: "12px", color: "#666" }}>Phone</label>
+            <input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+            
+            <label style={{ fontSize: "12px", color: "#666" }}>Email</label>
+            <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+            
+            <label style={{ fontSize: "12px", color: "#666" }}>Address (Line 1)</label>
+            <input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div>
+                    <label style={{ fontSize: "12px", color: "#666" }}>City</label>
+                    <input value={editCity} onChange={(e) => setEditCity(e.target.value)} />
+                </div>
+                <div>
+                    <label style={{ fontSize: "12px", color: "#666" }}>Postcode</label>
+                    <input value={editPostcode} onChange={(e) => setEditPostcode(e.target.value)} />
+                </div>
+            </div>
+            
+            <button 
+              onClick={updateClient} 
+              style={{ background: "#2ecc71", color: "white", marginTop: "10px" }}
+            >
+              Save Changes
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="card">
+      {/* --- ADD PATIENT CARD --- */}
+      <div className="card" style={{ marginTop: "20px" }}>
         <h3>Add Patient</h3>
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <input placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} />
@@ -122,37 +223,31 @@ export default function ClientDetail() {
         <button onClick={addPatient} style={{ marginTop: "10px" }}>Add Patient</button>
       </div>
 
-      <div className="card">
+      {/* --- PATIENTS LIST --- */}
+      <div className="card" style={{ marginTop: "20px" }}>
         <h3>Patients</h3>
         {patients.map((p) => (
           <div key={p.id} className="output-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", borderBottom: "1px solid #eee" }}>
             <div onClick={() => navigate(`/patient/${p.id}`)} style={{ cursor: "pointer" }}>
               <strong>{p.name}</strong><br />
-              {p.species} – {p.weight} kg
+              <span style={{ color: "#7f8c8d" }}>{p.species} – {p.weight} kg</span>
             </div>
-
             <div style={{ display: "flex", gap: "8px" }}>
-              {/* This button correctly triggers the calculator autofill */}
               <button
-                style={{ background: "#27ae60", color: "white", padding: "8px 12px", borderRadius: "8px", border: "none", cursor: "pointer" }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate("/sedation", { state: { incomingPatientId: p.id } });
-                }}
+                style={{ background: "#27ae60", color: "white", padding: "8px 12px", borderRadius: "8px", border: "none" }}
+                onClick={(e) => { e.stopPropagation(); navigate("/sedation", { state: { incomingPatientId: p.id } }); }}
               >
                 Sedate
               </button>
-
               <button 
+                style={{ background: "#e74c3c", color: "white", padding: "8px 12px", borderRadius: "8px", border: "none" }}
                 onClick={(e) => { e.stopPropagation(); deletePatient(p.id); }} 
-                style={{ background: "#e74c3c", color: "white", padding: "8px 12px", borderRadius: "8px", border: "none", cursor: "pointer" }}
               >
                 Delete
               </button>
             </div>
           </div>
         ))}
-        {patients.length === 0 && <p>No patients yet</p>}
       </div>
     </div>
   );
