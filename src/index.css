@@ -18,29 +18,56 @@ body {
   padding: 0 20px;
 }
 
-/* ===== NAVBAR ===== */
+/* ===== NAVBAR LAYOUT[cite: 8] ===== */
+.navbar-container {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.top-bar {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  justify-content: flex-end; /* Pushes logout link to the right side */
+  padding: 0 20px;
+  margin-bottom: 5px;
+}
+
+.logout-text-btn {
+  background: none;
+  border: none;
+  color: #7f8c8d;
+  font-size: 14px;
+  cursor: pointer;
+  width: auto;
+  padding: 5px;
+  text-decoration: underline;
+}
+
+.logout-text-btn:hover {
+  color: #e74c3c;
+}
+
 .navbar {
-  margin-top: 20px;
+  width: 100%;
 }
 
 .navbar-inner {
   display: flex;
   align-items: center;
-  gap: 15px;
+  justify-content: space-between; /* Spaced evenly across the pill */
   background: #e5e7eb;
-  padding: 10px 20px;
+  padding: 8px;
   border-radius: 999px;
   width: 100%;
 }
 
-.navbar-inner img {
-  height: 30px;
-}
-
-/* Base Nav Button/Link Style */
-.nav-btn, 
-.navbar-inner a {
-  padding: 10px 20px;
+/* Nav Button Style[cite: 8] */
+.nav-btn {
+  padding: 10px 15px;
   border-radius: 25px;
   text-decoration: none;
   background: transparent;
@@ -48,28 +75,15 @@ body {
   font-weight: 500;
   border: none;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 15px;
   transition: all 0.2s ease;
+  text-align: center;
+  flex: 1; /* Ensures all four main buttons share width equally */
 }
 
-/* Active & Hover States */
-.nav-btn.active, 
-.navbar-inner a.active,
-.nav-btn:hover,
-.navbar-inner a:hover {
+.nav-btn.active {
   background: #4F8FBF;
   color: white;
-}
-
-/* Specific styling for the Logout button */
-.logout-btn {
-  background: #5b8fb9;
-  color: white;
-  margin-left: auto; /* Pushes the button to the far right side */
-}
-
-.logout-btn:hover {
-  background: #3A6E94;
 }
 
 /* ===== HEADINGS ===== */
@@ -86,7 +100,6 @@ h1 {
   padding: 25px;
   border-radius: 18px;
   box-shadow: 0 6px 14px rgba(0,0,0,0.05);
-
   display: flex;
   flex-direction: column;
   gap: 15px;
@@ -103,7 +116,7 @@ select {
   background: #fff;
 }
 
-/* ===== BUTTON ===== */
+/* ===== PRIMARY ACTION BUTTON ===== */
 button {
   width: 100%;
   padding: 14px;
@@ -119,49 +132,24 @@ button:hover {
   background: #3A6E94;
 }
 
-/* ===== MOBILE ===== */
+/* ===== MOBILE OPTIMIZATION[cite: 8] ===== */
 @media (max-width: 600px) {
   .page {
-    margin: 20px auto; 
+    margin: 10px auto;
+    padding: 0 10px;
   }
 
-  h1 {
-    font-size: 24px;
+  .nav-btn {
+    padding: 8px 5px;
+    font-size: 13px;
   }
-
-  .card {
-    padding: 20px;
-  }
-
-  input,
-  select,
-  button {
-    font-size: 16px;
-    padding: 16px;
+  
+  .top-bar {
+    justify-content: center; /* Centers logout link on mobile */
   }
 
   .navbar-inner {
-    padding: 8px 12px;
-    gap: 4px;           /* Reduced gap for 4-button layout */
-    flex-wrap: wrap;    /* Wraps if buttons cannot fit on one line */
-    justify-content: center;
-    border-radius: 20px; 
-  }
-
-  .nav-btn, 
-  .navbar-inner a {
-    padding: 6px 10px; /* Slimmer buttons for mobile */
-    font-size: 13px;   /* Smaller text for better fit */
-  }
-
-  .logout-btn {
-    margin-left: 0;    
-    width: 100%;       
-    text-align: center;
-    margin-top: 8px;
-  }
-
-  .navbar-inner img {
-    height: 24px;
+    border-radius: 25px;
+    padding: 5px;
   }
 }
