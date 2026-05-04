@@ -90,18 +90,34 @@ export default function Patients() {
             alignItems: "center"
           }}>
             
+            {/* FIXED: added flex: 1 and minWidth: 0 to handle long text[cite: 9] */}
             <div 
-              style={{ cursor: 'pointer' }} 
+              style={{ 
+                cursor: 'pointer', 
+                flex: 1, 
+                minWidth: 0, 
+                marginRight: '20px' 
+              }} 
               onClick={() => navigate(`/patient/${p.id}`)}
             >
-              <strong style={{ fontSize: '18px' }}>{p.name}</strong> 
-              <span style={{ color: '#7f8c8d', marginLeft: '5px' }}>
-                ({p.clients?.surname || "No Client"})
-              </span><br />
-              {p.species} – {p.weight} kg
+              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <strong style={{ fontSize: '18px' }}>{p.name}</strong> 
+                <span style={{ color: '#7f8c8d', marginLeft: '5px' }}>
+                  ({p.clients?.surname || "No Client"})
+                </span>
+              </div>
+              <div style={{ color: '#666' }}>
+                {p.species} – {p.weight} kg
+              </div>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", minWidth: "200px" }}>
+            {/* FIXED: added flexShrink: 0 and fixed width to keep buttons aligned[cite: 9] */}
+            <div style={{ 
+              display: "flex", 
+              gap: "8px", 
+              width: "200px", 
+              flexShrink: 0 
+            }}>
               <button 
                 style={greenBtn}
                 onClick={() => navigate("/sedation", { state: { incomingPatientId: p.id } })}
