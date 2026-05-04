@@ -9,9 +9,10 @@ const greenBtn = {
   color: "white",
   border: "none",
   borderRadius: "12px",
-  padding: "10px",
+  padding: "12px",
   cursor: "pointer",
-  fontWeight: "500"
+  fontWeight: "600",
+  fontSize: "15px"
 };
 
 const redBtn = {
@@ -20,9 +21,10 @@ const redBtn = {
   color: "white",
   border: "none",
   borderRadius: "12px",
-  padding: "10px",
+  padding: "12px",
   cursor: "pointer",
-  fontWeight: "500"
+  fontWeight: "600",
+  fontSize: "15px"
 };
 
 export default function Patients() {
@@ -84,40 +86,27 @@ export default function Patients() {
             borderRadius: "15px",
             marginBottom: "15px",
             boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
-            border: "1px solid #eee",
-            display: "flex", 
-            justifyContent: "space-between", 
-            alignItems: "center"
+            border: "1px solid #eee"
           }}>
             
-            {/* FIXED: added flex: 1 and minWidth: 0 to handle long text[cite: 9] */}
+            {/* Top Section: Patient Details */}
             <div 
-              style={{ 
-                cursor: 'pointer', 
-                flex: 1, 
-                minWidth: 0, 
-                marginRight: '20px' 
-              }} 
+              style={{ cursor: 'pointer', marginBottom: '15px' }} 
               onClick={() => navigate(`/patient/${p.id}`)}
             >
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div>
                 <strong style={{ fontSize: '18px' }}>{p.name}</strong> 
                 <span style={{ color: '#7f8c8d', marginLeft: '5px' }}>
                   ({p.clients?.surname || "No Client"})
                 </span>
               </div>
-              <div style={{ color: '#666' }}>
+              <div style={{ color: '#666', marginTop: '4px' }}>
                 {p.species} – {p.weight} kg
               </div>
             </div>
 
-            {/* FIXED: added flexShrink: 0 and fixed width to keep buttons aligned[cite: 9] */}
-            <div style={{ 
-              display: "flex", 
-              gap: "8px", 
-              width: "200px", 
-              flexShrink: 0 
-            }}>
+            {/* Bottom Section: Buttons on their own full-width row */}
+            <div style={{ display: "flex", gap: "10px", width: "100%" }}>
               <button 
                 style={greenBtn}
                 onClick={() => navigate("/sedation", { state: { incomingPatientId: p.id } })}
