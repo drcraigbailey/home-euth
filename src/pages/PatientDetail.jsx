@@ -19,12 +19,10 @@ export default function PatientDetail() {
   const [consentName, setConsentName] = useState("");
   const sigPadRef = useRef(null);
 
-  // 🔥 FIXED: runs when patient changes
   useEffect(() => {
     fetchPatient();
     fetchConsentHistory();
 
-    // 🔥 SCROLL TO TOP
     window.scrollTo({
       top: 0,
       behavior: "instant"
@@ -112,23 +110,19 @@ export default function PatientDetail() {
     fetchConsentHistory();
   }
 
- async function saveAndReturn() {
-  console.log("CLICK");
+  // 🔥 UPDATED: This function now passes state to trigger the calculator autofill
+  async function saveAndReturn() {
+    if (!consentName) return alert("Enter name");
+    if (!sigPadRef.current || sigPadRef.current.isEmpty())
+      return alert("Please sign");
 
-  if (!consentName) return alert("Enter name");
-  if (!sigPadRef.current || sigPadRef.current.isEmpty())
-    return alert("Please sign");
+    const ok = await insertConsent();
 
-  const ok = await insertConsent();
+    if (!ok) return;
 
-  console.log("RESULT:", ok);
-
-  if (!ok) return;
-
-  console.log("GOING TO SEDATION");
-
-  navigate(`/sedation/${id}`);
-}
+    // Changes navigation to pass state so the calculator can pre-fill[cite: 1, 7]
+    navigate("/sedation", { state: { incomingPatientId: id } });
+  }
 
   async function deleteConsent(consentId) {
     if (!window.confirm("Delete this consent?")) return;
@@ -145,53 +139,30 @@ export default function PatientDetail() {
     <div className="page">
       <h1>{patient?.name}</h1>
 
-      {/* ===================== */}
-      {/* PATIENT DETAILS */}
-      {/* ===================== */}
       {!editMode && (
         <div className="card">
           <h3>Patient Details</h3>
-
           <p><strong>Species:</strong> {patient?.species}</p>
           <p><strong>Weight:</strong> {patient?.weight} kg</p>
 
           <div style={{ marginTop: "10px" }}>
             <strong>Notes:</strong>
-            <div style={{
-              marginTop: "5px",
-              padding: "10px",
-              background: "#f8f9fb",
-              borderRadius: "10px"
-            }}>
+            <div style={{ marginTop: "5px", padding: "10px", background: "#f8f9fb", borderRadius: "10px" }}>
               {patient?.notes || "No notes"}
             </div>
           </div>
 
-          <button
-            style={{ marginTop: "15px" }}
-            onClick={() => setEditMode(true)}
-          >
-            Edit
-          </button>
+          <button style={{ marginTop: "15px" }} onClick={() => setEditMode(true)}>Edit</button>
         </div>
       )}
 
-      {/* EDIT MODE */}
       {editMode && (
         <div className="card">
           <h3>Edit Patient</h3>
-
           <input value={editName} onChange={(e) => setEditName(e.target.value)} />
           <input value={editSpecies} onChange={(e) => setEditSpecies(e.target.value)} />
           <input value={editWeight} onChange={(e) => setEditWeight(e.target.value)} />
-
-          <textarea
-            rows={5}
-            value={editNotes}
-            onChange={(e) => setEditNotes(e.target.value)}
-            placeholder="Notes..."
-          />
-
+          <textarea rows={5} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Notes..." />
           <div style={{ display: "flex", gap: "10px" }}>
             <button onClick={updatePatient}>Save</button>
             <button onClick={() => setEditMode(false)}>Cancel</button>
@@ -199,89 +170,40 @@ export default function PatientDetail() {
         </div>
       )}
 
-      {/* ===================== */}
-      {/* CONSENT */}
-      {/* ===================== */}
       <div className="card">
         <h3>Consent</h3>
-
-        <div style={{
-          fontSize: "14px",
-          marginBottom: "10px",
-          background: "#f8f9fb",
-          padding: "10px",
-          borderRadius: "10px"
-        }}>
+        <div style={{ fontSize: "14px", marginBottom: "10px", background: "#f8f9fb", padding: "10px", borderRadius: "10px" }}>
           <p>• I certify that I am the owner or authorized agent of the above-described animal and have the authority to consent to its euthanasia.</p>
           <p>• I understand that euthanasia involves the termination of the animal’s life to prevent further pain or suffering.</p>
           <p>• I have discussed the option of euthanasia with a veterinary surgeon, including alternatives such as monitoring or treatment.</p>
           <p>• I understand the procedure and potential risks involved.</p>
         </div>
 
-        <input
-          placeholder="Full name"
-          value={consentName}
-          onChange={(e) => setConsentName(e.target.value)}
-        />
+        <input placeholder="Full name" value={consentName} onChange={(e) => setConsentName(e.target.value)} />
 
-        <div style={{
-          border: "1px solid #ccc",
-          borderRadius: "10px",
-          marginTop: "10px"
-        }}>
-          <SignatureCanvas
-            penColor="black"
-            canvasProps={{ width: 300, height: 150 }}
-            ref={sigPadRef}
-          />
+        <div style={{ border: "1px solid #ccc", borderRadius: "10px", marginTop: "10px" }}>
+          <SignatureCanvas penColor="black" canvasProps={{ width: 300, height: 150 }} ref={sigPadRef} />
         </div>
 
         <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
           <button onClick={clearSignature}>Clear</button>
           <button onClick={saveConsent}>Save</button>
-          <button
-            onClick={saveAndReturn}
-            style={{ background: "#27ae60", color: "white" }}
-          >
+          <button onClick={saveAndReturn} style={{ background: "#27ae60", color: "white" }}>
             Save & Sedate
           </button>
         </div>
       </div>
 
-      {/* ===================== */}
-      {/* CONSENT HISTORY */}
-      {/* ===================== */}
       <div className="card">
         <h3>Consent History</h3>
-
         {consentHistory.map(c => (
-          <div key={c.id} style={{
-            marginBottom: "15px",
-            padding: "10px",
-            background: "#f8f9fb",
-            borderRadius: "10px"
-          }}>
+          <div key={c.id} style={{ marginBottom: "15px", padding: "10px", background: "#f8f9fb", borderRadius: "10px" }}>
             <strong>{c.name}</strong>
-
-            <div style={{ fontSize: "12px", color: "#666" }}>
-              {new Date(c.created_at).toLocaleString()}
-            </div>
-
-            <img
-              src={c.signature}
-              alt="signature"
-              style={{ marginTop: "10px", border: "1px solid #ccc" }}
-            />
-
-            <button
-              style={{ marginTop: "10px", background: "#e74c3c" }}
-              onClick={() => deleteConsent(c.id)}
-            >
-              Delete
-            </button>
+            <div style={{ fontSize: "12px", color: "#666" }}>{new Date(c.created_at).toLocaleString()}</div>
+            <img src={c.signature} alt="signature" style={{ marginTop: "10px", border: "1px solid #ccc" }} />
+            <button style={{ marginTop: "10px", background: "#e74c3c" }} onClick={() => deleteConsent(c.id)}>Delete</button>
           </div>
         ))}
-
         {consentHistory.length === 0 && <p>No consent history</p>}
       </div>
     </div>

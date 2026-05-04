@@ -51,20 +51,19 @@ export default function ClientDetail() {
       .from("patients")
       .select("*")
       .eq("client_id", id);
-
     setPatients(data || []);
   }
 
+  // Standard Add Patient function[cite: 6]
   async function addPatient() {
     if (!name) return;
 
-    // 🔥 VALIDATION
     if (!isValidWeight(weight)) {
       alert("⚠️ Weight must be a number in kg (e.g. 10 or 10.5)");
       return;
     }
 
-    await supabase.from("patients").insert([
+    const { error } = await supabase.from("patients").insert([
       {
         name,
         species,
@@ -73,17 +72,19 @@ export default function ClientDetail() {
       }
     ]);
 
+    if (error) {
+      alert("Error adding patient: " + error.message);
+      return;
+    }
+
     setName("");
     setSpecies("");
     setWeight("");
-
     fetchPatients();
   }
 
   async function deletePatient(patientId) {
-    const confirmDelete = window.confirm("Delete this patient?");
-    if (!confirmDelete) return;
-
+    if (!window.confirm("Delete this patient?")) return;
     await supabase.from("patients").delete().eq("id", patientId);
     fetchPatients();
   }
@@ -91,25 +92,9 @@ export default function ClientDetail() {
   async function updateClient() {
     await supabase
       .from("clients")
-      .update({
-        name: editName,
-        phone: editPhone,
-        email: editEmail,
-        address: editAddress
-      })
+      .update({ name: editName, phone: editPhone, email: editEmail, address: editAddress })
       .eq("id", id);
-
     fetchClient();
-  }
-
-  async function deleteClient() {
-    const confirmDelete = window.confirm("Delete this client AND all pets?");
-    if (!confirmDelete) return;
-
-    await supabase.from("patients").delete().eq("client_id", id);
-    await supabase.from("clients").delete().eq("id", id);
-
-    window.location.href = "/";
   }
 
   return (
@@ -118,28 +103,15 @@ export default function ClientDetail() {
 
       <div className="card">
         <h3>Edit Client</h3>
-
         <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Name" />
         <input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="Phone" />
-        <input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="Email" />
-        <input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} placeholder="Address" />
-
         <button onClick={updateClient}>Save Changes</button>
-
-        <button
-          onClick={deleteClient}
-          style={{ background: "#e74c3c", marginTop: "10px" }}
-        >
-          Delete Client
-        </button>
       </div>
 
       <div className="card">
         <h3>Add Patient</h3>
-
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
         <input placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} />
-
         <input
           type="number"
           step="0.1"
@@ -147,63 +119,39 @@ export default function ClientDetail() {
           value={weight}
           onChange={(e) => setWeight(e.target.value)}
         />
-
-        <button onClick={addPatient}>Add Patient</button>
+        <button onClick={addPatient} style={{ marginTop: "10px" }}>Add Patient</button>
       </div>
 
       <div className="card">
         <h3>Patients</h3>
-
         {patients.map((p) => (
-          <div
-            key={p.id}
-            className="output-row"
-            onClick={() => navigate(`/patient/${p.id}`)}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              cursor: "pointer"
-            }}
-          >
-            <div>
+          <div key={p.id} className="output-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", borderBottom: "1px solid #eee" }}>
+            <div onClick={() => navigate(`/patient/${p.id}`)} style={{ cursor: "pointer" }}>
               <strong>{p.name}</strong><br />
               {p.species} – {p.weight} kg
             </div>
 
-            {/* 🔥 BUTTON GROUP */}
             <div style={{ display: "flex", gap: "8px" }}>
-              
-              {/* 🟦 SEDATE BUTTON */}
-            <button
-  style={{ background: "#27ae60", color: "white" }}
-  onClick={(e) => {
-    e.stopPropagation(); // 🔥 STOP row click
-    navigate(`/sedation/${p.id}`); // 🔥 USE PATIENT ID
-  }}
->
-  Sedate
-</button>
-
-              {/* 🟥 DELETE BUTTON */}
+              {/* This button correctly triggers the calculator autofill */}
               <button
+                style={{ background: "#27ae60", color: "white", padding: "8px 12px", borderRadius: "8px", border: "none", cursor: "pointer" }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  deletePatient(p.id);
+                  navigate("/sedation", { state: { incomingPatientId: p.id } });
                 }}
-                style={{
-                  width: "auto",
-                  padding: "8px 12px",
-                  background: "#e74c3c"
-                }}
+              >
+                Sedate
+              </button>
+
+              <button 
+                onClick={(e) => { e.stopPropagation(); deletePatient(p.id); }} 
+                style={{ background: "#e74c3c", color: "white", padding: "8px 12px", borderRadius: "8px", border: "none", cursor: "pointer" }}
               >
                 Delete
               </button>
-
             </div>
           </div>
         ))}
-
         {patients.length === 0 && <p>No patients yet</p>}
       </div>
     </div>

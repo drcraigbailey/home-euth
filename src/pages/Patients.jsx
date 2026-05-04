@@ -53,7 +53,6 @@ export default function Patients() {
             borderBottom: "1px solid #eee" 
           }}>
             
-            {/* Clickable Patient Info Section[cite: 5, 6] */}
             <div 
               style={{ cursor: 'pointer' }} 
               onClick={() => navigate(`/patient/${p.id}`)}
@@ -66,9 +65,10 @@ export default function Patients() {
             </div>
 
             <div style={{ display: "flex", gap: "8px" }}>
+              {/* UPDATED: Navigates to /sedation and passes the ID in state */}
               <button 
                 style={{ background: "#27ae60", width: "auto", padding: "8px 15px", fontSize: "14px" }}
-                onClick={() => navigate(`/sedation/${p.id}`)}
+                onClick={() => navigate("/sedation", { state: { incomingPatientId: p.id } })}
               >
                 Sedate
               </button>
