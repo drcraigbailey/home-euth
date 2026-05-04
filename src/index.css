@@ -19,43 +19,6 @@ body {
 }
 
 /* ===== NAVBAR ===== */
-.navbar-inner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* Base button style (used by BOTH links + logout) */
-.nav-btn {
-  padding: 10px 20px;
-  border-radius: 25px;
-  text-decoration: none;
-  background: transparent;
-  color: #2c3e50;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  transition: all 0.2s ease;
-}
-
-/* Active tab */
-.nav-btn.active {
-  background: #5b8fb9;
-  color: white;
-}
-
-/* Hover */
-.nav-btn:hover {
-  background: #5b8fb9;
-  color: white;
-}
-
-/* Logout styled like your blue button */
-.logout-btn {
-  background: #5b8fb9;
-  color: white;
-  margin-left: auto; /* pushes it to the right */
-}
 .navbar {
   margin-top: 20px;
 }
@@ -63,34 +26,50 @@ body {
 .navbar-inner {
   display: flex;
   align-items: center;
-  justify-content: center;   /* 🔥 centers items */
-  gap: 20px;
-
+  gap: 15px;
   background: #e5e7eb;
   padding: 10px 20px;
   border-radius: 999px;
-
-  width: 100%;               /* 🔥 matches .page width */
+  width: 100%;
 }
 
-/* logo */
 .navbar-inner img {
   height: 30px;
 }
 
-/* links */
+/* Base Nav Button/Link Style */
+.nav-btn, 
 .navbar-inner a {
+  padding: 10px 20px;
+  border-radius: 25px;
   text-decoration: none;
+  background: transparent;
   color: #5F6B73;
   font-weight: 500;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
 }
 
-/* active tab */
-.navbar-inner a.active {
+/* Active & Hover States */
+.nav-btn.active, 
+.navbar-inner a.active,
+.nav-btn:hover,
+.navbar-inner a:hover {
   background: #4F8FBF;
   color: white;
-  padding: 6px 14px;
-  border-radius: 20px;
+}
+
+/* Specific styling for the Logout button */
+.logout-btn {
+  background: #5b8fb9;
+  color: white;
+  margin-left: auto; /* Pushes the button to the far right side */
+}
+
+.logout-btn:hover {
+  background: #3A6E94;
 }
 
 /* ===== HEADINGS ===== */
