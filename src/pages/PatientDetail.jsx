@@ -3,6 +3,40 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import SignatureCanvas from "react-signature-canvas";
 
+// Common lists for the dropdowns
+const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
+
+const BREED_MAP = {
+  dog: [
+    "Mixed Breed", "Labrador Retriever", "Golden Retriever", "French Bulldog", 
+    "German Shepherd", "Cocker Spaniel", "Staffordshire Bull Terrier", 
+    "Jack Russell Terrier", "Shih Tzu", "Chihuahua", "Pug", "Border Collie", 
+    "Dachshund", "Poodle", "Greyhound", "Lurcher"
+  ],
+  cat: [
+    "Domestic Shorthair", "Domestic Longhair", "British Shorthair", "Ragdoll", 
+    "Siamese", "Bengal", "Maine Coon", "Persian", "Sphynx", "Burmese"
+  ],
+  rabbit: [
+    "Mixed Breed", "Mini Lop", "Netherland Dwarf", "Lionhead", 
+    "French Lop", "Dutch", "Flemish Giant", "Rex"
+  ],
+  "small mammal": [
+    "Guinea Pig", "Hamster (Syrian)", "Hamster (Dwarf)", "Rat", 
+    "Mouse", "Chinchilla", "Ferret", "Gerbil", "Degu"
+  ]
+};
+
+const COMMON_COLOURS = [
+  "Black", "White", "Brown", "Chocolate", "Tan", "Black & White", "Brown & White",
+  "Tabby", "Tortoiseshell", "Calico", "Brindle", "Fawn", "Blue/Grey", "Ginger", 
+  "Cream", "Tricolour", "Merle", "Roan", "Agouti"
+];
+
+const GENDER_OPTIONS = [
+  "Male (Entire)", "Male (Neutered)", "Female (Entire)", "Female (Spayed)", "Unknown"
+];
+
 export default function PatientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -13,6 +47,12 @@ export default function PatientDetail() {
   const [editMode, setEditMode] = useState(false);
   const [editName, setEditName] = useState("");
   const [editSpecies, setEditSpecies] = useState("");
+  const [editBreed, setEditBreed] = useState("");
+  const [editColour, setEditColour] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editMicrochip, setEditMicrochip] = useState("");
+  const [editAgeYears, setEditAgeYears] = useState("");
+  const [editAgeMonths, setEditAgeMonths] = useState("");
   const [editWeight, setEditWeight] = useState("");
   const [editNotes, setEditNotes] = useState("");
 
@@ -42,6 +82,12 @@ export default function PatientDetail() {
     if (data) {
       setEditName(data.name || "");
       setEditSpecies(data.species || "");
+      setEditBreed(data.breed || "");
+      setEditColour(data.colour || "");
+      setEditGender(data.gender || "");
+      setEditMicrochip(data.microchip || "");
+      setEditAgeYears(data.age_years || "");
+      setEditAgeMonths(data.age_months || "");
       setEditWeight(data.weight || "");
       setEditNotes(data.notes || "");
     }
@@ -58,15 +104,27 @@ export default function PatientDetail() {
   }
 
   async function updatePatient() {
-    await supabase
+    const { error } = await supabase
       .from("patients")
       .update({
         name: editName,
         species: editSpecies,
+        breed: editBreed,
+        colour: editColour,
+        gender: editGender,
+        microchip: editMicrochip,
+        age_years: editAgeYears ? Number(editAgeYears) : null,
+        age_months: editAgeMonths ? Number(editAgeMonths) : null,
         weight: Number(editWeight),
         notes: editNotes
       })
       .eq("id", id);
+
+    if (error) {
+      alert("Error saving patient details: " + error.message);
+      console.error("Supabase update error:", error);
+      return; 
+    }
 
     setEditMode(false);
     fetchPatient();
@@ -110,7 +168,6 @@ export default function PatientDetail() {
     fetchConsentHistory();
   }
 
-  // 🔥 UPDATED: This function now passes state to trigger the calculator autofill
   async function saveAndReturn() {
     if (!consentName) return alert("Enter name");
     if (!sigPadRef.current || sigPadRef.current.isEmpty())
@@ -120,7 +177,6 @@ export default function PatientDetail() {
 
     if (!ok) return;
 
-    // Changes navigation to pass state so the calculator can pre-fill[cite: 1, 7]
     navigate("/sedation", { state: { incomingPatientId: id } });
   }
 
@@ -135,6 +191,17 @@ export default function PatientDetail() {
     fetchConsentHistory();
   }
 
+  // Handle species change: reset the breed if they change the species to avoid mismatches
+  function handleSpeciesChange(e) {
+    const newSpecies = e.target.value;
+    setEditSpecies(newSpecies);
+    setEditBreed(""); // Clear breed when species changes
+  }
+
+  // Dynamically determine which breed list to show based on the selected species
+  const currentSpeciesKey = editSpecies.toLowerCase().trim();
+  const activeBreeds = BREED_MAP[currentSpeciesKey] || [];
+
   return (
     <div className="page">
       <h1>{patient?.name}</h1>
@@ -142,10 +209,17 @@ export default function PatientDetail() {
       {!editMode && (
         <div className="card">
           <h3>Patient Details</h3>
-          <p><strong>Species:</strong> {patient?.species}</p>
-          <p><strong>Weight:</strong> {patient?.weight} kg</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <p><strong>Species:</strong> {patient?.species || "N/A"}</p>
+            <p><strong>Breed:</strong> {patient?.breed || "N/A"}</p>
+            <p><strong>Colour:</strong> {patient?.colour || "N/A"}</p>
+            <p><strong>Gender:</strong> {patient?.gender || "N/A"}</p>
+            <p><strong>Age:</strong> {patient?.age_years || 0} yrs {patient?.age_months || 0} mos</p>
+            <p><strong>Weight:</strong> {patient?.weight ? `${patient.weight} kg` : "N/A"}</p>
+            <p style={{ gridColumn: "1 / -1" }}><strong>Microchip:</strong> {patient?.microchip || "N/A"}</p>
+          </div>
 
-          <div style={{ marginTop: "10px" }}>
+          <div style={{ marginTop: "15px" }}>
             <strong>Notes:</strong>
             <div style={{ marginTop: "5px", padding: "10px", background: "#f8f9fb", borderRadius: "10px" }}>
               {patient?.notes || "No notes"}
@@ -159,13 +233,67 @@ export default function PatientDetail() {
       {editMode && (
         <div className="card">
           <h3>Edit Patient</h3>
-          <input value={editName} onChange={(e) => setEditName(e.target.value)} />
-          <input value={editSpecies} onChange={(e) => setEditSpecies(e.target.value)} />
-          <input value={editWeight} onChange={(e) => setEditWeight(e.target.value)} />
+          
+          <input placeholder="Name" value={editName} onChange={(e) => setEditName(e.target.value)} />
+          
+          {/* Species Input with Datalist */}
+          <input 
+            list="species-options" 
+            placeholder="Species (Select or Type)" 
+            value={editSpecies} 
+            onChange={handleSpeciesChange} 
+          />
+          <datalist id="species-options">
+            {SPECIES_OPTIONS.map(species => <option key={species} value={species} />)}
+          </datalist>
+          
+          {/* Breed Input with Dynamic Datalist */}
+          <input 
+            list="breed-options" 
+            placeholder={activeBreeds.length > 0 ? "Breed (Select or Type)" : "Breed (Type manually)"} 
+            value={editBreed} 
+            onChange={(e) => setEditBreed(e.target.value)} 
+          />
+          <datalist id="breed-options">
+            {activeBreeds.map(breed => <option key={breed} value={breed} />)}
+          </datalist>
+
+          {/* Colour Input with Datalist */}
+          <input 
+            list="colour-options" 
+            placeholder="Colour (Select or Type)" 
+            value={editColour} 
+            onChange={(e) => setEditColour(e.target.value)} 
+          />
+          <datalist id="colour-options">
+            {COMMON_COLOURS.map(colour => <option key={colour} value={colour} />)}
+          </datalist>
+          
+          {/* Gender Input with Datalist */}
+          <input 
+            list="gender-options" 
+            placeholder="Gender (Select or Type)" 
+            value={editGender} 
+            onChange={(e) => setEditGender(e.target.value)} 
+          />
+          <datalist id="gender-options">
+            {GENDER_OPTIONS.map(gender => <option key={gender} value={gender} />)}
+          </datalist>
+
+          <input placeholder="Microchip Number" value={editMicrochip} onChange={(e) => setEditMicrochip(e.target.value)} />
+          
+          <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+            <input placeholder="Age (Years)" type="number" value={editAgeYears} onChange={(e) => setEditAgeYears(e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
+            <input placeholder="Age (Months)" type="number" value={editAgeMonths} onChange={(e) => setEditAgeMonths(e.target.value)} style={{ flex: 1, marginBottom: 0 }} />
+          </div>
+
+          <input placeholder="Weight (kg)" type="number" step="0.01" value={editWeight} onChange={(e) => setEditWeight(e.target.value)} />
+          
           <textarea rows={5} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Notes..." />
+          
           <div style={{ display: "flex", gap: "10px" }}>
-            <button onClick={updatePatient}>Save</button>
-            <button onClick={() => setEditMode(false)}>Cancel</button>
+            <button onClick={updatePatient} style={{ flex: 1, background: "#27ae60", color: "white", padding: "12px", border: "none", borderRadius: "8px", cursor: "pointer" }}>Save</button>
+            <button onClick={() => setEditMode(false)} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", border: "none", borderRadius: "8px", cursor: "pointer" }}>Cancel</button>
           </div>
         </div>
       )}
@@ -201,7 +329,7 @@ export default function PatientDetail() {
             <strong>{c.name}</strong>
             <div style={{ fontSize: "12px", color: "#666" }}>{new Date(c.created_at).toLocaleString()}</div>
             <img src={c.signature} alt="signature" style={{ marginTop: "10px", border: "1px solid #ccc" }} />
-            <button style={{ marginTop: "10px", background: "#e74c3c" }} onClick={() => deleteConsent(c.id)}>Delete</button>
+            <button style={{ marginTop: "10px", background: "#e74c3c", color: "white", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer" }} onClick={() => deleteConsent(c.id)}>Delete</button>
           </div>
         ))}
         {consentHistory.length === 0 && <p>No consent history</p>}

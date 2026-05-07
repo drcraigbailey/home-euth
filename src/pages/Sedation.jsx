@@ -19,7 +19,7 @@ function normaliseDrugName(name) {
   return clean;
 }
 
-// Global button and container styles[cite: 9]
+// Global button and container styles
 const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
 const blueBtn = { flex: 1, background: "#5b8fb9", color: "white", border: "none", borderRadius: "12px", padding: "10px", cursor: "pointer" };
 const redBtn = { flex: 1, background: "#e74c3c", color: "white", border: "none", borderRadius: "12px", padding: "10px", cursor: "pointer" };
@@ -35,7 +35,6 @@ const greyBox = {
   marginTop: "20px"
 };
 
-// Standardized White Shadow Box style to match other pages[cite: 9]
 const whiteShadowBox = {
   background: "white",
   padding: "20px",
@@ -66,6 +65,7 @@ export default function Sedation() {
   const [drugName, setDrugName] = useState("");
   const [batch, setBatch] = useState("");
   const [qty, setQty] = useState("");
+  const [expiryDate, setExpiryDate] = useState(""); // NEW DATE FIELD
 
   const [historySearch, setHistorySearch] = useState("");
   const [editingHistoryId, setEditingHistoryId] = useState(null);
@@ -137,10 +137,13 @@ export default function Sedation() {
   async function calculate() {
     if (!protocolId || !weight) return alert("Select protocol + weight");
     const { data } = await supabase.from("protocol_drugs").select("*").eq("protocol_id", protocolId);
+    
+    // Waste is always pre-set to 0.05 when calculating
     const calc = data.map(d => ({
       drug: normaliseDrugName(d.drug_name),
       label: d.drug_name,
       ml: Number(((d.mg_per_kg * Number(weight)) / d.mg_per_ml).toFixed(3)),
+      waste: 0.05, 
       batchId: ""
     }));
     setResults(calc);
@@ -148,7 +151,13 @@ export default function Sedation() {
 
   function updateDose(i, val) {
     const updated = [...results];
-    updated[i].ml = parseFloat(val) || 0;
+    updated[i].ml = val === "" ? "" : parseFloat(val) || 0;
+    setResults(updated);
+  }
+
+  function updateWaste(i, val) {
+    const updated = [...results];
+    updated[i].waste = val === "" ? "" : parseFloat(val) || 0;
     setResults(updated);
   }
 
@@ -162,14 +171,21 @@ export default function Sedation() {
     const missingBatches = results.some(r => !r.batchId);
     if (missingBatches && !window.confirm("No batch selected. Stock won't be deducted. Save anyway?")) return;
 
-    const { error } = await supabase.from("sedation_records").insert([{ patient_id: patientId, protocol_id: protocolId, weight, results }]);
+    // Ensure waste is handled as a number and defaults to 0.05 if somehow cleared
+    const formattedResults = results.map(r => ({
+      ...r,
+      waste: r.waste !== "" ? parseFloat(r.waste) : 0.05
+    }));
+
+    const { error } = await supabase.from("sedation_records").insert([{ patient_id: patientId, protocol_id: protocolId, weight, results: formattedResults }]);
     if (error) return alert("Error saving: " + error.message);
 
-    for (const r of results) {
-      if (r.batchId && r.ml > 0) {
+    for (const r of formattedResults) {
+      const totalUsed = (parseFloat(r.ml) || 0) + (parseFloat(r.waste) || 0);
+      if (r.batchId && totalUsed > 0) {
         const current = stock.find(s => String(s.id) === String(r.batchId));
         if (current) {
-          const newVol = Math.max(0, current.total_ml - r.ml);
+          const newVol = Math.max(0, current.total_ml - totalUsed);
           await supabase.from("stock").update({ total_ml: newVol }).eq("id", current.id);
         }
       }
@@ -185,8 +201,14 @@ export default function Sedation() {
 
   async function addStock() {
     if (!drugName.trim() || !batch.trim() || !qty.trim()) return alert("Fill all stock fields");
-    await supabase.from("stock").insert([{ drug: drugName.trim(), batch: batch.trim(), total_ml: Number(qty), is_archived: false }]);
-    setDrugName(""); setBatch(""); setQty(""); fetchStock();
+    await supabase.from("stock").insert([{ 
+      drug: drugName.trim(), 
+      batch: batch.trim(), 
+      total_ml: Number(qty), 
+      expiry_date: expiryDate || null, 
+      is_archived: false 
+    }]);
+    setDrugName(""); setBatch(""); setQty(""); setExpiryDate(""); fetchStock();
   }
 
   async function archiveStock(id) {
@@ -203,10 +225,31 @@ export default function Sedation() {
     }
   }
 
-  function startEditStock(s) { setEditingStockId(s.id); setEditStockData({ ...s }); }
-  async function saveEditStock(id) { await supabase.from("stock").update(editStockData).eq("id", id); setEditingStockId(null); fetchStock(); }
+  function startEditStock(s) { 
+    setEditingStockId(s.id); 
+    setEditStockData({ ...s }); 
+  }
+  
+  async function saveEditStock(id) { 
+    await supabase.from("stock").update({
+      drug: editStockData.drug,
+      batch: editStockData.batch,
+      total_ml: Number(editStockData.total_ml),
+      expiry_date: editStockData.expiry_date || null
+    }).eq("id", id); 
+    setEditingStockId(null); 
+    fetchStock(); 
+  }
 
-  function startEditHistory(h) { setEditingHistoryId(h.id); setEditHistoryResults(h.results || []); }
+  function startEditHistory(h) { 
+    setEditingHistoryId(h.id); 
+    // Always pre-set waste to 0.05 for old history records that might not have it
+    const prefilledResults = (h.results || []).map(r => ({
+      ...r,
+      waste: r.waste !== undefined ? r.waste : 0.05
+    }));
+    setEditHistoryResults(prefilledResults); 
+  }
 
   async function saveEditHistory(id) {
     const { data: original } = await supabase.from("sedation_records").select("*").eq("id", id).single();
@@ -217,7 +260,13 @@ export default function Sedation() {
       const newR = editHistoryResults[i];
 
       if (oldR && oldR.batchId) {
-        const diff = oldR.ml - newR.ml; 
+        const oldWaste = oldR.waste !== undefined ? parseFloat(oldR.waste) : 0.05;
+        const newWaste = newR.waste !== "" ? parseFloat(newR.waste) : 0.05;
+
+        const oldTotal = (parseFloat(oldR.ml) || 0) + oldWaste;
+        const newTotal = (parseFloat(newR.ml) || 0) + newWaste;
+        const diff = oldTotal - newTotal; 
+        
         if (diff !== 0) {
           const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", oldR.batchId).single();
           if (currentStock) {
@@ -227,7 +276,13 @@ export default function Sedation() {
       }
     }
 
-    await supabase.from("sedation_records").update({ results: editHistoryResults }).eq("id", id);
+    // Ensure we save the waste value properly
+    const finalResultsToSave = editHistoryResults.map(r => ({
+      ...r,
+      waste: r.waste !== "" ? parseFloat(r.waste) : 0.05
+    }));
+
+    await supabase.from("sedation_records").update({ results: finalResultsToSave }).eq("id", id);
     setEditingHistoryId(null);
     fetchHistory();
     fetchStock();
@@ -239,10 +294,13 @@ export default function Sedation() {
     const { data: original } = await supabase.from("sedation_records").select("*").eq("id", id).single();
     if (original && original.results) {
       for (const r of original.results) {
-        if (r.batchId && r.ml > 0) {
+        const wasteVal = r.waste !== undefined ? parseFloat(r.waste) : 0.05;
+        const totalToReturn = (parseFloat(r.ml) || 0) + wasteVal;
+        
+        if (r.batchId && totalToReturn > 0) {
           const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", r.batchId).single();
           if (currentStock) {
-            await supabase.from("stock").update({ total_ml: currentStock.total_ml + r.ml }).eq("id", r.batchId);
+            await supabase.from("stock").update({ total_ml: currentStock.total_ml + totalToReturn }).eq("id", r.batchId);
           }
         }
       }
@@ -267,7 +325,7 @@ export default function Sedation() {
         <>
           <div className="card">
             <div style={{ position: "relative" }}>
-              <input placeholder="Search patient..." value={patientSearch} onChange={e => handlePatientSearch(e.target.value)} style={{ borderColor: patientId ? "#27ae60" : "#eee" }} />
+              <input placeholder="Search patient..." value={patientSearch} onChange={e => handlePatientSearch(e.target.value)} style={{ borderColor: patientId ? "#27ae60" : undefined }} />
               {patientSearch && filteredPatients.length > 0 && !patientId && (
                 <div style={{ position: "absolute", background: "white", border: "1px solid #ccc", width: "100%", zIndex: 10 }}>
                   {filteredPatients.map(p => (
@@ -283,13 +341,22 @@ export default function Sedation() {
             </select>
 
             <input value={weight} onChange={e => setWeight(e.target.value)} placeholder="Weight (kg)" style={{ marginTop: "10px" }} />
-            <button onClick={calculate} style={{ marginTop: "10px" }}>Calculate</button>
+            <button onClick={calculate} style={{ marginTop: "10px", width: "100%" }}>Calculate</button>
 
             {results.map((r, i) => (
               <div key={i} style={{ ...drugResultStyle, padding: "12px", background: "#f8f9fb", borderRadius: "10px", marginTop: "10px", border: "1px solid #eee" }}>
                 <strong>{r.label}</strong>
-                <input value={r.ml} onChange={e => updateDose(i, e.target.value)} />
-                <select value={r.batchId} onChange={e => updateBatch(i, e.target.value)}>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: "12px", color: "#666", display: "block", marginBottom: "2px" }}>Dose (ml)</label>
+                    <input value={r.ml} onChange={e => updateDose(i, e.target.value)} style={{ width: "100%", boxSizing: "border-box", margin: 0 }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: "12px", color: "#666", display: "block", marginBottom: "2px" }}>Waste (ml)</label>
+                    <input value={r.waste} onChange={e => updateWaste(i, e.target.value)} style={{ width: "100%", boxSizing: "border-box", margin: 0 }} />
+                  </div>
+                </div>
+                <select value={r.batchId} onChange={e => updateBatch(i, e.target.value)} style={{ marginTop: "5px" }}>
                   <option value="">Batch</option>
                   {getStockForDrug(r.drug).map(s => <option key={s.id} value={s.id}>{s.batch} ({s.total_ml} ml)</option>)}
                 </select>
@@ -309,11 +376,10 @@ export default function Sedation() {
               placeholder="Search history..." 
               value={historySearch} 
               onChange={e => setHistorySearch(e.target.value)} 
-              style={{ background: "white" }} 
+              style={{ background: "white", margin: 0 }} 
             />
           </div>
 
-          {/* Updated History list with white shadow boxes[cite: 9] */}
           <div style={greyBox}>
             <h3 style={{ marginBottom: "20px" }}>History List</h3>
             
@@ -330,8 +396,11 @@ export default function Sedation() {
                 {editingHistoryId === h.id ? (
                   <>
                     {editHistoryResults.map((r, i) => (
-                      <div key={i} style={{ marginBottom: "5px" }}>
-                        {r.drug}: <input value={r.ml} onChange={e => { const u = [...editHistoryResults]; u[i].ml = parseFloat(e.target.value); setEditHistoryResults(u); }} />
+                      <div key={i} style={{ marginBottom: "5px", display: "flex", gap: "5px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ width: "80px", fontWeight: "bold" }}>{r.drug}:</span>
+                        <input style={{ width: "60px", padding: "8px", margin: 0 }} value={r.ml} onChange={e => { const u = [...editHistoryResults]; u[i].ml = e.target.value === "" ? "" : parseFloat(e.target.value) || 0; setEditHistoryResults(u); }} placeholder="ml" />
+                        <span style={{ fontSize: "12px", color: "#666" }}>waste:</span>
+                        <input style={{ width: "60px", padding: "8px", margin: 0 }} value={r.waste} onChange={e => { const u = [...editHistoryResults]; u[i].waste = e.target.value === "" ? "" : parseFloat(e.target.value) || 0; setEditHistoryResults(u); }} placeholder="waste" />
                       </div>
                     ))}
                     <div style={btnRow}>
@@ -342,7 +411,11 @@ export default function Sedation() {
                 ) : (
                   <>
                     <div style={{ fontSize: "15px", color: "#333", lineHeight: "1.6" }}>
-                      {h.results?.map((r, i) => <div key={i}>{r.drug}: {r.ml} ml</div>)}
+                      {h.results?.map((r, i) => (
+                        <div key={i}>
+                          {r.drug}: {r.ml} ml <span style={{ color: "#7f8c8d", fontSize: "13px" }}>(+ {r.waste !== undefined ? r.waste : 0.05} ml waste)</span>
+                        </div>
+                      ))}
                     </div>
                     <div style={btnRow}>
                       <button style={blueBtn} onClick={() => startEditHistory(h)}>Edit</button>
@@ -361,33 +434,44 @@ export default function Sedation() {
         <>
           <div className="card">
             <h3>Add Stock</h3>
-            <input value={drugName} onChange={e => setDrugName(e.target.value)} placeholder="Drug" />
-            <input value={batch} onChange={e => setBatch(e.target.value)} placeholder="Batch" />
-            <input value={qty} onChange={e => setQty(e.target.value)} placeholder="Total ml" />
-            <button onClick={addStock}>Add Stock</button>
+            <input value={drugName} onChange={e => setDrugName(e.target.value)} placeholder="Drug" style={{ marginBottom: "10px" }} />
+            <input value={batch} onChange={e => setBatch(e.target.value)} placeholder="Batch" style={{ marginBottom: "10px" }} />
+            <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+              <input type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="Total ml" style={{ flex: 1, margin: 0 }} />
+              <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} style={{ flex: 1, margin: 0 }} />
+            </div>
+            <button onClick={addStock} style={{ width: "100%" }}>Add Stock</button>
           </div>
 
           <div style={greyBox}>
-             <input placeholder="Search stock..." style={{ background: "white" }} />
+             <input placeholder="Search stock..." style={{ background: "white", margin: 0 }} />
           </div>
 
-          {/* Updated Stock list with white shadow boxes[cite: 9] */}
           <div style={greyBox}>
             <h3 style={{ marginBottom: "20px" }}>Stock List</h3>
             {stock.filter(s => !s.is_archived).map(s => (
               <div key={s.id} style={whiteShadowBox}>
                 {editingStockId === s.id ? (
-                  <>
-                    <input value={editStockData.drug} onChange={e => setEditStockData({ ...editStockData, drug: e.target.value })} />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <input placeholder="Drug Name" value={editStockData.drug} onChange={e => setEditStockData({ ...editStockData, drug: e.target.value })} style={{ margin: 0 }} />
+                    <input placeholder="Batch Number" value={editStockData.batch} onChange={e => setEditStockData({ ...editStockData, batch: e.target.value })} style={{ margin: 0 }} />
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <input placeholder="Total ml" type="number" value={editStockData.total_ml} onChange={e => setEditStockData({ ...editStockData, total_ml: e.target.value })} style={{ flex: 1, margin: 0 }} />
+                      <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, margin: 0 }} />
+                    </div>
                     <div style={btnRow}>
                       <button style={blueBtn} onClick={() => saveEditStock(s.id)}>Save</button>
                       <button style={redBtn} onClick={() => setEditingStockId(null)}>Cancel</button>
                     </div>
-                  </>
+                  </div>
                 ) : (
                   <>
                     <strong style={{ fontSize: "18px", display: "block", marginBottom: "5px" }}>{s.drug}</strong>
-                    <div style={{ color: "#7f8c8d", fontSize: "14px" }}>Batch: {s.batch} | {s.total_ml} ml</div>
+                    <div style={{ color: "#7f8c8d", fontSize: "14px", lineHeight: "1.6" }}>
+                      Batch: {s.batch} <br/>
+                      Amount: {s.total_ml} ml <br/>
+                      {s.expiry_date && <span>Date: {s.expiry_date}</span>}
+                    </div>
                     <div style={btnRow}>
                       <button style={blueBtn} onClick={() => startEditStock(s)}>Edit</button>
                       <button style={yellowBtn} onClick={() => archiveStock(s.id)}>Archive</button>
