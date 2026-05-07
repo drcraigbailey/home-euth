@@ -127,3 +127,6 @@ button:not(.logout-btn-minimal) {
     font-size: 14px;
   }
 }
+html {
+  scroll-behavior: smooth;
+}
