@@ -2,6 +2,34 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 
+// Styling constants to match Sedation history style
+const whiteShadowBox = {
+  background: "white",
+  padding: "20px",
+  borderRadius: "15px",
+  marginBottom: "15px",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+  border: "1px solid #eee",
+  cursor: "pointer"
+};
+
+const btnRow = { 
+  display: "flex", 
+  gap: "10px", 
+  marginTop: "15px" 
+};
+
+const redBtn = { 
+  flex: 1, 
+  background: "#e74c3c", 
+  color: "white", 
+  border: "none", 
+  borderRadius: "12px", 
+  padding: "10px", 
+  cursor: "pointer",
+  fontWeight: "600"
+};
+
 export default function Clients() {
   const navigate = useNavigate();
   const petFormRef = useRef(null); 
@@ -36,13 +64,12 @@ export default function Clients() {
     if (!error) setClients(data || []);
   }
 
-  // 🔥 ADD CLIENT WITH "SAVE ANYWAY" ALERT
   async function addClient() {
     if (!firstName || !surname) return;
 
     const isInfoMissing = !phone || !email || !address || !city || !postcode;
     if (isInfoMissing) {
-      const proceed = window.confirm("More info is needed (Phone, Email, etc). Save anyway or click cancel to go back?");
+      const proceed = window.confirm("More info is needed (Phone, Email, etc). Save anyway?");
       if (!proceed) return;
     }
 
@@ -58,7 +85,6 @@ export default function Clients() {
     }
   }
 
-  // 🔥 UPDATED DELETE WITH ERROR ALERT[cite: 4]
   async function deleteClient(clientId) {
     if (!window.confirm("Are you sure you want to delete this client?")) return;
     const { error } = await supabase.from("clients").delete().eq("id", clientId);
@@ -69,7 +95,6 @@ export default function Clients() {
     }
   }
 
-  // 🔥 ADD PET WITH "COMPLETE" ALERT
   async function addPet() {
     if (!petName || !newClient) return;
     const { error } = await supabase.from("patients").insert([
@@ -90,6 +115,7 @@ export default function Clients() {
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1>Clients</h1>
+      
       <div className="card">
         <h3>Add New Client</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -127,17 +153,38 @@ export default function Clients() {
         <input placeholder="Search name..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
+      {/* --- UPDATED ACTIVE CLIENTS SECTION --- */}
       <div style={{ marginTop: "20px", background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
-        <h3>Active Clients</h3>
+        <h3 style={{ marginBottom: "20px" }}>Active Clients</h3>
         {filtered.map(c => (
-          <div key={c.id} className="card" style={{ marginBottom: "15px", display: "flex", justifyContent: "space-between", alignItems: "center" }} onClick={() => navigate(`/client/${c.id}`)}>
+          <div 
+            key={c.id} 
+            style={whiteShadowBox} 
+            onClick={() => navigate(`/client/${c.id}`)}
+          >
             <div>
-              <strong>{c.name} {c.surname}</strong><br />
-              <span style={{ color: '#7f8c8d' }}>{c.phone}</span>
+              <strong style={{ fontSize: "18px", display: "block", marginBottom: "5px" }}>
+                {c.name} {c.surname}
+              </strong>
+              <div style={{ color: '#7f8c8d', fontSize: "14px" }}>
+                {c.phone || "No phone recorded"}
+              </div>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); deleteClient(c.id); }} style={{ background: "#e74c3c", color: "white", padding: "8px 15px", borderRadius: "8px", border: "none" }}>Delete</button>
+
+            <div style={btnRow}>
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  deleteClient(c.id); 
+                }} 
+                style={redBtn}
+              >
+                Delete Client
+              </button>
+            </div>
           </div>
         ))}
+        {filtered.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No clients found.</p>}
       </div>
     </div>
   );

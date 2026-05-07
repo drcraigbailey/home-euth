@@ -59,6 +59,7 @@ export default function Sedation() {
 
   const [patientId, setPatientId] = useState("");
   const [protocolId, setProtocolId] = useState("");
+  const [protocolName, setProtocolName] = useState(""); // Replaces the raw select value
   const [weight, setWeight] = useState("");
   const [results, setResults] = useState([]);
 
@@ -144,7 +145,8 @@ export default function Sedation() {
       label: d.drug_name,
       ml: Number(((d.mg_per_kg * Number(weight)) / d.mg_per_ml).toFixed(3)),
       waste: 0.05, 
-      batchId: ""
+      batchId: "",
+      batchName: "" // Used for datalist typing
     }));
     setResults(calc);
   }
@@ -163,15 +165,17 @@ export default function Sedation() {
 
   function updateBatch(i, val) {
     const updated = [...results];
-    updated[i].batchId = val;
+    updated[i].batchName = val;
+    // Auto-detect the underlying ID based on what the user typed/selected
+    const match = getStockForDrug(updated[i].drug).find(s => `${s.batch} (${s.total_ml} ml)` === val);
+    updated[i].batchId = match ? match.id : "";
     setResults(updated);
   }
 
   async function save() {
     const missingBatches = results.some(r => !r.batchId);
-    if (missingBatches && !window.confirm("No batch selected. Stock won't be deducted. Save anyway?")) return;
+    if (missingBatches && !window.confirm("No valid batch selected. Stock won't be deducted. Save anyway?")) return;
 
-    // Ensure waste is handled as a number and defaults to 0.05 if somehow cleared
     const formattedResults = results.map(r => ({
       ...r,
       waste: r.waste !== "" ? parseFloat(r.waste) : 0.05
@@ -191,6 +195,8 @@ export default function Sedation() {
       }
     }
     setResults([]);
+    setProtocolName("");
+    setProtocolId("");
     fetchHistory();
     fetchStock(); 
   }
@@ -200,7 +206,7 @@ export default function Sedation() {
   }
 
   async function addStock() {
-    if (!drugName.trim() || !batch.trim() || !qty.trim()) return alert("Fill all stock fields");
+    if (!drugName.trim() || !batch.trim() || !qty.trim()) return alert("Fill all required stock fields");
     await supabase.from("stock").insert([{ 
       drug: drugName.trim(), 
       batch: batch.trim(), 
@@ -243,7 +249,6 @@ export default function Sedation() {
 
   function startEditHistory(h) { 
     setEditingHistoryId(h.id); 
-    // Always pre-set waste to 0.05 for old history records that might not have it
     const prefilledResults = (h.results || []).map(r => ({
       ...r,
       waste: r.waste !== undefined ? r.waste : 0.05
@@ -276,7 +281,6 @@ export default function Sedation() {
       }
     }
 
-    // Ensure we save the waste value properly
     const finalResultsToSave = editHistoryResults.map(r => ({
       ...r,
       waste: r.waste !== "" ? parseFloat(r.waste) : 0.05
@@ -335,12 +339,23 @@ export default function Sedation() {
               )}
             </div>
 
-            <select value={protocolId} onChange={e => setProtocolId(e.target.value)} style={{ marginTop: "10px" }}>
-              <option value="">Select protocol</option>
-              {protocols.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            {/* Protocol Datalist (Uses global input styles) */}
+            <input 
+              list="protocol-options" 
+              placeholder="Select protocol (Type to search)" 
+              value={protocolName} 
+              onChange={e => {
+                setProtocolName(e.target.value);
+                const found = protocols.find(p => p.name === e.target.value);
+                setProtocolId(found ? found.id : "");
+              }} 
+              style={{ marginTop: "10px", width: "100%", boxSizing: "border-box" }}
+            />
+            <datalist id="protocol-options">
+              {protocols.map(p => <option key={p.id} value={p.name} />)}
+            </datalist>
 
-            <input value={weight} onChange={e => setWeight(e.target.value)} placeholder="Weight (kg)" style={{ marginTop: "10px" }} />
+            <input value={weight} onChange={e => setWeight(e.target.value)} placeholder="Weight (kg)" style={{ marginTop: "10px", width: "100%", boxSizing: "border-box" }} />
             <button onClick={calculate} style={{ marginTop: "10px", width: "100%" }}>Calculate</button>
 
             {results.map((r, i) => (
@@ -356,10 +371,18 @@ export default function Sedation() {
                     <input value={r.waste} onChange={e => updateWaste(i, e.target.value)} style={{ width: "100%", boxSizing: "border-box", margin: 0 }} />
                   </div>
                 </div>
-                <select value={r.batchId} onChange={e => updateBatch(i, e.target.value)} style={{ marginTop: "5px" }}>
-                  <option value="">Batch</option>
-                  {getStockForDrug(r.drug).map(s => <option key={s.id} value={s.id}>{s.batch} ({s.total_ml} ml)</option>)}
-                </select>
+
+                {/* Batch Datalist (Uses global input styles) */}
+                <input 
+                  list={`batch-options-${i}`} 
+                  placeholder="Select Batch (Type to search)" 
+                  value={r.batchName || ""} 
+                  onChange={e => updateBatch(i, e.target.value)} 
+                  style={{ marginTop: "5px", width: "100%", boxSizing: "border-box" }}
+                />
+                <datalist id={`batch-options-${i}`}>
+                  {getStockForDrug(r.drug).map(s => <option key={s.id} value={`${s.batch} (${s.total_ml} ml)`} />)}
+                </datalist>
               </div>
             ))}
 
@@ -376,7 +399,7 @@ export default function Sedation() {
               placeholder="Search history..." 
               value={historySearch} 
               onChange={e => setHistorySearch(e.target.value)} 
-              style={{ background: "white", margin: 0 }} 
+              style={{ background: "white", margin: 0, width: "100%", boxSizing: "border-box" }} 
             />
           </div>
 
@@ -434,17 +457,17 @@ export default function Sedation() {
         <>
           <div className="card">
             <h3>Add Stock</h3>
-            <input value={drugName} onChange={e => setDrugName(e.target.value)} placeholder="Drug" style={{ marginBottom: "10px" }} />
-            <input value={batch} onChange={e => setBatch(e.target.value)} placeholder="Batch" style={{ marginBottom: "10px" }} />
+            <input value={drugName} onChange={e => setDrugName(e.target.value)} placeholder="Drug" style={{ marginBottom: "10px", width: "100%", boxSizing: "border-box" }} />
+            <input value={batch} onChange={e => setBatch(e.target.value)} placeholder="Batch" style={{ marginBottom: "10px", width: "100%", boxSizing: "border-box" }} />
             <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-              <input type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="Total ml" style={{ flex: 1, margin: 0 }} />
-              <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} style={{ flex: 1, margin: 0 }} />
+              <input type="number" value={qty} onChange={e => setQty(e.target.value)} placeholder="Total ml" style={{ flex: 1, margin: 0, boxSizing: "border-box" }} />
+              <input type="date" value={expiryDate} onChange={e => setExpiryDate(e.target.value)} style={{ flex: 1, margin: 0, boxSizing: "border-box" }} />
             </div>
             <button onClick={addStock} style={{ width: "100%" }}>Add Stock</button>
           </div>
 
           <div style={greyBox}>
-             <input placeholder="Search stock..." style={{ background: "white", margin: 0 }} />
+             <input placeholder="Search stock..." style={{ background: "white", margin: 0, width: "100%", boxSizing: "border-box" }} />
           </div>
 
           <div style={greyBox}>
@@ -453,11 +476,11 @@ export default function Sedation() {
               <div key={s.id} style={whiteShadowBox}>
                 {editingStockId === s.id ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <input placeholder="Drug Name" value={editStockData.drug} onChange={e => setEditStockData({ ...editStockData, drug: e.target.value })} style={{ margin: 0 }} />
-                    <input placeholder="Batch Number" value={editStockData.batch} onChange={e => setEditStockData({ ...editStockData, batch: e.target.value })} style={{ margin: 0 }} />
+                    <input placeholder="Drug Name" value={editStockData.drug} onChange={e => setEditStockData({ ...editStockData, drug: e.target.value })} style={{ margin: 0, width: "100%", boxSizing: "border-box" }} />
+                    <input placeholder="Batch Number" value={editStockData.batch} onChange={e => setEditStockData({ ...editStockData, batch: e.target.value })} style={{ margin: 0, width: "100%", boxSizing: "border-box" }} />
                     <div style={{ display: "flex", gap: "10px" }}>
-                      <input placeholder="Total ml" type="number" value={editStockData.total_ml} onChange={e => setEditStockData({ ...editStockData, total_ml: e.target.value })} style={{ flex: 1, margin: 0 }} />
-                      <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, margin: 0 }} />
+                      <input placeholder="Total ml" type="number" value={editStockData.total_ml} onChange={e => setEditStockData({ ...editStockData, total_ml: e.target.value })} style={{ flex: 1, margin: 0, boxSizing: "border-box" }} />
+                      <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, margin: 0, boxSizing: "border-box" }} />
                     </div>
                     <div style={btnRow}>
                       <button style={blueBtn} onClick={() => saveEditStock(s.id)}>Save</button>
