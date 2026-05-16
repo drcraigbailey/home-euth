@@ -2,54 +2,13 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 
-// --- STYLING CONSTANTS (Matched to your screenshot) ---
-const greyBox = { 
-  background: "#f8f9fb", 
-  padding: "25px", 
-  borderRadius: "20px", 
-  marginTop: "20px"
-};
+// --- STYLING CONSTANTS ---
+const greyBox = { background: "#f8f9fb", padding: "25px", borderRadius: "20px", marginTop: "20px" };
+const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
+const btnRow = { display: "flex", gap: "10px", marginTop: "20px" };
+const greenBtn = { flex: 1, background: "#27ae60", color: "white", border: "none", borderRadius: "12px", padding: "12px", cursor: "pointer", fontWeight: "bold", fontSize: "16px" };
+const redBtn = { flex: 1, background: "#e74c3c", color: "white", border: "none", borderRadius: "12px", padding: "12px", cursor: "pointer", fontWeight: "bold", fontSize: "16px" };
 
-const whiteShadowBox = {
-  background: "white",
-  padding: "20px",
-  borderRadius: "15px",
-  marginBottom: "15px",
-  boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
-  border: "1px solid #eee"
-};
-
-const btnRow = { 
-  display: "flex", 
-  gap: "10px", 
-  marginTop: "20px" 
-};
-
-const greenBtn = { 
-  flex: 1, 
-  background: "#27ae60", 
-  color: "white", 
-  border: "none", 
-  borderRadius: "12px", 
-  padding: "12px", 
-  cursor: "pointer",
-  fontWeight: "bold",
-  fontSize: "16px"
-};
-
-const redBtn = { 
-  flex: 1, 
-  background: "#e74c3c", 
-  color: "white", 
-  border: "none", 
-  borderRadius: "12px", 
-  padding: "12px", 
-  cursor: "pointer",
-  fontWeight: "bold",
-  fontSize: "16px"
-};
-
-// --- VALIDATION ---
 function isValidWeight(value) {
   if (!value) return false;
   return /^\d+(\.\d+)?$/.test(value);
@@ -64,12 +23,10 @@ export default function ClientDetail() {
   
   const [isEditing, setIsEditing] = useState(false);
 
-  // Form State
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("");
   const [weight, setWeight] = useState("");
 
-  // Edit State
   const [editName, setEditName] = useState("");
   const [editSurname, setEditSurname] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -131,13 +88,12 @@ export default function ClientDetail() {
     if (!error) { setIsEditing(false); fetchClient(); }
   }
 
-  // Google Maps Search URL
   const googleMapsUrl = client?.address 
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${client.address}, ${client.city} ${client.postcode}`)}`
     : null;
 
   return (
-    <div className="page">
+    <div className="page" style={{ paddingBottom: "100px" }}>
       <h1 style={{ textAlign: "center" }}>{client ? `${client.name} ${client.surname}` : "Loading..."}</h1>
 
       {/* --- CLIENT INFO CARD --- */}
@@ -197,7 +153,7 @@ export default function ClientDetail() {
         <button onClick={addPatient} style={{ marginTop: "10px" }}>Add Patient</button>
       </div>
 
-      {/* --- PATIENT LIST (Exact Match to your Screenshot) --- */}
+      {/* --- PATIENT LIST --- */}
       <div style={greyBox}>
         <h3 style={{ marginBottom: "20px" }}>Patient List</h3>
         {patients.map((p) => (
@@ -212,7 +168,7 @@ export default function ClientDetail() {
             <div style={btnRow}>
               <button 
                 style={greenBtn} 
-                onClick={(e) => { e.stopPropagation(); navigate("/sedation", { state: { incomingPatientId: p.id } }); }}
+                onClick={(e) => { e.stopPropagation(); navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } }); }}
               >
                 Sedate
               </button>

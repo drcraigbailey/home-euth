@@ -11,6 +11,7 @@ import ClientDetail from "./pages/ClientDetail";
 import PatientDetail from "./pages/PatientDetail";
 import Sedation from "./pages/Sedation";
 import Products from "./pages/Products"; 
+import AdminDashboard from "./pages/AdminDashboard";
 
 // 🔒 Protected route component
 function ProtectedRoute({ children }) {
@@ -22,7 +23,26 @@ function ProtectedRoute({ children }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  if (session === undefined) return <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>;
+  if (session === undefined) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f8f9fb" }}>
+        <style>
+          {`
+            @keyframes pawPulse {
+              0% { transform: scale(0.85); opacity: 0.5; }
+              50% { transform: scale(1.05); opacity: 1; }
+              100% { transform: scale(0.85); opacity: 0.5; }
+            }
+          `}
+        </style>
+        <svg viewBox="0 0 512 512" width="70" height="70" fill="#5b8fb9" style={{ animation: "pawPulse 1.5s infinite ease-in-out", marginBottom: "15px" }}>
+          <path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/>
+        </svg>
+        <p style={{ margin: "0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Authenticating...</p>
+      </div>
+    );
+  }
+  
   if (!session) return <Navigate to="/login" replace />;
   return children;
 }
@@ -30,6 +50,18 @@ function ProtectedRoute({ children }) {
 // 🔥 MINIMALIST HORIZONTAL NAVBAR
 function Navbar() {
   const location = useLocation();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function checkAdmin() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data } = await supabase.from("profiles").select("is_admin").eq("id", session.user.id).single();
+        setIsAdmin(!!data?.is_admin);
+      }
+    }
+    checkAdmin();
+  }, [location.pathname]);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -48,6 +80,7 @@ function Navbar() {
             <NavLink to="/patients" className="nav-item">Patients</NavLink> 
             <NavLink to="/sedation" className="nav-item">Sedation</NavLink>
             <NavLink to="/products" className="nav-item">Products</NavLink>
+            {isAdmin && <NavLink to="/admin" className="nav-item" style={{ color: "#e74c3c" }}>Admin</NavLink>}
           </div>
           <button onClick={logout} className="logout-btn-minimal">Logout</button>
         </div>
@@ -70,6 +103,7 @@ export default function App() {
         <Route path="/sedation" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
         <Route path="/sedation/:id" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

@@ -56,7 +56,7 @@ export default function Patients() {
   );
 
   return (
-    <div className="page">
+    <div className="page" style={{ paddingBottom: "100px" }}>
       <h1>Patients</h1>
 
       {/* Search Bar Section */}
@@ -76,7 +76,7 @@ export default function Patients() {
         borderRadius: "20px", 
         border: "1px solid #eee" 
       }}>
-        <h3 style={{ marginBottom: "20px" }}>Patient List</h3>
+        <h3 style={{ marginBottom: "20px", marginTop: 0 }}>Patient List</h3>
 
         {filtered.map((p) => (
           /* Individual White Shadow-Box Cards */
@@ -109,7 +109,7 @@ export default function Patients() {
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
               <button 
                 style={greenBtn}
-                onClick={() => navigate("/sedation", { state: { incomingPatientId: p.id } })}
+                onClick={() => navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } })}
               >
                 Sedate
               </button>
