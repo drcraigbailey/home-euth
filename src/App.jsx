@@ -4,39 +4,30 @@ import { supabase } from "./supabase";
 
 // pages
 import Login from "./pages/Login";
+import Home from "./pages/Home"; 
 import Clients from "./pages/Clients";
 import Patients from "./pages/Patients"; 
 import ClientDetail from "./pages/ClientDetail";
 import PatientDetail from "./pages/PatientDetail";
 import Sedation from "./pages/Sedation";
-import Protocols from "./pages/Protocols";
+import Products from "./pages/Products"; 
 
 // 🔒 Protected route component
 function ProtectedRoute({ children }) {
   const [session, setSession] = useState(undefined);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => listener.subscription.unsubscribe();
   }, []);
 
   if (session === undefined) return <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>;
-
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!session) return <Navigate to="/login" replace />;
   return children;
 }
 
-// 🔥 MINIMALIST HORIZONTAL NAVBAR (No Branding)
+// 🔥 MINIMALIST HORIZONTAL NAVBAR
 function Navbar() {
   const location = useLocation();
 
@@ -52,10 +43,11 @@ function Navbar() {
       <nav className="header-nav">
         <div className="nav-container-inner">
           <div className="nav-links-group">
-            <NavLink to="/" end className="nav-item">Clients</NavLink>
+            <NavLink to="/" end className="nav-item">Home</NavLink>
+            <NavLink to="/clients" className="nav-item">Clients</NavLink>
             <NavLink to="/patients" className="nav-item">Patients</NavLink> 
             <NavLink to="/sedation" className="nav-item">Sedation</NavLink>
-            <NavLink to="/protocols" className="nav-item">Protocols</NavLink>
+            <NavLink to="/products" className="nav-item">Products</NavLink>
           </div>
           <button onClick={logout} className="logout-btn-minimal">Logout</button>
         </div>
@@ -67,16 +59,17 @@ function Navbar() {
 export default function App() {
   return (
     <Router>
-      <Navbar /> {/* Must stay inside Router to prevent crash */}
+      <Navbar /> 
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
         <Route path="/client/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
         <Route path="/patient/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
         <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
         <Route path="/sedation" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
         <Route path="/sedation/:id" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
-        <Route path="/protocols" element={<ProtectedRoute><Protocols /></ProtectedRoute>} />
+        <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
       </Routes>
     </Router>
   );
