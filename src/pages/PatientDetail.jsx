@@ -131,8 +131,15 @@ export default function PatientDetail() {
     if (!error) { setSelectedProductId(""); setProcedurePrice(""); setProcedureNotes(""); fetchProcedures(); }
   }
 
-  async function togglePaid(procId, currentStatus) {
-    const { error } = await supabase.from("patient_procedures").update({ is_paid: !currentStatus }).eq("id", procId);
+  // SINGLE MARK ALL PAID FUNCTION
+  async function markAllPaid() {
+    const { error } = await supabase.from("patient_procedures").update({ is_paid: true }).eq("patient_id", id).eq("is_paid", false);
+    if (!error) fetchProcedures();
+  }
+
+  async function unmarkAllPaid() {
+    if (!window.confirm("Unmark invoice as paid?")) return;
+    const { error } = await supabase.from("patient_procedures").update({ is_paid: false }).eq("patient_id", id).eq("is_paid", true);
     if (!error) fetchProcedures();
   }
 
@@ -169,8 +176,8 @@ export default function PatientDetail() {
       date: aptDate,
       time_range: aptTime,
       entry_type: aptType,
-      client_id: patient?.client_id || null, // Auto-link client
-      patient_id: id, // Auto-link patient
+      client_id: patient?.client_id || null, 
+      patient_id: id, 
       title: aptTitle,
       notes: aptNotes
     };
@@ -216,6 +223,8 @@ export default function PatientDetail() {
   // Variables for rendering
   const currentSpeciesKey = editData.species?.toLowerCase().trim() || "";
   const activeBreeds = BREED_MAP[currentSpeciesKey] || [];
+  
+  // Calculate Totals
   const totalCost = patientProcedures.reduce((sum, p) => sum + Number(p.price), 0);
   const amountDue = patientProcedures.filter(p => !p.is_paid).reduce((sum, p) => sum + Number(p.price), 0);
 
@@ -322,13 +331,25 @@ export default function PatientDetail() {
           </div>
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "15px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "15px" }}>
               <h3 style={{ margin: 0 }}>Visit Summary</h3>
-              <div style={{ textAlign: "right" }}>
+              <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <div style={{ fontSize: "14px", color: "#7f8c8d" }}>Total Cost: £{totalCost.toFixed(2)}</div>
-                <div style={{ fontSize: "18px", fontWeight: "bold", color: amountDue > 0 ? "#e74c3c" : "#27ae60" }}>
+                <div style={{ fontSize: "18px", fontWeight: "bold", color: amountDue > 0 ? "#e74c3c" : "#27ae60", marginBottom: "5px" }}>
                   Amount Due: £{amountDue.toFixed(2)}
                 </div>
+                
+                {/* GLOBAL INVOICE BUTTONS */}
+                {totalCost > 0 && amountDue > 0 && (
+                  <button onClick={markAllPaid} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "8px", padding: "8px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>
+                    Mark Invoice Paid
+                  </button>
+                )}
+                {totalCost > 0 && amountDue === 0 && (
+                  <button onClick={unmarkAllPaid} style={{ background: "#95a5a6", color: "white", border: "none", borderRadius: "8px", padding: "8px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>
+                    Unmark Invoice
+                  </button>
+                )}
               </div>
             </div>
             
@@ -345,9 +366,7 @@ export default function PatientDetail() {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   <strong style={{ fontSize: "16px" }}>£{Number(proc.price).toFixed(2)}</strong>
-                  <button onClick={() => togglePaid(proc.id, proc.is_paid)} style={{ background: proc.is_paid ? "#95a5a6" : "#27ae60", color: "white", border: "none", borderRadius: "8px", padding: "8px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>
-                    {proc.is_paid ? "Unmark" : "Mark Paid"}
-                  </button>
+                  {/* Keep only the Delete button individually */}
                   <button onClick={() => deleteProcedure(proc.id)} style={{ background: "#e74c3c", color: "white", border: "none", borderRadius: "8px", padding: "8px 12px", cursor: "pointer", fontWeight: "bold" }}>X</button>
                 </div>
               </div>
