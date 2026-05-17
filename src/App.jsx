@@ -61,10 +61,12 @@ function Navbar() {
   if (location.pathname === "/login") return null;
 
   return (
-    <div className="app-header">
-      <nav className="header-nav">
-        <div className="nav-container-inner">
-          <div className="nav-links-group">
+    <div className="app-header" style={{ position: "relative" }}>
+      <nav className="header-nav" style={{ position: "relative", width: "100%" }}>
+        <div className="nav-container-inner" style={{ position: "relative" }}>
+          
+          {/* Scrollable container element */}
+          <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", paddingRight: "35px" }}>
             <NavLink to="/" end className="nav-item">Home</NavLink>
             <NavLink to="/clients" className="nav-item">Clients</NavLink>
             <NavLink to="/patients" className="nav-item">Patients</NavLink> 
@@ -72,9 +74,42 @@ function Navbar() {
             <NavLink to="/products" className="nav-item">Products</NavLink>
             {isAdmin && <NavLink to="/admin" className="nav-item" style={{ color: "#e74c3c" }}>Admin</NavLink>}
           </div>
-          <button onClick={logout} className="logout-btn-minimal">Logout</button>
+
+          {/* Little Blue Scroll Indicator Arrow */}
+          <div style={{
+            position: "absolute",
+            right: "85px", /* Positioned right before the logout button */
+            top: "50%",
+            transform: "translateY(-50%)",
+            display: "flex",
+            alignItems: "center",
+            pointerEvents: "none", /* Ensures it doesn't block touch/clicks */
+            background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 40%)", /* Smooth blending backdrop */
+            paddingLeft: "15px",
+            height: "100%"
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8fb9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "bounceRight 1s infinite alternate" }}>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </div>
+
+          <button onClick={logout} className="logout-btn-minimal" style={{ position: "relative", zIndex: 2 }}>Logout</button>
         </div>
       </nav>
+
+      {/* Injecting a quick keyframe animation for a subtle breathing/bouncing effect */}
+      <style>{`
+        @keyframes bounceRight {
+          0% { transform: translateX(0); opacity: 0.6; }
+          100% { transform: translateX(4px); opacity: 1; }
+        }
+        /* Optional: Hide arrow on desktop screens where layout doesn't overflow */
+        @media (min-width: 768px) {
+          .nav-links-group { padding-right: 0 !important; }
+          div[style*="pointerEvents: none"] { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

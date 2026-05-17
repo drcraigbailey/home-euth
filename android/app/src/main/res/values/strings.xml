@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EuthApp</string>
+    <string name="title_activity_main">EuthApp</string>
+    <string name="package_name">com.localhost.EuthApp</string>
+    <string name="custom_url_scheme">com.localhost.EuthApp</string>
+</resources>
