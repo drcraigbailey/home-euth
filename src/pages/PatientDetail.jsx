@@ -41,12 +41,10 @@ export default function PatientDetail() {
   const location = useLocation();
 
   const [isLoading, setIsLoading] = useState(true);
-
   const [activeTab, setActiveTab] = useState(location.state?.activeTab || "details"); 
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [patient, setPatient] = useState(null);
-  
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState({});
 
@@ -56,7 +54,11 @@ export default function PatientDetail() {
   const [calcResults, setCalcResults] = useState([]);
   const [pentoMgMl, setPentoMgMl] = useState("200");
   const [pentoWaste, setPentoWaste] = useState("0.05");
+  
+  // History Edit States
   const [sedationHistory, setSedationHistory] = useState([]);
+  const [editingHistoryId, setEditingHistoryId] = useState(null);
+  const [editHistoryResults, setEditHistoryResults] = useState([]);
 
   const [allProducts, setAllProducts] = useState([]);
   const [patientProcedures, setPatientProcedures] = useState([]);
@@ -194,13 +196,13 @@ export default function PatientDetail() {
 
   function updateDose(i, val) {
     const updated = [...calcResults];
-    updated[i].ml = val === "" ? "" : parseFloat(val) || 0;
+    updated[i].ml = val;
     setCalcResults(updated);
   }
 
   function updateWaste(i, val) {
     const updated = [...calcResults];
-    updated[i].waste = val === "" ? "" : parseFloat(val) || 0;
+    updated[i].waste = val;
     setCalcResults(updated);
   }
 
@@ -213,7 +215,11 @@ export default function PatientDetail() {
   async function saveDosing() {
     if (!patient?.weight) return;
     
-    const toSave = [...calcResults];
+    const toSave = [...calcResults].map(r => ({
+      ...r,
+      ml: parseFloat(r.ml) || 0,
+      waste: parseFloat(r.waste) || 0
+    }));
     
     if (pentoVolume > 0) {
       toSave.push({
@@ -239,7 +245,7 @@ export default function PatientDetail() {
 
     if (!error) {
       for (const r of toSave) {
-        const totalUsed = (parseFloat(r.ml) || 0) + (parseFloat(r.waste) || 0);
+        const totalUsed = r.ml + r.waste;
         if (r.batchId && totalUsed > 0) {
           const current = stock.find(s => String(s.id) === String(r.batchId));
           if (current) {
@@ -256,6 +262,74 @@ export default function PatientDetail() {
       alert("Error saving doses: " + error.message);
     }
   }
+
+  // --- HISTORY EDIT / DELETE ---
+  function startEditHistory(h) {
+    setEditingHistoryId(h.id);
+    const prefilled = (h.results || []).map(r => ({ ...r, waste: r.waste !== undefined ? r.waste : 0.05 }));
+    setEditHistoryResults(prefilled);
+  }
+
+  async function saveEditHistory(historyId) {
+    const { data: original } = await supabase.from("sedation_records").select("*").eq("id", historyId).single();
+    
+    if (original) {
+      // Re-balance stock for edited amounts
+      for (let i = 0; i < editHistoryResults.length; i++) {
+        const oldR = original.results[i]; 
+        const newR = editHistoryResults[i];
+        
+        if (oldR && oldR.batchId) {
+          const oldWaste = oldR.waste !== undefined ? parseFloat(oldR.waste) : 0;
+          const newWaste = newR.waste !== "" ? parseFloat(newR.waste) : 0;
+          
+          const oldTotal = (parseFloat(oldR.ml) || 0) + oldWaste;
+          const newTotal = (parseFloat(newR.ml) || 0) + newWaste;
+          const diff = oldTotal - newTotal; // Positive if we used less (return to stock), Negative if we used more
+          
+          if (diff !== 0) {
+            const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", oldR.batchId).single();
+            if (currentStock) {
+              await supabase.from("stock").update({ total_ml: currentStock.total_ml + diff }).eq("id", oldR.batchId);
+            }
+          }
+        }
+      }
+    }
+
+    const finalResultsToSave = editHistoryResults.map(r => ({ 
+      ...r, 
+      ml: parseFloat(r.ml) || 0,
+      waste: r.waste !== "" ? parseFloat(r.waste) : 0 
+    }));
+    
+    await supabase.from("sedation_records").update({ results: finalResultsToSave }).eq("id", historyId);
+    setEditingHistoryId(null);
+    fetchSedationHistory();
+    fetchStock();
+  }
+
+  async function deleteHistoryRow(historyId) {
+    if (!window.confirm("Delete record? This will return all recorded drug volumes to your stock.")) return;
+    
+    const { data: original } = await supabase.from("sedation_records").select("*").eq("id", historyId).single();
+    if (original && original.results) {
+      for (const r of original.results) {
+        const totalToReturn = (parseFloat(r.ml) || 0) + (r.waste !== undefined ? parseFloat(r.waste) : 0);
+        if (r.batchId && totalToReturn > 0) {
+          const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", r.batchId).single();
+          if (currentStock) {
+            await supabase.from("stock").update({ total_ml: currentStock.total_ml + totalToReturn }).eq("id", r.batchId);
+          }
+        }
+      }
+    }
+    
+    await supabase.from("sedation_records").delete().eq("id", historyId);
+    fetchSedationHistory();
+    fetchStock();
+  }
+
 
   const pentoVolume = patient?.weight && pentoMgMl ? Number(((150 * patient.weight) / Number(pentoMgMl)).toFixed(3)) : 0;
 
@@ -356,9 +430,9 @@ export default function PatientDetail() {
           `}
         </style>
         <div style={{ position: "relative", width: "100px", height: "120px", marginBottom: "10px" }}>
-          <svg viewBox="0 0 512 512" width="35" height="35" fill="#5b8fb9" style={{ position: "absolute", bottom: "10px", left: "10px", transform: "rotate(-15deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "0s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
-          <svg viewBox="0 0 512 512" width="35" height="35" fill="#5b8fb9" style={{ position: "absolute", top: "40px", right: "15px", transform: "rotate(15deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "0.5s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
-          <svg viewBox="0 0 512 512" width="35" height="35" fill="#5b8fb9" style={{ position: "absolute", top: "0px", left: "20px", transform: "rotate(-5deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "1s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
+          <svg viewBox="0 0 512 512" width="35" height="35" fill="none" stroke="#5b8fb9" strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", bottom: "10px", left: "10px", transform: "rotate(-15deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "0s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
+          <svg viewBox="0 0 512 512" width="35" height="35" fill="none" stroke="#5b8fb9" strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", top: "40px", right: "15px", transform: "rotate(15deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "0.5s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
+          <svg viewBox="0 0 512 512" width="35" height="35" fill="none" stroke="#5b8fb9" strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", top: "0px", left: "20px", transform: "rotate(-5deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "1s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
         </div>
         <p style={{ marginTop: "10px", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Patient Data...</p>
       </div>
@@ -513,20 +587,46 @@ export default function PatientDetail() {
             <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "15px", marginTop: "30px", border: "1px solid #eee" }}>
               <h3 style={{ marginTop: 0, marginBottom: "15px", color: "#2c3e50" }}>Dosing History</h3>
               {sedationHistory.map(h => (
-                <div key={h.id} style={{ ...whiteShadowBox, marginBottom: "10px", padding: "12px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: "5px", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "12px", color: "#666", fontWeight: "bold" }}>
+                <div key={h.id} style={{ ...whiteShadowBox, marginBottom: "10px", padding: "15px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold" }}>
                       {new Date(h.created_at).toLocaleString('en-GB')}
                     </span>
-                    <span style={{ fontSize: "12px", color: "#3498db", fontWeight: "bold" }}>
+                    <span style={{ fontSize: "13px", color: "#3498db", fontWeight: "bold" }}>
                       Weight: {h.weight} kg
                     </span>
                   </div>
-                  {h.results?.map((r, idx) => (
-                    <div key={idx} style={{ fontSize: "14px", color: "#333", marginBottom: "4px" }}>
-                      <strong>{r.label || r.drug}</strong>: {r.ml} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {r.waste} ml waste)</span> : ""}
-                    </div>
-                  ))}
+                  
+                  {editingHistoryId === h.id ? (
+                    <>
+                      {editHistoryResults.map((r, i) => (
+                        <div key={i} style={{ display: "flex", gap: "5px", alignItems: "center", marginBottom: "8px", fontSize: "14px" }}>
+                          <strong style={{ width: "110px", color: "#333", fontSize: "13px" }}>{r.label || r.drug}</strong>
+                          <input type="number" step="0.01" style={{ width: "60px", padding: "6px", borderRadius: "5px", border: "1px solid #ccc", fontSize: "13px" }} value={r.ml} onChange={e => { const u = [...editHistoryResults]; u[i].ml = e.target.value; setEditHistoryResults(u); }} /> <span style={{fontSize: "12px", color: "#666"}}>ml</span>
+                          <span style={{color: "#666", fontSize: "12px", marginLeft: "5px"}}>waste:</span>
+                          <input type="number" step="0.01" style={{ width: "60px", padding: "6px", borderRadius: "5px", border: "1px solid #ccc", fontSize: "13px" }} value={r.waste} onChange={e => { const u = [...editHistoryResults]; u[i].waste = e.target.value; setEditHistoryResults(u); }} /> <span style={{fontSize: "12px", color: "#666"}}>ml</span>
+                        </div>
+                      ))}
+                      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                        <button style={{ background: "#27ae60", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }} onClick={() => saveEditHistory(h.id)}>Save Changes</button>
+                        <button style={{ background: "#f39c12", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }} onClick={() => setEditingHistoryId(null)}>Cancel</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {h.results?.map((r, idx) => (
+                        <div key={idx} style={{ fontSize: "14px", color: "#333", marginBottom: "5px" }}>
+                          <strong>{r.label || r.drug}</strong>: {r.ml} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {r.waste} ml waste)</span> : ""}
+                        </div>
+                      ))}
+                      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                        <button onClick={() => startEditHistory(h)} style={{ background: "#5b8fb9", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>Edit Details</button>
+                        {isAdmin && (
+                          <button onClick={() => deleteHistoryRow(h.id)} style={{ background: "#e74c3c", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>Delete Record</button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

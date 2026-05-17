@@ -44,13 +44,8 @@ export default function ClientDetail() {
     const { data } = await supabase.from("clients").select("*").eq("id", id).single();
     if (data) {
       setClient(data);
-      setEditName(data.name || "");
-      setEditSurname(data.surname || "");
-      setEditPhone(data.phone || "");
-      setEditEmail(data.email || "");
-      setEditAddress(data.address || "");
-      setEditCity(data.city || "");
-      setEditPostcode(data.postcode || "");
+      setEditName(data.name || ""); setEditSurname(data.surname || ""); setEditPhone(data.phone || "");
+      setEditEmail(data.email || ""); setEditAddress(data.address || ""); setEditCity(data.city || ""); setEditPostcode(data.postcode || "");
     }
   }
 
@@ -61,17 +56,9 @@ export default function ClientDetail() {
 
   async function addPatient() {
     if (!name) return;
-    if (!isValidWeight(weight)) {
-      alert("⚠️ Weight must be a number");
-      return;
-    }
-    const { error } = await supabase.from("patients").insert([
-      { name, species, weight: Number(weight), client_id: id }
-    ]);
-    if (!error) {
-      setName(""); setSpecies(""); setWeight("");
-      fetchPatients();
-    }
+    if (!isValidWeight(weight)) return alert("⚠️ Weight must be a number");
+    const { error } = await supabase.from("patients").insert([{ name, species, weight: Number(weight), client_id: id }]);
+    if (!error) { setName(""); setSpecies(""); setWeight(""); fetchPatients(); }
   }
 
   async function deletePatient(patientId) {
@@ -81,16 +68,11 @@ export default function ClientDetail() {
   }
 
   async function updateClient() {
-    const { error } = await supabase.from("clients").update({ 
-      name: editName, surname: editSurname, phone: editPhone, email: editEmail, 
-      address: editAddress, city: editCity, postcode: editPostcode 
-    }).eq("id", id);
+    const { error } = await supabase.from("clients").update({ name: editName, surname: editSurname, phone: editPhone, email: editEmail, address: editAddress, city: editCity, postcode: editPostcode }).eq("id", id);
     if (!error) { setIsEditing(false); fetchClient(); }
   }
 
-  const googleMapsUrl = client?.address 
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${client.address}, ${client.city} ${client.postcode}`)}`
-    : null;
+  const googleMapsUrl = client?.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${client.address}, ${client.city} ${client.postcode}`)}` : null;
 
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
@@ -112,7 +94,6 @@ export default function ClientDetail() {
             <p><strong>Name:</strong> {client?.name} {client?.surname}</p>
             <p><strong>Phone:</strong> {client?.phone ? <a href={`tel:${client.phone}`} style={{ color: "#3498db", textDecoration: "none" }}>{client.phone}</a> : "None"}</p>
             <p><strong>Email:</strong> {client?.email ? <a href={`mailto:${client.email}`} style={{ color: "#3498db", textDecoration: "none" }}>{client.email}</a> : "None"}</p>
-            
             <p style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <strong>Address:</strong> {client?.address || "None"}
               {googleMapsUrl && (
