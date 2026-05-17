@@ -101,11 +101,8 @@ export default function PatientDetail() {
   const [editAptId, setEditAptId] = useState(null);
   const [aptUserId, setAptUserId] = useState("");
   const [aptDate, setAptDate] = useState(new Date().toISOString().split("T")[0]);
-  
-  // TIME STATES
   const [aptStartTime, setAptStartTime] = useState("");
   const [aptEndTime, setAptEndTime] = useState("");
-
   const [aptType, setAptType] = useState("Consultation");
   const [aptTitle, setAptTitle] = useState("");
   const [aptNotes, setAptNotes] = useState("");
@@ -328,25 +325,29 @@ export default function PatientDetail() {
   }
 
   function saveDosing() {
-    if (!patient?.weight) return;
-    if (calcResults.length === 0) return setAlertMessage("Select a protocol to save.");
-
-    const missingBatches = calcResults.some(r => !r.batchId);
-    if (missingBatches) {
-      setConfirmModal({
-        title: "Missing Batch Information",
-        message: "Some drugs have no batch selected. Are you sure you want to save anyway?",
-        confirmText: "Save Anyway",
-        confirmColor: "#f39c12",
-        onConfirm: () => {
-          setConfirmModal(null);
-          executeSaveDosing();
-        }
-      });
-      return;
+    if (!patient?.weight) {
+      return setAlertMessage("Please set the patient's weight in the Details tab before recording doses.");
+    }
+    
+    // Check if the user has actually selected a protocol first
+    if (!protocolId || calcResults.length === 0) {
+      return setAlertMessage("Please select a Sedation Protocol first.");
     }
 
-    executeSaveDosing();
+    const missingBatches = calcResults.some(r => !r.batchId);
+    
+    setConfirmModal({
+      title: "Confirm Dosing",
+      message: missingBatches 
+        ? "Some drugs have no batch selected. Are you sure you want to record these doses and deduct from stock anyway?"
+        : "Are you sure you want to record these doses and deduct the amounts from your active stock?",
+      confirmText: "Yes, Record Doses",
+      confirmColor: "#27ae60",
+      onConfirm: () => {
+        setConfirmModal(null);
+        executeSaveDosing();
+      }
+    });
   }
 
   function startEditHistory(h) {
@@ -538,7 +539,6 @@ export default function PatientDetail() {
   async function saveAppointment() {
     if (!aptDate || !aptUserId) return setAlertMessage("Date and User are required");
     
-    // Combine start and end times
     const combinedTime = (aptStartTime && aptEndTime) ? `${aptStartTime} - ${aptEndTime}` : (aptStartTime || aptEndTime || "");
     
     const payload = { user_id: aptUserId, date: aptDate, time_range: combinedTime, entry_type: aptType, client_id: patient?.client_id || null, patient_id: id, title: aptTitle, notes: aptNotes };
@@ -564,7 +564,6 @@ export default function PatientDetail() {
   function startEditApt(apt) {
     setIsEditingApt(true); setEditAptId(apt.id); setAptUserId(apt.user_id); setAptDate(apt.date); 
     
-    // Split combined time back out
     const times = apt.time_range ? apt.time_range.split(" - ") : ["", ""];
     setAptStartTime(times[0] || "");
     setAptEndTime(times[1] || "");
@@ -717,7 +716,8 @@ export default function PatientDetail() {
             </div>
           ))}
 
-          <button onClick={saveDosing} style={{ ...btnStyle, width: "100%", background: "#27ae60", color: "white", marginTop: "20px" }} disabled={!patient?.weight || calcResults.length === 0}>
+          {/* NEW: Button is always enabled to allow user to click it and see the warnings if something is missing */}
+          <button onClick={saveDosing} style={{ ...btnStyle, width: "100%", background: "#27ae60", color: "white", marginTop: "20px" }}>
             Record Doses & Deduct from Stock
           </button>
           
