@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
-import Loader from "../Loader"; // <-- Ensure this path is correct
+import Loader from "../Loader"; 
+import { jsPDF } from "jspdf"; 
+import autoTable from "jspdf-autotable";
 
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
 const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px", cursor: "pointer", transition: "transform 0.1s" };
@@ -23,15 +25,24 @@ export default function AdminDashboard() {
   const [outstandingTotal, setOutstandingTotal] = useState(0);
   const [outstandingInvoices, setOutstandingInvoices] = useState([]); 
   
-  // Lists for Stats
+  // Lists for Stats & Reports
   const [allClientsList, setAllClientsList] = useState([]);
   const [allPatientsList, setAllPatientsList] = useState([]);
   const [allSedationsList, setAllSedationsList] = useState([]);
   const [allConsentsList, setAllConsentsList] = useState([]);
+  
+  // Reports Tab State
+  const [selectedPatientForReport, setSelectedPatientForReport] = useState("");
 
   // Modal States
-  const [statModalMode, setStatModalMode] = useState(null); // 'clients' | 'patients' | 'deceased' | 'sedations' | 'consents'
+  const [statModalMode, setStatModalMode] = useState(null); 
   const [statSearch, setStatSearch] = useState("");
+
+  // Action Modal States
+  const [productToDelete, setProductToDelete] = useState(null);
+  const [stockToDelete, setStockToDelete] = useState(null);
+  const [stockToArchive, setStockToArchive] = useState(null); // <-- New State
+  const [protocolToDelete, setProtocolToDelete] = useState(null);
 
   const [productsList, setProductsList] = useState([]);
   const [isEditingProd, setIsEditingProd] = useState(false);
@@ -77,7 +88,6 @@ export default function AdminDashboard() {
   }
 
   async function fetchReports() {
-    // Fetch Financials
     const { data: procedures } = await supabase.from("patient_procedures").select("*, patients(name, clients(id, name, surname, phone))");
     if (procedures) {
       let sales = 0; let outstanding = 0; const groupedInvoices = {};
@@ -104,11 +114,10 @@ export default function AdminDashboard() {
       setTotalSales(sales); setOutstandingTotal(outstanding); setOutstandingInvoices(Object.values(groupedInvoices).sort((a,b) => new Date(b.date) - new Date(a.date)));
     }
 
-    // Fetch Full Lists for Stats
     const { data: clientsData } = await supabase.from("clients").select("*");
     if (clientsData) setAllClientsList(clientsData);
 
-    const { data: patientsData } = await supabase.from("patients").select("*, clients(surname)");
+    const { data: patientsData } = await supabase.from("patients").select("*, clients(*)").order("name");
     if (patientsData) setAllPatientsList(patientsData);
 
     const { data: sedationData } = await supabase.from("sedation_records").select("*, patients(name)");
@@ -122,6 +131,153 @@ export default function AdminDashboard() {
   async function fetchStock() { const { data } = await supabase.from("stock").select("*"); setStockList(data || []); }
   async function fetchProtocols() { const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)").order("name"); setProtocolsList(data || []); }
 
+  // --- PDF REPORT GENERATORS ---
+
+  function drawReportHeader(doc, subtitle) {
+    doc.setFontSize(22);
+    doc.setTextColor(44, 62, 80); 
+    doc.setFont(undefined, 'bold');
+    doc.text("SP Home Euthanasia", 14, 22);
+
+    doc.setFontSize(14);
+    doc.setTextColor(127, 140, 141); 
+    doc.setFont(undefined, 'normal');
+    doc.text(subtitle, 14, 30);
+    
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 36);
+
+    return 45; 
+  }
+
+  function generateStockReport() {
+    try {
+      console.log("Generating Stock Report...");
+      const doc = new jsPDF();
+      const startY = drawReportHeader(doc, "Master Inventory Stock Report");
+      
+      const tableColumn = ["Drug Name", "Batch Number", "Remaining (ml)", "Expiry Date", "Status"];
+      const tableRows = [];
+      
+      stockList.forEach(s => {
+        tableRows.push([
+          s.drug, 
+          s.batch, 
+          `${s.total_ml} ml`, 
+          s.expiry_date ? new Date(s.expiry_date).toLocaleDateString('en-GB') : "N/A", 
+          s.is_archived ? "Archived" : "Active"
+        ]);
+      });
+      
+      autoTable(doc, { head: [tableColumn], body: tableRows, startY: startY });
+      doc.save(`Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error(error);
+      alert("Error generating PDF. Check console for details. " + error.message);
+    }
+  }
+
+  async function generateInvoiceReport() {
+    try {
+      console.log("Generating Invoice Report...");
+      const { data: procs } = await supabase.from("patient_procedures").select("*, patients(name, clients(name, surname))").order("created_at", { ascending: false });
+      
+      const doc = new jsPDF();
+      const startY = drawReportHeader(doc, "Financial & Invoice Report");
+      
+      const cols = ["Date", "Client", "Patient", "Procedure/Item", "Price", "Status"];
+      const rows = (procs || []).map(p => [
+        new Date(p.created_at).toLocaleDateString('en-GB'),
+        p.patients?.clients ? `${p.patients.clients.name} ${p.patients.clients.surname}` : "Unknown",
+        p.patients?.name || "Unknown",
+        p.product_name,
+        `£${Number(p.price).toFixed(2)}`,
+        p.is_paid ? "Paid" : "Unpaid"
+      ]);
+      
+      autoTable(doc, { head: [cols], body: rows, startY: startY });
+      doc.save(`Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error(error);
+      alert("Error generating PDF. Check console for details. " + error.message);
+    }
+  }
+
+  async function generatePatientReport() {
+    try {
+      console.log("Generating Patient Report...");
+      if (!selectedPatientForReport) return alert("Please select a patient from the dropdown first.");
+      const patient = allPatientsList.find(p => String(p.id) === String(selectedPatientForReport));
+      if (!patient) return;
+
+      const { data: procs } = await supabase.from("patient_procedures").select("*").eq("patient_id", patient.id).order("created_at");
+      const { data: seds } = await supabase.from("sedation_records").select("*").eq("patient_id", patient.id).order("created_at");
+
+      const doc = new jsPDF();
+      let yPos = drawReportHeader(doc, `Patient History: ${patient.name}`);
+
+      doc.setFontSize(12);
+      doc.setTextColor(44, 62, 80);
+      doc.setFont(undefined, 'bold');
+      doc.text("Client Details", 14, yPos); yPos += 6;
+      
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(11);
+      const client = patient.clients || {};
+      doc.text(`Name: ${client.name || ""} ${client.surname || "Unknown"}`, 14, yPos); yPos += 5;
+      doc.text(`Phone: ${client.phone || "N/A"}`, 14, yPos); yPos += 5;
+      doc.text(`Email: ${client.email || "N/A"}`, 14, yPos); yPos += 5;
+      const addr = [client.address, client.city, client.postcode].filter(Boolean).join(", ");
+      doc.text(`Address: ${addr || "N/A"}`, 14, yPos); yPos += 10;
+
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text("Patient Details", 14, yPos); yPos += 6;
+      
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(11);
+      doc.text(`Name: ${patient.name}`, 14, yPos); yPos += 5;
+      doc.text(`Species: ${patient.species || "N/A"}   |   Breed: ${patient.breed || "N/A"}`, 14, yPos); yPos += 5;
+      doc.text(`Weight: ${patient.weight ? patient.weight + ' kg' : "N/A"}   |   Age: ${patient.age_years || 0}y ${patient.age_months || 0}m`, 14, yPos); yPos += 5;
+      doc.text(`Status: ${patient.is_deceased ? "Deceased" : "Alive"}`, 14, yPos); yPos += 10;
+
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text("Clinical Procedures & Invoicing", 14, yPos);
+      yPos += 5;
+      const procCols = ["Date", "Item / Procedure", "Notes", "Price", "Status"];
+      const procRows = (procs || []).map(p => [
+        new Date(p.created_at).toLocaleDateString('en-GB'), 
+        p.product_name, 
+        p.notes || "", 
+        `£${Number(p.price).toFixed(2)}`, 
+        p.is_paid ? "Paid" : "Unpaid"
+      ]);
+      
+      autoTable(doc, { head: [procCols], body: procRows, startY: yPos });
+      
+      yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPos + 30;
+
+      doc.setFontSize(14);
+      doc.text("Sedation & Dosing History", 14, yPos);
+      yPos += 5;
+      const sedCols = ["Date", "Weight at time", "Drugs Administered"];
+      const sedRows = (seds || []).map(s => {
+         const drugs = (s.results || []).map(r => `${r.label}: ${r.ml}ml`).join(", ");
+         return [new Date(s.created_at).toLocaleDateString('en-GB'), `${s.weight} kg`, drugs];
+      });
+      
+      autoTable(doc, { head: [sedCols], body: sedRows, startY: yPos });
+      
+      doc.save(`Patient_History_${patient.name.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error(error);
+      alert("Error generating PDF. Check console for details. " + error.message);
+    }
+  }
+
+  // --- CRUD ACTIONS ---
+
   async function saveProduct() {
     if (!prodName || !prodPrice) return alert("Name and Price are required.");
     const payload = { name: prodName, description: prodDesc, price: Number(prodPrice) };
@@ -129,7 +285,14 @@ export default function AdminDashboard() {
     else await supabase.from("products").insert([payload]);
     setIsEditingProd(false); setEditProdId(null); setProdName(""); setProdDesc(""); setProdPrice(""); fetchProducts();
   }
-  async function deleteProduct(id) { if (!window.confirm("Delete this product?")) return; await supabase.from("products").delete().eq("id", id); fetchProducts(); }
+  
+  async function confirmDeleteProduct() {
+    if (!productToDelete) return;
+    await supabase.from("products").delete().eq("id", productToDelete.id);
+    setProductToDelete(null);
+    fetchProducts();
+  }
+
   function startEditProd(p) { setIsEditingProd(true); setEditProdId(p.id); setProdName(p.name); setProdDesc(p.description || ""); setProdPrice(p.price); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   async function addStock() {
@@ -139,8 +302,20 @@ export default function AdminDashboard() {
   }
   function startEditStock(s) { setEditingStockId(s.id); setEditStockData({ ...s }); }
   async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, batch: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
-  async function archiveStock(id) { if (window.confirm("Archive this bottle?")) { await supabase.from("stock").update({ is_archived: true }).eq("id", id); fetchStock(); } }
-  async function deleteStock(id) { if (window.confirm("Delete stock completely?")) { await supabase.from("stock").delete().eq("id", id); fetchStock(); } }
+  
+  async function confirmArchiveStock() {
+    if (!stockToArchive) return;
+    await supabase.from("stock").update({ is_archived: true }).eq("id", stockToArchive.id);
+    setStockToArchive(null);
+    fetchStock();
+  }
+
+  async function confirmDeleteStock() {
+    if (!stockToDelete) return;
+    await supabase.from("stock").delete().eq("id", stockToDelete.id);
+    setStockToDelete(null);
+    fetchStock();
+  }
 
   function addProtoDrug() {
     const mgKg = parseFloat(protoMgKg); const mgMl = parseFloat(protoMgMl);
@@ -165,9 +340,15 @@ export default function AdminDashboard() {
     } catch (err) { alert(`Save failed: ${err.message}`); }
   }
   function startEditProtocol(p) { setEditingProtoId(p.id); setProtoName(p.name); setProtoSpecies(p.species || ""); setProtoDrugs(p.protocol_drugs || []); window.scrollTo({ top: 0, behavior: "smooth" }); }
-  async function deleteProtocolObj(id) { if (!window.confirm("Delete protocol?")) return; await supabase.from("protocol_drugs").delete().eq("protocol_id", id); await supabase.from("protocols").delete().eq("id", id); fetchProtocols(); }
+  
+  async function confirmDeleteProtocol() {
+    if (!protocolToDelete) return;
+    await supabase.from("protocol_drugs").delete().eq("protocol_id", protocolToDelete.id); 
+    await supabase.from("protocols").delete().eq("id", protocolToDelete.id);
+    setProtocolToDelete(null);
+    fetchProtocols();
+  }
 
-  // --- STAT MODAL RENDERING LOGIC ---
   function renderStatModalList() {
     let list = [];
     if (statModalMode === "clients") list = allClientsList;
@@ -194,7 +375,6 @@ export default function AdminDashboard() {
 
     return filtered.map(item => (
        <div key={item.id} style={{ background: "#f8f9fb", padding: "12px", borderRadius: "8px", marginBottom: "8px", border: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-         
          { statModalMode === "clients" && (
            <>
              <div>
@@ -204,7 +384,6 @@ export default function AdminDashboard() {
              <button onClick={() => navigate(`/client/${item.id}`)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
            </>
          )}
-
          { (statModalMode === "patients" || statModalMode === "deceased") && (
            <>
              <div>
@@ -214,17 +393,15 @@ export default function AdminDashboard() {
              <button onClick={() => navigate(`/patient/${item.id}`)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
            </>
          )}
-         
          { statModalMode === "sedations" && (
            <>
              <div>
                <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Unknown"}</strong>
-               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{new Date(item.created_at).toLocaleDateString()}</div>
+               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{new Date(item.created_at).toLocaleDateString('en-GB')}</div>
              </div>
              <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "dosing" } })} style={{ background: "#27ae60", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View Record</button>
            </>
          )}
-         
          { statModalMode === "consents" && (
            <>
              <div>
@@ -251,6 +428,7 @@ export default function AdminDashboard() {
 
   const TABS = [
     { id: "overview", label: "Overview" },
+    { id: "reports", label: "Reports" }, 
     { id: "products", label: "Products" },
     { id: "stock", label: "Stock" },
     { id: "protocols", label: "Protocols" }
@@ -285,33 +463,26 @@ export default function AdminDashboard() {
 
           <h3 style={{ color: "#2c3e50" }}>Clinical Records <span style={{fontSize: "12px", color: "#7f8c8d", fontWeight: "normal", marginLeft: "10px"}}>(Tap to view list)</span></h3>
           <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
-            
-            {/* Clickable Stat Cards */}
             <div style={statCard} onClick={() => { setStatModalMode("clients"); setStatSearch(""); }}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Clients</div>
               <div style={{ fontSize: "24px", fontWeight: "bold", color: "#8e44ad" }}>{allClientsList.length}</div>
             </div>
-
             <div style={statCard} onClick={() => { setStatModalMode("patients"); setStatSearch(""); }}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Patients</div>
               <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>{allPatientsList.length}</div>
             </div>
-            
             <div style={statCard} onClick={() => { setStatModalMode("deceased"); setStatSearch(""); }}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Deceased</div>
               <div style={{ fontSize: "24px", fontWeight: "bold", color: "#95a5a6" }}>{allPatientsList.filter(p => p.is_deceased).length}</div>
             </div>
-            
             <div style={statCard} onClick={() => { setStatModalMode("sedations"); setStatSearch(""); }}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Sedations</div>
               <div style={{ fontSize: "24px", fontWeight: "bold", color: "#27ae60" }}>{allSedationsList.length}</div>
             </div>
-            
             <div style={statCard} onClick={() => { setStatModalMode("consents"); setStatSearch(""); }}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Consents</div>
               <div style={{ fontSize: "24px", fontWeight: "bold", color: "#f39c12" }}>{allConsentsList.length}</div>
             </div>
-
           </div>
 
           <h3 style={{ color: "#2c3e50", borderBottom: "2px solid #eee", paddingBottom: "10px" }}>Action Required: Unpaid Invoices</h3>
@@ -330,7 +501,7 @@ export default function AdminDashboard() {
                       {inv.items.join(", ")}
                     </div>
                     <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>
-                      Invoice Date: {new Date(inv.date).toLocaleDateString()}
+                      Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}
                     </div>
                   </div>
                   <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
@@ -342,6 +513,54 @@ export default function AdminDashboard() {
             )}
           </div>
         </>
+      )}
+
+      {/* ================= TAB 1.5: REPORTS ================= */}
+      {activeTab === "reports" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Inventory Stock Report</h3>
+              <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a PDF of all active and archived stock.</p>
+            </div>
+            <button onClick={generateStockReport} style={{ ...blueBtn, flex: "none", padding: "12px 20px" }}>Generate PDF</button>
+          </div>
+
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Master Invoice Report</h3>
+              <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a PDF list of all billed procedures and their payment status.</p>
+            </div>
+            <button onClick={generateInvoiceReport} style={{ ...greenBtn, flex: "none", padding: "12px 20px" }}>Generate PDF</button>
+          </div>
+
+          <div className="card">
+            <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Patient Full History Report</h3>
+            <p style={{ margin: "0 0 15px 0", color: "#7f8c8d", fontSize: "14px" }}>Select a patient to generate a comprehensive PDF of their details, procedures, and sedation history.</p>
+            
+            <div style={{ display: "flex", gap: "10px" }}>
+              <select 
+                value={selectedPatientForReport} 
+                onChange={(e) => setSelectedPatientForReport(e.target.value)} 
+                style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+              >
+                <option value="">-- Select a Patient --</option>
+                {allPatientsList.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.clients?.surname || "Unknown"})</option>
+                ))}
+              </select>
+              
+              <button 
+                onClick={generatePatientReport} 
+                style={{ ...yellowBtn, flex: "none", padding: "12px 20px", width: "150px" }}
+              >
+                Generate PDF
+              </button>
+            </div>
+          </div>
+
+        </div>
       )}
 
       {/* ================= TAB 2: PRODUCTS ================= */}
@@ -371,7 +590,7 @@ export default function AdminDashboard() {
                   <div style={{ fontSize: "20px", fontWeight: "bold", color: "#27ae60" }}>£{Number(p.price).toFixed(2)}</div>
                   <div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
                     <button onClick={() => startEditProd(p)} style={{ ...blueBtn, padding: "5px 10px", fontSize: "12px" }}>Edit</button>
-                    <button onClick={() => deleteProduct(p.id)} style={{ ...redBtn, padding: "5px 10px", fontSize: "12px" }}>Delete</button>
+                    <button onClick={() => setProductToDelete(p)} style={{ ...redBtn, padding: "5px 10px", fontSize: "12px" }}>Delete</button>
                   </div>
                 </div>
               </div>
@@ -416,12 +635,12 @@ export default function AdminDashboard() {
                     <strong style={{fontSize: "18px", color: "#333"}}>{s.drug}</strong><br/>
                     <div style={{ color: "#7f8c8d", fontSize: "14px", lineHeight: "1.6", marginTop: "5px" }}>
                       Batch: {s.batch} | <strong>{s.total_ml} ml remaining</strong><br/>
-                      {s.expiry_date && `Expires: ${s.expiry_date}`}
+                      {s.expiry_date && `Expires: ${new Date(s.expiry_date).toLocaleDateString('en-GB')}`}
                     </div>
                     <div style={{...btnRow, marginTop: "15px"}}>
                       <button style={{...blueBtn, padding: "8px"}} onClick={() => startEditStock(s)}>Edit</button>
-                      <button style={{...yellowBtn, padding: "8px"}} onClick={() => archiveStock(s.id)}>Archive</button>
-                      <button style={{...redBtn, padding: "8px"}} onClick={() => deleteStock(s.id)}>Delete</button>
+                      <button style={{...yellowBtn, padding: "8px"}} onClick={() => setStockToArchive(s)}>Archive</button>
+                      <button style={{...redBtn, padding: "8px"}} onClick={() => setStockToDelete(s)}>Delete</button>
                     </div>
                   </>
                 )}
@@ -484,7 +703,7 @@ export default function AdminDashboard() {
 
                 <div style={btnRow}>
                   <button style={{...blueBtn, padding: "8px"}} onClick={() => startEditProtocol(p)}>Edit</button>
-                  <button style={{...redBtn, padding: "8px"}} onClick={() => deleteProtocolObj(p.id)}>Delete</button>
+                  <button style={{...redBtn, padding: "8px"} } onClick={() => setProtocolToDelete(p)}>Delete</button>
                 </div>
               </div>
             ))}
@@ -493,22 +712,75 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= STATS MODAL OVERLAY ================= */}
+      {/* ================= STATS LIST MODAL ================= */}
       {statModalMode && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStatModalMode(null)}>
           <div style={{ background: "white", padding: "20px", borderRadius: "15px", width: "100%", maxWidth: "500px", maxHeight: "80vh", display: "flex", flexDirection: "column", position: "relative" }} onClick={e => e.stopPropagation()}>
             <button onClick={() => setStatModalMode(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#eee", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold" }}>X</button>
             <h2 style={{ marginTop: 0, textTransform: "capitalize", color: "#2c3e50" }}>{statModalMode} List</h2>
-            
-            <input 
-              placeholder={`Search ${statModalMode}...`} 
-              value={statSearch} 
-              onChange={(e) => setStatSearch(e.target.value)} 
-              style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "15px" }} 
-            />
-            
-            <div style={{ overflowY: "auto", flex: 1, paddingRight: "5px" }}>
-              {renderStatModalList()}
+            <input placeholder={`Search ${statModalMode}...`} value={statSearch} onChange={(e) => setStatSearch(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "15px" }} />
+            <div style={{ overflowY: "auto", flex: 1, paddingRight: "5px" }}>{renderStatModalList()}</div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= ACTION MODALS ================= */}
+      {productToDelete && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setProductToDelete(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete product <strong>{productToDelete.name}</strong> from the system library?
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmDeleteProduct} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
+              <button onClick={() => setProductToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Archive Stock Modal */}
+      {stockToArchive && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStockToArchive(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>📦 Confirm Archive</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to archive drug batch <strong>{stockToArchive.batch} ({stockToArchive.drug})</strong>? It will no longer appear in active dropdown menus.
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmArchiveStock} style={{ flex: 1, background: "#f39c12", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Archive</button>
+              <button onClick={() => setStockToArchive(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stockToDelete && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStockToDelete(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete drug batch <strong>{stockToDelete.batch} ({stockToDelete.drug})</strong> from inventory storage?
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmDeleteStock} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
+              <button onClick={() => setStockToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {protocolToDelete && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setProtocolToDelete(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete sedation protocol <strong>{protocolToDelete.name}</strong>?
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmDeleteProtocol} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
+              <button onClick={() => setProtocolToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         </div>

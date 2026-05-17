@@ -36,6 +36,7 @@ export default function Clients() {
 
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Form State
   const [firstName, setFirstName] = useState("");
@@ -52,7 +53,21 @@ export default function Clients() {
   const [petSpecies, setPetSpecies] = useState("");
   const [petWeight, setPetWeight] = useState("");
 
-  useEffect(() => { fetchClients(); }, []);
+  // Modal State for Delete Confirmation
+  const [clientToDelete, setClientToDelete] = useState(null);
+
+  useEffect(() => { 
+    checkAdminStatus();
+    fetchClients(); 
+  }, []);
+
+  async function checkAdminStatus() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const { data } = await supabase.from("profiles").select("is_admin").eq("id", session.user.id).single();
+      setIsAdmin(!!data?.is_admin);
+    }
+  }
 
   async function fetchClients() {
     const { data, error } = await supabase.from("clients").select("*").order("surname");
@@ -80,12 +95,15 @@ export default function Clients() {
     }
   }
 
-  async function deleteClient(clientId) {
-    if (!window.confirm("Are you sure you want to delete this client?")) return;
-    const { error } = await supabase.from("clients").delete().eq("id", clientId);
+  async function confirmDeleteClient() {
+    if (!isAdmin) return alert("Access Denied: Only administrators can delete clients.");
+    if (!clientToDelete) return;
+
+    const { error } = await supabase.from("clients").delete().eq("id", clientToDelete.id);
     if (error) {
       alert("Error: " + error.message);
     } else {
+      setClientToDelete(null);
       fetchClients();
     }
   }
@@ -150,17 +168,19 @@ export default function Clients() {
               </div>
             </div>
 
-            <div style={btnRow}>
-              <button 
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  deleteClient(c.id); 
-                }} 
-                style={redBtn}
-              >
-                Delete Client
-              </button>
-            </div>
+            {isAdmin && (
+              <div style={btnRow}>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setClientToDelete(c);
+                  }} 
+                  style={redBtn}
+                >
+                  Delete Client
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {filtered.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No clients found.</p>}
@@ -184,6 +204,22 @@ export default function Clients() {
                 <button onClick={addPet} style={{ flex: 1, background: "#27ae60", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Save Pet</button>
                 <button onClick={() => setNewClient(null)} style={{ flex: 1, background: "#f39c12", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Skip for now</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POP-UP MODAL FOR CONFIRMING CLIENT DELETION */}
+      {clientToDelete && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setClientToDelete(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete client <strong>{clientToDelete.name} {clientToDelete.surname}</strong>? This action cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmDeleteClient} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
+              <button onClick={() => setClientToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         </div>

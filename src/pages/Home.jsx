@@ -1,3 +1,4 @@
+// Home.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
@@ -24,6 +25,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]); 
   
   const [viewEntry, setViewEntry] = useState(null);
+  const [entryToDelete, setEntryToDelete] = useState(null); // Modal State for Deletion
 
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -97,11 +99,12 @@ export default function Home() {
     fetchEntries();
   }
 
-  async function deleteEntry(id) {
-    if (!window.confirm("Delete this diary entry?")) return;
-    await supabase.from("diary_entries").delete().eq("id", id);
-    fetchEntries();
+  async function confirmDeleteEntry() {
+    if (!entryToDelete) return;
+    await supabase.from("diary_entries").delete().eq("id", entryToDelete.id);
+    setEntryToDelete(null);
     setViewEntry(null);
+    fetchEntries();
   }
 
   function startEdit(entry) {
@@ -278,13 +281,30 @@ export default function Home() {
               {isAdmin && (
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button onClick={() => startEdit(viewEntry)} style={blueBtn}>Edit</button>
-                  <button onClick={() => deleteEntry(viewEntry.id)} style={redBtn}>Delete</button>
+                  <button onClick={() => setEntryToDelete(viewEntry)} style={redBtn}>Delete</button>
                 </div>
               )}
             </div>
           </div>
         </div>
       )}
+
+      {/* POP-UP MODAL FOR DELETING DIARY ENTRY */}
+      {entryToDelete && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setEntryToDelete(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete this diary entry?
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmDeleteEntry} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
+              <button onClick={() => setEntryToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

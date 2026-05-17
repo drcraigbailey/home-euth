@@ -1,3 +1,4 @@
+// Patients.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
@@ -30,11 +31,24 @@ const redBtn = {
 export default function Patients() {
   const [patients, setPatients] = useState([]);
   const [search, setSearch] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
+  // Modal State for Deletion
+  const [patientToDelete, setPatientToDelete] = useState(null);
+
   useEffect(() => {
+    checkAdminStatus();
     fetchPatients();
   }, []);
+
+  async function checkAdminStatus() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const { data } = await supabase.from("profiles").select("is_admin").eq("id", session.user.id).single();
+      setIsAdmin(!!data?.is_admin);
+    }
+  }
 
   async function fetchPatients() {
     const { data } = await supabase
@@ -44,10 +58,17 @@ export default function Patients() {
     setPatients(data || []);
   }
 
-  async function deletePatient(id) {
-    if (!window.confirm("Delete this patient?")) return;
-    await supabase.from("patients").delete().eq("id", id);
-    fetchPatients();
+  async function confirmDeletePatient() {
+    if (!isAdmin) return alert("Access Denied: Only administrators can delete patients.");
+    if (!patientToDelete) return;
+
+    const { error } = await supabase.from("patients").delete().eq("id", patientToDelete.id);
+    if (!error) {
+      setPatientToDelete(null);
+      fetchPatients();
+    } else {
+      alert("Error: " + error.message);
+    }
   }
 
   const filtered = patients.filter(p =>
@@ -105,7 +126,7 @@ export default function Patients() {
               </div>
             </div>
 
-            {/* Bottom Section: Buttons on their own full-width row */}
+            {/* Bottom Section: Buttons row */}
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
               <button 
                 style={greenBtn}
@@ -113,12 +134,14 @@ export default function Patients() {
               >
                 Sedate
               </button>
-              <button 
-                style={redBtn}
-                onClick={() => deletePatient(p.id)}
-              >
-                Delete
-              </button>
+              {isAdmin && (
+                <button 
+                  style={redBtn}
+                  onClick={() => setPatientToDelete(p)}
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -129,6 +152,23 @@ export default function Patients() {
           </p>
         )}
       </div>
+
+      {/* POP-UP MODAL FOR PATIENT DELETION */}
+      {patientToDelete && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setPatientToDelete(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete patient <strong>{patientToDelete.name}</strong>? All records linked to this profile will be cleared.
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmDeletePatient} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
+              <button onClick={() => setPatientToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
