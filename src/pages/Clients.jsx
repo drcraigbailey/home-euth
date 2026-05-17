@@ -38,6 +38,10 @@ export default function Clients() {
   const [search, setSearch] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Custom Modal States
+  const [alertMessage, setAlertMessage] = useState("");
+  const [confirmModal, setConfirmModal] = useState(null);
+
   // Form State
   const [firstName, setFirstName] = useState("");
   const [surname, setSurname] = useState("");
@@ -52,9 +56,6 @@ export default function Clients() {
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
   const [petWeight, setPetWeight] = useState("");
-
-  // Modal State for Delete Confirmation
-  const [clientToDelete, setClientToDelete] = useState(null);
 
   useEffect(() => { 
     checkAdminStatus();
@@ -74,15 +75,7 @@ export default function Clients() {
     if (!error) setClients(data || []);
   }
 
-  async function addClient() {
-    if (!firstName || !surname) return;
-
-    const isInfoMissing = !phone || !email || !address || !city || !postcode;
-    if (isInfoMissing) {
-      const proceed = window.confirm("More info is needed (Phone, Email, etc). Save anyway?");
-      if (!proceed) return;
-    }
-
+  async function executeAddClient() {
     const { data, error } = await supabase.from("clients").insert([
       { name: firstName, surname, phone, email, address, city, postcode }
     ]).select().single();
@@ -92,31 +85,66 @@ export default function Clients() {
       setFirstName(""); setSurname(""); setPhone(""); setEmail("");
       setAddress(""); setCity(""); setPostcode("");
       fetchClients();
+    } else {
+      setAlertMessage("Error saving client: " + error.message);
     }
   }
 
-  async function confirmDeleteClient() {
-    if (!isAdmin) return alert("Access Denied: Only administrators can delete clients.");
-    if (!clientToDelete) return;
+  function addClient() {
+    if (!firstName || !surname) return setAlertMessage("First name and Surname are required.");
 
-    const { error } = await supabase.from("clients").delete().eq("id", clientToDelete.id);
-    if (error) {
-      alert("Error: " + error.message);
-    } else {
-      setClientToDelete(null);
-      fetchClients();
+    const isInfoMissing = !phone || !email || !address || !city || !postcode;
+    
+    // Intercept with beautiful custom modal if info is missing
+    if (isInfoMissing) {
+      setConfirmModal({
+        title: "Missing Information",
+        message: "More info is needed (Phone, Email, etc). Save anyway?",
+        confirmText: "Save Anyway",
+        confirmColor: "#f39c12",
+        onConfirm: () => {
+          setConfirmModal(null);
+          executeAddClient();
+        }
+      });
+      return;
     }
+    
+    // If everything is filled out, proceed directly
+    executeAddClient();
+  }
+
+  function handleDeleteClick(c) {
+    if (!isAdmin) return setAlertMessage("Access Denied: Only administrators can delete clients.");
+
+    setConfirmModal({
+      title: "Confirm Deletion",
+      message: `Are you sure you want to permanently delete client ${c.name} ${c.surname}? This action cannot be undone.`,
+      confirmText: "Yes, Delete",
+      confirmColor: "#e74c3c",
+      onConfirm: async () => {
+        const { error } = await supabase.from("clients").delete().eq("id", c.id);
+        if (error) {
+          setAlertMessage("Error: " + error.message);
+        } else {
+          fetchClients();
+        }
+        setConfirmModal(null);
+      }
+    });
   }
 
   async function addPet() {
-    if (!petName || !newClient) return;
+    if (!petName || !newClient) return setAlertMessage("Please provide a pet name.");
     const { error } = await supabase.from("patients").insert([
       { name: petName, species: petSpecies, weight: Number(petWeight), client_id: newClient.id }
     ]);
     if (!error) {
-      alert("Complete!");
+      setAlertMessage("Pet added successfully!");
       setPetName(""); setPetSpecies(""); setPetWeight("");
       setNewClient(null); 
+    } else {
+      setAlertMessage(error.message);
     }
   }
 
@@ -133,22 +161,22 @@ export default function Clients() {
         <h3>Add New Client</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <input placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
-            <input placeholder="Surname" value={surname} onChange={(e) => setSurname(e.target.value)} />
+            <input placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+            <input placeholder="Surname" value={surname} onChange={(e) => setSurname(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
           </div>
-          <input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+          <input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+          <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+          <input placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
-            <input placeholder="Postcode" value={postcode} onChange={(e) => setPostcode(e.target.value)} />
+            <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+            <input placeholder="Postcode" value={postcode} onChange={(e) => setPostcode(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
           </div>
           <button onClick={addClient} style={{ background: "#5499c7", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "600", cursor: "pointer" }}>Add Client</button>
         </div>
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
-        <input placeholder="Search name..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input placeholder="Search name..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" }} />
       </div>
 
       <div style={{ marginTop: "20px", background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
@@ -173,7 +201,7 @@ export default function Clients() {
                 <button 
                   onClick={(e) => { 
                     e.stopPropagation(); 
-                    setClientToDelete(c);
+                    handleDeleteClick(c);
                   }} 
                   style={redBtn}
                 >
@@ -209,17 +237,30 @@ export default function Clients() {
         </div>
       )}
 
-      {/* POP-UP MODAL FOR CONFIRMING CLIENT DELETION */}
-      {clientToDelete && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setClientToDelete(null)}>
+      {/* ================= GENERIC ALERT MODAL ================= */}
+      {alertMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>⚠️ Notice</h2>
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
-              Are you sure you want to permanently delete client <strong>{clientToDelete.name} {clientToDelete.surname}</strong>? This action cannot be undone.
+              {alertMessage}
+            </p>
+            <button onClick={() => setAlertMessage("")} style={{ width: "100%", background: "#3498db", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>OK</button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= GENERIC CONFIRM MODAL ================= */}
+      {confirmModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setConfirmModal(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: confirmModal.confirmColor || "#e74c3c", marginTop: 0 }}>⚠️ {confirmModal.title}</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {confirmModal.message}
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteClient} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setClientToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmModal.onConfirm} style={{ flex: 1, background: confirmModal.confirmColor || "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>{confirmModal.confirmText || "Confirm"}</button>
+              <button onClick={() => setConfirmModal(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         </div>

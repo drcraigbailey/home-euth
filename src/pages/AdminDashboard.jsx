@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 import Loader from "../Loader"; 
-import { jsPDF } from "jspdf"; 
+import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
@@ -25,23 +25,22 @@ export default function AdminDashboard() {
   const [outstandingTotal, setOutstandingTotal] = useState(0);
   const [outstandingInvoices, setOutstandingInvoices] = useState([]); 
   
-  // Lists for Stats & Reports
   const [allClientsList, setAllClientsList] = useState([]);
   const [allPatientsList, setAllPatientsList] = useState([]);
   const [allSedationsList, setAllSedationsList] = useState([]);
   const [allConsentsList, setAllConsentsList] = useState([]);
   
-  // Reports Tab State
   const [selectedPatientForReport, setSelectedPatientForReport] = useState("");
 
-  // Modal States
   const [statModalMode, setStatModalMode] = useState(null); 
   const [statSearch, setStatSearch] = useState("");
 
-  // Action Modal States
+  // New Generic Notice Modal
+  const [alertMessage, setAlertMessage] = useState("");
+
   const [productToDelete, setProductToDelete] = useState(null);
   const [stockToDelete, setStockToDelete] = useState(null);
-  const [stockToArchive, setStockToArchive] = useState(null); // <-- New State
+  const [stockToArchive, setStockToArchive] = useState(null);
   const [protocolToDelete, setProtocolToDelete] = useState(null);
 
   const [productsList, setProductsList] = useState([]);
@@ -131,28 +130,27 @@ export default function AdminDashboard() {
   async function fetchStock() { const { data } = await supabase.from("stock").select("*"); setStockList(data || []); }
   async function fetchProtocols() { const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)").order("name"); setProtocolsList(data || []); }
 
-  // --- PDF REPORT GENERATORS ---
-
   function drawReportHeader(doc, subtitle) {
     doc.setFontSize(22);
     doc.setTextColor(44, 62, 80); 
-    doc.setFont(undefined, 'bold');
+    doc.setFont("helvetica", "bold");
     doc.text("SP Home Euthanasia", 14, 22);
 
     doc.setFontSize(14);
     doc.setTextColor(127, 140, 141); 
-    doc.setFont(undefined, 'normal');
+    doc.setFont("helvetica", "normal");
     doc.text(subtitle, 14, 30);
     
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 36);
+
+    doc.setTextColor(0, 0, 0);
 
     return 45; 
   }
 
   function generateStockReport() {
     try {
-      console.log("Generating Stock Report...");
       const doc = new jsPDF();
       const startY = drawReportHeader(doc, "Master Inventory Stock Report");
       
@@ -173,13 +171,12 @@ export default function AdminDashboard() {
       doc.save(`Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
       console.error(error);
-      alert("Error generating PDF. Check console for details. " + error.message);
+      setAlertMessage("Error generating PDF. Check console for details.");
     }
   }
 
   async function generateInvoiceReport() {
     try {
-      console.log("Generating Invoice Report...");
       const { data: procs } = await supabase.from("patient_procedures").select("*, patients(name, clients(name, surname))").order("created_at", { ascending: false });
       
       const doc = new jsPDF();
@@ -199,14 +196,13 @@ export default function AdminDashboard() {
       doc.save(`Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
       console.error(error);
-      alert("Error generating PDF. Check console for details. " + error.message);
+      setAlertMessage("Error generating PDF. Check console for details.");
     }
   }
 
   async function generatePatientReport() {
     try {
-      console.log("Generating Patient Report...");
-      if (!selectedPatientForReport) return alert("Please select a patient from the dropdown first.");
+      if (!selectedPatientForReport) return setAlertMessage("Please select a patient from the dropdown first.");
       const patient = allPatientsList.find(p => String(p.id) === String(selectedPatientForReport));
       if (!patient) return;
 
@@ -218,11 +214,12 @@ export default function AdminDashboard() {
 
       doc.setFontSize(12);
       doc.setTextColor(44, 62, 80);
-      doc.setFont(undefined, 'bold');
+      doc.setFont("helvetica", "bold");
       doc.text("Client Details", 14, yPos); yPos += 6;
       
-      doc.setFont(undefined, 'normal');
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0); 
       const client = patient.clients || {};
       doc.text(`Name: ${client.name || ""} ${client.surname || "Unknown"}`, 14, yPos); yPos += 5;
       doc.text(`Phone: ${client.phone || "N/A"}`, 14, yPos); yPos += 5;
@@ -231,18 +228,21 @@ export default function AdminDashboard() {
       doc.text(`Address: ${addr || "N/A"}`, 14, yPos); yPos += 10;
 
       doc.setFontSize(12);
-      doc.setFont(undefined, 'bold');
+      doc.setTextColor(44, 62, 80);
+      doc.setFont("helvetica", "bold");
       doc.text("Patient Details", 14, yPos); yPos += 6;
       
-      doc.setFont(undefined, 'normal');
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
       doc.text(`Name: ${patient.name}`, 14, yPos); yPos += 5;
       doc.text(`Species: ${patient.species || "N/A"}   |   Breed: ${patient.breed || "N/A"}`, 14, yPos); yPos += 5;
       doc.text(`Weight: ${patient.weight ? patient.weight + ' kg' : "N/A"}   |   Age: ${patient.age_years || 0}y ${patient.age_months || 0}m`, 14, yPos); yPos += 5;
-      doc.text(`Status: ${patient.is_deceased ? "Deceased" : "Alive"}`, 14, yPos); yPos += 10;
+      doc.text(`Status: ${patient.is_deceased ? "Deceased" : "Alive"}`, 14, yPos); yPos += 12;
 
       doc.setFontSize(14);
-      doc.setFont(undefined, 'bold');
+      doc.setTextColor(44, 62, 80);
+      doc.setFont("helvetica", "bold");
       doc.text("Clinical Procedures & Invoicing", 14, yPos);
       yPos += 5;
       const procCols = ["Date", "Item / Procedure", "Notes", "Price", "Status"];
@@ -272,14 +272,14 @@ export default function AdminDashboard() {
       doc.save(`Patient_History_${patient.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error(error);
-      alert("Error generating PDF. Check console for details. " + error.message);
+      setAlertMessage("Error generating PDF. Check console for details.");
     }
   }
 
   // --- CRUD ACTIONS ---
 
   async function saveProduct() {
-    if (!prodName || !prodPrice) return alert("Name and Price are required.");
+    if (!prodName || !prodPrice) return setAlertMessage("Name and Price are required.");
     const payload = { name: prodName, description: prodDesc, price: Number(prodPrice) };
     if (isEditingProd) await supabase.from("products").update(payload).eq("id", editProdId);
     else await supabase.from("products").insert([payload]);
@@ -296,7 +296,7 @@ export default function AdminDashboard() {
   function startEditProd(p) { setIsEditingProd(true); setEditProdId(p.id); setProdName(p.name); setProdDesc(p.description || ""); setProdPrice(p.price); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   async function addStock() {
-    if (!stockDrugName.trim() || !stockBatch.trim() || !stockQty.trim()) return alert("Fill all stock fields");
+    if (!stockDrugName.trim() || !stockBatch.trim() || !stockQty.trim()) return setAlertMessage("Please fill all stock fields.");
     await supabase.from("stock").insert([{ drug: stockDrugName.trim(), batch: stockBatch.trim(), total_ml: Number(stockQty), expiry_date: stockExp || null, is_archived: false }]);
     setStockDrugName(""); setStockBatch(""); setStockQty(""); setStockExp(""); fetchStock();
   }
@@ -319,12 +319,12 @@ export default function AdminDashboard() {
 
   function addProtoDrug() {
     const mgKg = parseFloat(protoMgKg); const mgMl = parseFloat(protoMgMl);
-    if (!protoDrugName.trim() || isNaN(mgKg) || isNaN(mgMl)) return alert("Fill all drug fields correctly");
+    if (!protoDrugName.trim() || isNaN(mgKg) || isNaN(mgMl)) return setAlertMessage("Please fill all drug fields correctly.");
     setProtoDrugs(prev => [...prev, { drug_name: protoDrugName.trim(), mg_per_kg: mgKg, mg_per_ml: mgMl }]);
     setProtoDrugName(""); setProtoMgKg(""); setProtoMgMl("");
   }
   async function saveProtocolObj() {
-    if (!protoName.trim() || protoDrugs.length === 0) return alert("Enter a name and at least one drug");
+    if (!protoName.trim() || protoDrugs.length === 0) return setAlertMessage("Please enter a name and at least one drug.");
     try {
       const { data: { session } } = await supabase.auth.getSession();
       let pId = editingProtoId;
@@ -336,8 +336,9 @@ export default function AdminDashboard() {
         pId = data.id;
       }
       await supabase.from("protocol_drugs").insert(protoDrugs.map(d => ({ protocol_id: pId, ...d })));
-      setProtoName(""); setProtoSpecies(""); setProtoDrugs([]); setEditingProtoId(null); fetchProtocols(); alert("Protocol saved successfully!");
-    } catch (err) { alert(`Save failed: ${err.message}`); }
+      setProtoName(""); setProtoSpecies(""); setProtoDrugs([]); setEditingProtoId(null); fetchProtocols(); 
+      setAlertMessage("Protocol saved successfully!");
+    } catch (err) { setAlertMessage(`Save failed: ${err.message}`); }
   }
   function startEditProtocol(p) { setEditingProtoId(p.id); setProtoName(p.name); setProtoSpecies(p.species || ""); setProtoDrugs(p.protocol_drugs || []); window.scrollTo({ top: 0, behavior: "smooth" }); }
   
@@ -495,18 +496,22 @@ export default function AdminDashboard() {
                   <div>
                     <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
                     <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
-                      {inv.client?.name} {inv.client?.surname} <span style={{ color: "#7f8c8d", fontWeight: "normal" }}>(Pet: {inv.patientName})</span>
+                      {inv.client?.name} {inv.client?.surname} 
+                      <span onClick={() => { if(inv.patientId) navigate(`/patient/${inv.patientId}`); }} style={{ color: "#3498db", fontWeight: "bold", cursor: "pointer", marginLeft: "5px", textDecoration: "underline" }}>
+                        (Pet: {inv.patientName})
+                      </span>
                     </div>
-                    <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-                      {inv.items.join(", ")}
-                    </div>
-                    <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>
-                      Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}
-                    </div>
+                    <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>{inv.items.join(", ")}</div>
+                    <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}</div>
                   </div>
                   <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                     {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
-                    <button onClick={() => navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures" }})} style={{...blueBtn, padding: "8px 15px"}}>View Invoice</button>
+                    <button onClick={() => {
+                        if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
+                        navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
+                      }} style={{...blueBtn, padding: "8px 15px"}}>
+                      View Invoice
+                    </button>
                   </div>
                 </div>
               ))
@@ -724,6 +729,19 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ================= GENERIC ALERT MODAL ================= */}
+      {alertMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>⚠️ Notice</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {alertMessage}
+            </p>
+            <button onClick={() => setAlertMessage("")} style={{ width: "100%", background: "#3498db", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>OK</button>
+          </div>
+        </div>
+      )}
+
       {/* ================= ACTION MODALS ================= */}
       {productToDelete && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setProductToDelete(null)}>
@@ -740,7 +758,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* NEW: Archive Stock Modal */}
       {stockToArchive && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStockToArchive(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>

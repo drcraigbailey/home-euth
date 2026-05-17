@@ -1,732 +1,1097 @@
-import { useEffect, useState } from "react";
+// PatientDetail.jsx
+import { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../supabase";
-import { useNavigate } from "react-router-dom";
+import SignatureCanvas from "react-signature-canvas";
 import Loader from "../Loader"; 
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable"; // <-- Updated import method!
 
-const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
-const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px", cursor: "pointer", transition: "transform 0.1s" };
+const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
+const BREED_MAP = {
+  dog: ["Mixed Breed", "Labrador Retriever", "Golden Retriever", "French Bulldog", "German Shepherd", "Cocker Spaniel", "Staffordshire Bull Terrier", "Jack Russell Terrier", "Shih Tzu", "Chihuahua", "Pug", "Border Collie", "Dachshund", "Poodle", "Greyhound", "Lurcher"],
+  cat: ["Domestic Shorthair", "Domestic Longhair", "British Shorthair", "Ragdoll", "Siamese", "Bengal", "Maine Coon", "Persian", "Sphynx", "Burmese"],
+  rabbit: ["Mixed Breed", "Mini Lop", "Netherland Dwarf", "Lionhead", "French Lop", "Dutch", "Flemish Giant", "Rex"],
+  "small mammal": ["Guinea Pig", "Hamster (Syrian)", "Hamster (Dwarf)", "Rat", "Mouse", "Chinchilla", "Ferret", "Gerbil", "Degu"]
+};
+const COMMON_COLOURS = ["Black", "White", "Brown", "Chocolate", "Tan", "Black & White", "Brown & White", "Tabby", "Tortoiseshell", "Calico", "Brindle", "Fawn", "Blue/Grey", "Ginger", "Cream", "Tricolour", "Merle", "Roan", "Agouti"];
+const GENDER_OPTIONS = ["Male (Entire)", "Male (Neutered)", "Female (Entire)", "Female (Spayed)", "Unknown"];
+
+const DRUG_MAP = {
+  ketamine: ["ket", "ketamine"],
+  butorphanol: ["but", "butorphanol"],
+  dexmedetomidine: ["dex", "dexmedetomidine", "medetomidine"],
+  acp: ["acp", "acepromazine"],
+  zoletil: ["zoletil", "zol", "tiletamine"],
+  pentobarbital: ["pent", "pentobarbital", "euth", "euthatal", "somcare", "pento", "euthanasia"]
+};
+
+function normaliseDrugName(name) {
+  if (!name) return "";
+  const clean = name.toLowerCase().trim();
+  for (const [key, aliases] of Object.entries(DRUG_MAP)) {
+    if (aliases.some(a => clean.includes(a))) return key;
+  }
+  return clean;
+}
+
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 const btnStyle = { padding: "12px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
-const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
-const blueBtn = { flex: 1, background: "#5b8fb9", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
-const redBtn = { flex: 1, background: "#e74c3c", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
-const yellowBtn = { flex: 1, background: "#f39c12", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
-const greenBtn = { flex: 1, background: "#27ae60", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
+const whiteShadowBox = { background: "white", padding: "15px", borderRadius: "12px", marginBottom: "15px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: "1px solid #eee" };
 
-export default function AdminDashboard() {
+export default function PatientDetail() {
+  const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(location.state?.activeTab || "details"); 
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview"); 
 
-  const [totalSales, setTotalSales] = useState(0);
-  const [outstandingTotal, setOutstandingTotal] = useState(0);
-  const [outstandingInvoices, setOutstandingInvoices] = useState([]); 
+  // Custom Modal States
+  const [alertMessage, setAlertMessage] = useState("");
+  const [confirmModal, setConfirmModal] = useState(null); 
+  const [showConsentPrompt, setShowConsentPrompt] = useState(false);
+
+  const [highlightedInvoice, setHighlightedInvoice] = useState(location.state?.targetInvoiceId || null);
+
+  const [patient, setPatient] = useState(null);
   
-  // Lists for Stats & Reports
-  const [allClientsList, setAllClientsList] = useState([]);
-  const [allPatientsList, setAllPatientsList] = useState([]);
-  const [allSedationsList, setAllSedationsList] = useState([]);
-  const [allConsentsList, setAllConsentsList] = useState([]);
+  // Tab 1: Details
+  const [editMode, setEditMode] = useState(false);
+  const [editData, setEditData] = useState({});
+
+  // Tab 2: Dosing Calc
+  const [protocols, setProtocols] = useState([]);
+  const [stock, setStock] = useState([]);
+  const [protocolId, setProtocolId] = useState("");
+  const [calcResults, setCalcResults] = useState([]);
+  const [sedationHistory, setSedationHistory] = useState([]);
+  const [editingHistoryId, setEditingHistoryId] = useState(null);
+  const [editHistoryResults, setEditHistoryResults] = useState([]);
+
+  // Tab 3: Procedures & Invoices
+  const [allProducts, setAllProducts] = useState([]);
+  const [patientProcedures, setPatientProcedures] = useState([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [procedurePrice, setProcedurePrice] = useState("");
+  const [procedureNotes, setProcedureNotes] = useState("");
+  const [editingProcId, setEditingProcId] = useState(null);
+  const [editProcPrice, setEditProcPrice] = useState("");
+  const [editProcNotes, setEditProcNotes] = useState("");
+  const [addingToInvId, setAddingToInvId] = useState(null);
+  const [inlineProdId, setInlineProdId] = useState("");
+  const [inlinePrice, setInlinePrice] = useState("");
+  const [inlineNotes, setInlineNotes] = useState("");
+
+  // Tab 4: Consent
+  const [consentHistory, setConsentHistory] = useState([]);
+  const [consentName, setConsentName] = useState("");
+  const sigPadRef = useRef(null);
+
+  // Tab 5: Appointments
+  const [profiles, setProfiles] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [isEditingApt, setIsEditingApt] = useState(false);
+  const [editAptId, setEditAptId] = useState(null);
+  const [aptUserId, setAptUserId] = useState("");
+  const [aptDate, setAptDate] = useState(new Date().toISOString().split("T")[0]);
   
-  // Reports Tab State
-  const [selectedPatientForReport, setSelectedPatientForReport] = useState("");
+  // TIME STATES
+  const [aptStartTime, setAptStartTime] = useState("");
+  const [aptEndTime, setAptEndTime] = useState("");
 
-  // Modal States
-  const [statModalMode, setStatModalMode] = useState(null); 
-  const [statSearch, setStatSearch] = useState("");
-
-  // Deletion Modal States
-  const [productToDelete, setProductToDelete] = useState(null);
-  const [stockToDelete, setStockToDelete] = useState(null);
-  const [protocolToDelete, setProtocolToDelete] = useState(null);
-
-  const [productsList, setProductsList] = useState([]);
-  const [isEditingProd, setIsEditingProd] = useState(false);
-  const [editProdId, setEditProdId] = useState(null);
-  const [prodName, setProdName] = useState("");
-  const [prodDesc, setProdDesc] = useState("");
-  const [prodPrice, setProdPrice] = useState("");
-
-  const [stockList, setStockList] = useState([]);
-  const [stockDrugName, setStockDrugName] = useState("");
-  const [stockBatch, setStockBatch] = useState("");
-  const [stockQty, setStockQty] = useState("");
-  const [stockExp, setStockExp] = useState("");
-  const [editingStockId, setEditingStockId] = useState(null);
-  const [editStockData, setEditStockData] = useState({});
-
-  const [protocolsList, setProtocolsList] = useState([]);
-  const [protoSearch, setProtoSearch] = useState("");
-  const [protoName, setProtoName] = useState("");
-  const [protoSpecies, setProtoSpecies] = useState("");
-  const [editingProtoId, setEditingProtoId] = useState(null);
-  const [protoDrugs, setProtoDrugs] = useState([]);
-  const [protoDrugName, setProtoDrugName] = useState("");
-  const [protoMgKg, setProtoMgKg] = useState("");
-  const [protoMgMl, setProtoMgMl] = useState("");
+  const [aptType, setAptType] = useState("Consultation");
+  const [aptTitle, setAptTitle] = useState("");
+  const [aptNotes, setAptNotes] = useState("");
 
   useEffect(() => {
-    checkAdminAndFetchData();
-  }, []);
+    async function loadAllData() {
+      setIsLoading(true);
+      await Promise.all([
+        checkAdmin(), fetchPatient(), fetchConsentHistory(), fetchProducts(),
+        fetchProcedures(), fetchAppointments(), fetchProtocols(), fetchStock(), fetchSedationHistory()
+      ]);
+      setIsLoading(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    loadAllData();
+  }, [id]);
 
-  async function checkAdminAndFetchData() {
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+    if (location.state?.targetInvoiceId) {
+      setHighlightedInvoice(location.state.targetInvoiceId);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (activeTab === "procedures" && highlightedInvoice) {
+      setTimeout(() => {
+        const el = document.getElementById(`invoice-${highlightedInvoice}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 500); 
+    }
+  }, [activeTab, highlightedInvoice, patientProcedures.length]);
+
+  async function checkAdmin() {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
-      const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", session.user.id).single();
-      if (profile?.is_admin) {
-        setIsAdmin(true);
-        await Promise.all([
-          fetchReports(), fetchProducts(), fetchStock(), fetchProtocols()
-        ]);
-      } else navigate("/"); 
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+      const adminStatus = !!profile?.is_admin;
+      setIsAdmin(adminStatus);
+      if (adminStatus) {
+        const { data: allProfiles } = await supabase.from("profiles").select("*");
+        setProfiles(allProfiles || []);
+      } else {
+        setProfiles([profile]);
+      }
+      setAptUserId(session.user.id);
     }
-    setLoading(false);
   }
 
-  async function fetchReports() {
-    const { data: procedures } = await supabase.from("patient_procedures").select("*, patients(name, clients(id, name, surname, phone))");
-    if (procedures) {
-      let sales = 0; let outstanding = 0; const groupedInvoices = {};
-      procedures.forEach(proc => {
-        sales += Number(proc.price);
-        if (!proc.is_paid) { 
-            outstanding += Number(proc.price); 
-            const invId = proc.invoice_id || proc.id; 
-            if (!groupedInvoices[invId]) {
-              groupedInvoices[invId] = {
-                id: invId,
-                patientId: proc.patient_id,
-                patientName: proc.patients?.name,
-                client: proc.patients?.clients,
-                date: proc.created_at,
-                total: 0,
-                items: []
-              };
-            }
-            groupedInvoices[invId].total += Number(proc.price);
-            groupedInvoices[invId].items.push(proc.product_name);
+  async function fetchPatient() {
+    const { data } = await supabase.from("patients").select("*").eq("id", id).single();
+    if (data) { setPatient(data); setEditData(data); }
+  }
+
+  async function fetchSedationHistory() {
+    const { data } = await supabase.from("sedation_records").select("*").eq("patient_id", id).order("created_at", { ascending: false });
+    setSedationHistory(data || []);
+  }
+
+  async function fetchConsentHistory() {
+    const { data } = await supabase.from("consent_records").select("*").eq("patient_id", id).order("created_at", { ascending: false });
+    setConsentHistory(data || []);
+  }
+
+  async function fetchProducts() {
+    const { data } = await supabase.from("products").select("*").order("name");
+    setAllProducts(data || []);
+  }
+
+  async function fetchProcedures() {
+    const { data } = await supabase.from("patient_procedures").select("*").eq("patient_id", id).order("created_at", { ascending: false });
+    setPatientProcedures(data || []);
+  }
+
+  async function fetchAppointments() {
+    const { data } = await supabase.from("diary_entries").select("*").eq("patient_id", id).order("date", { ascending: false });
+    setAppointments(data || []);
+  }
+
+  async function fetchProtocols() {
+    const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)");
+    setProtocols(data || []);
+  }
+
+  async function fetchStock() {
+    const { data } = await supabase.from("stock").select("*");
+    setStock(data || []);
+  }
+
+  async function updatePatient() {
+    const payload = { ...editData, age_years: Number(editData.age_years) || null, age_months: Number(editData.age_months) || null, weight: Number(editData.weight) };
+    const { error } = await supabase.from("patients").update(payload).eq("id", id);
+    if (!error) { setEditMode(false); fetchPatient(); } else setAlertMessage(error.message);
+  }
+
+  function toggleDeceased() {
+    const newStatus = !patient.is_deceased;
+    if (!newStatus && !isAdmin) {
+      setAlertMessage("Only administrators can unmark a patient as deceased.");
+      return;
+    }
+    
+    if (newStatus) {
+      setConfirmModal({
+        title: "Mark Deceased?",
+        message: `Are you sure you want to mark ${patient.name} as Deceased?`,
+        confirmText: "Yes, Mark Deceased",
+        confirmColor: "#e74c3c",
+        onConfirm: async () => {
+          const { error } = await supabase.from("patients").update({ is_deceased: true }).eq("id", id);
+          if (!error) {
+            setPatient(prev => ({ ...prev, is_deceased: true }));
+            fetchPatient();
+          }
+          setConfirmModal(null);
         }
       });
-      setTotalSales(sales); setOutstandingTotal(outstanding); setOutstandingInvoices(Object.values(groupedInvoices).sort((a,b) => new Date(b.date) - new Date(a.date)));
-    }
-
-    const { data: clientsData } = await supabase.from("clients").select("*");
-    if (clientsData) setAllClientsList(clientsData);
-
-    const { data: patientsData } = await supabase.from("patients").select("*, clients(surname)").order("name");
-    if (patientsData) setAllPatientsList(patientsData);
-
-    const { data: sedationData } = await supabase.from("sedation_records").select("*, patients(name)");
-    if (sedationData) setAllSedationsList(sedationData);
-
-    const { data: consentData } = await supabase.from("consent_records").select("*, patients(name)");
-    if (consentData) setAllConsentsList(consentData);
-  }
-
-  async function fetchProducts() { const { data } = await supabase.from("products").select("*").order("name", { ascending: true }); setProductsList(data || []); }
-  async function fetchStock() { const { data } = await supabase.from("stock").select("*"); setStockList(data || []); }
-  async function fetchProtocols() { const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)").order("name"); setProtocolsList(data || []); }
-
-  // --- PDF REPORT GENERATORS ---
-
-  function generateStockReport() {
-    try {
-      const doc = new jsPDF();
-      doc.setFontSize(18);
-      doc.text("Master Inventory Stock Report", 14, 20);
-      doc.setFontSize(10);
-      doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 28);
-      
-      const tableColumn = ["Drug Name", "Batch Number", "Remaining (ml)", "Expiry Date", "Status"];
-      const tableRows = [];
-      
-      stockList.forEach(s => {
-        tableRows.push([
-          s.drug, 
-          s.batch, 
-          `${s.total_ml} ml`, 
-          s.expiry_date ? new Date(s.expiry_date).toLocaleDateString('en-GB') : "N/A", 
-          s.is_archived ? "Archived" : "Active"
-        ]);
+    } else {
+      supabase.from("patients").update({ is_deceased: false }).eq("id", id).then(({error}) => {
+        if (!error) {
+          setPatient(prev => ({ ...prev, is_deceased: false }));
+          fetchPatient();
+        }
       });
-      
-      autoTable(doc, { head: [tableColumn], body: tableRows, startY: 35 });
-      doc.save(`Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-    } catch (error) {
-      alert("Error generating PDF: " + error.message);
     }
   }
 
-  async function generateInvoiceReport() {
-    try {
-      const { data: procs } = await supabase.from("patient_procedures").select("*, patients(name, clients(name, surname))").order("created_at", { ascending: false });
-      
-      const doc = new jsPDF();
-      doc.setFontSize(18);
-      doc.text("Financial & Invoice Report", 14, 20);
-      doc.setFontSize(10);
-      doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 28);
-      
-      const cols = ["Date", "Client", "Patient", "Procedure/Item", "Price", "Status"];
-      const rows = (procs || []).map(p => [
-        new Date(p.created_at).toLocaleDateString('en-GB'),
-        p.patients?.clients ? `${p.patients.clients.name} ${p.patients.clients.surname}` : "Unknown",
-        p.patients?.name || "Unknown",
-        p.product_name,
-        `£${Number(p.price).toFixed(2)}`,
-        p.is_paid ? "Paid" : "Unpaid"
-      ]);
-      
-      autoTable(doc, { head: [cols], body: rows, startY: 35 });
-      doc.save(`Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`);
-    } catch (error) {
-      alert("Error generating PDF: " + error.message);
+  async function autoMarkDeceased() {
+    const { error } = await supabase.from("patients").update({ is_deceased: true }).eq("id", id);
+    if (!error) {
+      setPatient(prev => ({ ...prev, is_deceased: true }));
+      fetchPatient();
+      setAlertMessage("Euthanasia added to invoice. Patient has automatically been marked as Deceased. 🕊️");
     }
   }
 
-  async function generatePatientReport() {
-    try {
-      if (!selectedPatientForReport) return alert("Please select a patient from the dropdown first.");
-      const patient = allPatientsList.find(p => String(p.id) === String(selectedPatientForReport));
-      if (!patient) return;
+  function getStockForDrug(drug) {
+    return stock.filter(s => normaliseDrugName(s.drug) === normaliseDrugName(drug) && s.total_ml > 0 && !s.is_archived);
+  }
 
-      // Fetch related data
-      const { data: procs } = await supabase.from("patient_procedures").select("*").eq("patient_id", patient.id).order("created_at");
-      const { data: seds } = await supabase.from("sedation_records").select("*").eq("patient_id", patient.id).order("created_at");
+  function handleProtocolChange(e) {
+    const newId = e.target.value;
+    setProtocolId(newId);
+    if (!newId || !patient?.weight) {
+      setCalcResults([]);
+      return;
+    }
+    const proto = protocols.find(p => String(p.id) === String(newId));
+    if (proto && proto.protocol_drugs) {
+      const calc = proto.protocol_drugs.map(d => {
+        const normalised = normaliseDrugName(d.drug_name);
+        const stockMatches = getStockForDrug(normalised);
+        const prefilledBatchId = stockMatches.length > 0 ? stockMatches[stockMatches.length - 1].id : "";
 
-      const doc = new jsPDF();
-      let yPos = 20;
-      
-      doc.setFontSize(18);
-      doc.text(`Comprehensive Patient History: ${patient.name}`, 14, yPos);
-      yPos += 10;
-      
-      doc.setFontSize(11);
-      doc.text(`Client Name: ${patient.clients?.surname || "Unknown"}`, 14, yPos); yPos += 6;
-      doc.text(`Species: ${patient.species || "N/A"}   |   Breed: ${patient.breed || "N/A"}`, 14, yPos); yPos += 6;
-      doc.text(`Weight: ${patient.weight ? patient.weight + ' kg' : "N/A"}   |   Age: ${patient.age_years || 0}y ${patient.age_months || 0}m`, 14, yPos); yPos += 6;
-      doc.text(`Status: ${patient.is_deceased ? "Deceased" : "Alive"}`, 14, yPos); yPos += 12;
+        const calculatedVolume = (d.mg_per_kg && d.mg_per_ml && Number(d.mg_per_ml) > 0) 
+            ? Number(((d.mg_per_kg * patient.weight) / d.mg_per_ml).toFixed(3)) 
+            : 0;
 
-      // Procedures Table
-      doc.setFontSize(14);
-      doc.text("Clinical Procedures & Invoicing", 14, yPos);
-      yPos += 5;
-      const procCols = ["Date", "Item / Procedure", "Notes", "Price", "Status"];
-      const procRows = (procs || []).map(p => [
-        new Date(p.created_at).toLocaleDateString('en-GB'), 
-        p.product_name, 
-        p.notes || "", 
-        `£${Number(p.price).toFixed(2)}`, 
-        p.is_paid ? "Paid" : "Unpaid"
-      ]);
-      
-      autoTable(doc, { head: [procCols], body: procRows, startY: yPos });
-      yPos = doc.lastAutoTable.finalY + 15;
-
-      // Sedations Table
-      doc.setFontSize(14);
-      doc.text("Sedation & Dosing History", 14, yPos);
-      yPos += 5;
-      const sedCols = ["Date", "Weight at time", "Drugs Administered"];
-      const sedRows = (seds || []).map(s => {
-         const drugs = (s.results || []).map(r => `${r.label}: ${r.ml}ml`).join(", ");
-         return [new Date(s.created_at).toLocaleDateString('en-GB'), `${s.weight} kg`, drugs];
+        return {
+          drug: normalised,
+          label: d.drug_name,
+          ml: calculatedVolume,
+          waste: 0.05,
+          batchId: prefilledBatchId,
+          batchName: ""
+        };
       });
-      
-      autoTable(doc, { head: [sedCols], body: sedRows, startY: yPos });
-      
-      doc.save(`Patient_History_${patient.name.replace(/\s+/g, '_')}.pdf`);
-    } catch (error) {
-      alert("Error generating PDF: " + error.message);
+      setCalcResults(calc);
     }
   }
 
-  // --- CRUD ACTIONS ---
-
-  async function saveProduct() {
-    if (!prodName || !prodPrice) return alert("Name and Price are required.");
-    const payload = { name: prodName, description: prodDesc, price: Number(prodPrice) };
-    if (isEditingProd) await supabase.from("products").update(payload).eq("id", editProdId);
-    else await supabase.from("products").insert([payload]);
-    setIsEditingProd(false); setEditProdId(null); setProdName(""); setProdDesc(""); setProdPrice(""); fetchProducts();
-  }
-  
-  async function confirmDeleteProduct() {
-    if (!productToDelete) return;
-    await supabase.from("products").delete().eq("id", productToDelete.id);
-    setProductToDelete(null);
-    fetchProducts();
+  function updateDose(i, val) {
+    const updated = [...calcResults];
+    updated[i].ml = val === "" ? "" : parseFloat(val) || 0;
+    setCalcResults(updated);
   }
 
-  function startEditProd(p) { setIsEditingProd(true); setEditProdId(p.id); setProdName(p.name); setProdDesc(p.description || ""); setProdPrice(p.price); window.scrollTo({ top: 0, behavior: "smooth" }); }
-
-  async function addStock() {
-    if (!stockDrugName.trim() || !stockBatch.trim() || !stockQty.trim()) return alert("Fill all stock fields");
-    await supabase.from("stock").insert([{ drug: stockDrugName.trim(), batch: stockBatch.trim(), total_ml: Number(stockQty), expiry_date: stockExp || null, is_archived: false }]);
-    setStockDrugName(""); setStockBatch(""); setStockQty(""); setStockExp(""); fetchStock();
-  }
-  function startEditStock(s) { setEditingStockId(s.id); setEditStockData({ ...s }); }
-  async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, batch: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
-  async function archiveStock(id) { if (window.confirm("Archive this bottle?")) { await supabase.from("stock").update({ is_archived: true }).eq("id", id); fetchStock(); } }
-  
-  async function confirmDeleteStock() {
-    if (!stockToDelete) return;
-    await supabase.from("stock").delete().eq("id", stockToDelete.id);
-    setStockToDelete(null);
-    fetchStock();
+  function updateWaste(i, val) {
+    const updated = [...calcResults];
+    updated[i].waste = val === "" ? "" : parseFloat(val) || 0;
+    setCalcResults(updated);
   }
 
-  function addProtoDrug() {
-    const mgKg = parseFloat(protoMgKg); const mgMl = parseFloat(protoMgMl);
-    if (!protoDrugName.trim() || isNaN(mgKg) || isNaN(mgMl)) return alert("Fill all drug fields correctly");
-    setProtoDrugs(prev => [...prev, { drug_name: protoDrugName.trim(), mg_per_kg: mgKg, mg_per_ml: mgMl }]);
-    setProtoDrugName(""); setProtoMgKg(""); setProtoMgMl("");
+  function updateBatch(i, val) {
+    const updated = [...calcResults];
+    updated[i].batchId = val;
+    setCalcResults(updated);
   }
-  async function saveProtocolObj() {
-    if (!protoName.trim() || protoDrugs.length === 0) return alert("Enter a name and at least one drug");
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      let pId = editingProtoId;
-      if (editingProtoId) {
-        await supabase.from("protocols").update({ name: protoName, species: protoSpecies, user_id: session?.user?.id }).eq("id", editingProtoId);
-        await supabase.from("protocol_drugs").delete().eq("protocol_id", editingProtoId);
-      } else {
-        const { data } = await supabase.from("protocols").insert([{ name: protoName, species: protoSpecies, user_id: session?.user?.id }]).select().single();
-        pId = data.id;
+
+  async function executeSaveDosing() {
+    const { error } = await supabase.from("sedation_records").insert([{ 
+      patient_id: id, 
+      protocol_id: protocolId || null, 
+      weight: patient.weight, 
+      results: calcResults 
+    }]);
+
+    if (!error) {
+      for (const r of calcResults) {
+        const totalUsed = (parseFloat(r.ml) || 0) + (parseFloat(r.waste) || 0);
+        if (r.batchId && totalUsed > 0) {
+          const current = stock.find(s => String(s.id) === String(r.batchId));
+          if (current) {
+            await supabase.from("stock").update({ total_ml: Math.max(0, current.total_ml - totalUsed) }).eq("id", current.id);
+          }
+        }
       }
-      await supabase.from("protocol_drugs").insert(protoDrugs.map(d => ({ protocol_id: pId, ...d })));
-      setProtoName(""); setProtoSpecies(""); setProtoDrugs([]); setEditingProtoId(null); fetchProtocols(); alert("Protocol saved successfully!");
-    } catch (err) { alert(`Save failed: ${err.message}`); }
-  }
-  function startEditProtocol(p) { setEditingProtoId(p.id); setProtoName(p.name); setProtoSpecies(p.species || ""); setProtoDrugs(p.protocol_drugs || []); window.scrollTo({ top: 0, behavior: "smooth" }); }
-  
-  async function confirmDeleteProtocol() {
-    if (!protocolToDelete) return;
-    await supabase.from("protocol_drugs").delete().eq("protocol_id", protocolToDelete.id); 
-    await supabase.from("protocols").delete().eq("id", protocolToDelete.id);
-    setProtocolToDelete(null);
-    fetchProtocols();
+      setAlertMessage("Doses successfully recorded and deducted from stock!");
+      setCalcResults([]);
+      setProtocolId("");
+      fetchStock(); 
+      fetchSedationHistory();
+    } else {
+      setAlertMessage("Error saving doses: " + error.message);
+    }
   }
 
-  function renderStatModalList() {
-    let list = [];
-    if (statModalMode === "clients") list = allClientsList;
-    if (statModalMode === "patients") list = allPatientsList;
-    if (statModalMode === "deceased") list = allPatientsList.filter(p => p.is_deceased);
-    if (statModalMode === "sedations") list = allSedationsList;
-    if (statModalMode === "consents") list = allConsentsList;
+  function saveDosing() {
+    if (!patient?.weight) return;
+    if (calcResults.length === 0) return setAlertMessage("Select a protocol to save.");
 
-    const filtered = list.filter(item => {
-      const searchLower = statSearch.toLowerCase();
-      if (statModalMode === "clients") {
-        return (`${item.name || ""} ${item.surname || ""}`).toLowerCase().includes(searchLower);
+    const missingBatches = calcResults.some(r => !r.batchId);
+    if (missingBatches) {
+      setConfirmModal({
+        title: "Missing Batch Information",
+        message: "Some drugs have no batch selected. Are you sure you want to save anyway?",
+        confirmText: "Save Anyway",
+        confirmColor: "#f39c12",
+        onConfirm: () => {
+          setConfirmModal(null);
+          executeSaveDosing();
+        }
+      });
+      return;
+    }
+
+    executeSaveDosing();
+  }
+
+  function startEditHistory(h) {
+    setEditingHistoryId(h.id);
+    const prefilled = (h.results || []).map(r => ({ ...r, waste: r.waste !== undefined ? r.waste : 0.05 }));
+    setEditHistoryResults(prefilled);
+  }
+
+  async function saveEditHistory(historyId) {
+    const { data: original } = await supabase.from("sedation_records").select("*").eq("id", historyId).single();
+    if (original) {
+      for (let i = 0; i < editHistoryResults.length; i++) {
+        const oldR = original.results[i]; 
+        const newR = editHistoryResults[i];
+        if (oldR && oldR.batchId) {
+          const oldWaste = oldR.waste !== undefined ? parseFloat(oldR.waste) : 0;
+          const newWaste = newR.waste !== "" ? parseFloat(newR.waste) : 0;
+          const diff = ((parseFloat(oldR.ml) || 0) + oldWaste) - ((parseFloat(newR.ml) || 0) + newWaste); 
+          if (diff !== 0) {
+            const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", oldR.batchId).single();
+            if (currentStock) await supabase.from("stock").update({ total_ml: currentStock.total_ml + diff }).eq("id", oldR.batchId);
+          }
+        }
       }
-      if (statModalMode === "patients" || statModalMode === "deceased") {
-        return (item.name || "").toLowerCase().includes(searchLower) || (item.clients?.surname || "").toLowerCase().includes(searchLower);
+    }
+    const finalResultsToSave = editHistoryResults.map(r => ({ ...r, ml: parseFloat(r.ml) || 0, waste: r.waste !== "" ? parseFloat(r.waste) : 0 }));
+    await supabase.from("sedation_records").update({ results: finalResultsToSave }).eq("id", historyId);
+    setEditingHistoryId(null); fetchSedationHistory(); fetchStock();
+  }
+
+  function checkEuthAndConsent(productId, notesText) {
+    const prod = allProducts.find(p => String(p.id) === String(productId));
+    const isEuthProd = prod && (prod.name.toLowerCase().includes("euth") || prod.name.toLowerCase().includes("euthanasia"));
+    const isEuthNotes = (notesText || "").toLowerCase().includes("euth") || (notesText || "").toLowerCase().includes("euthanasia");
+    
+    const isEuth = isEuthProd || isEuthNotes;
+    const hasConsent = consentHistory && consentHistory.length > 0;
+
+    return { isEuth, hasConsent };
+  }
+
+  function handleProductSelect(e) {
+    const prodId = e.target.value; 
+    setSelectedProductId(prodId);
+    const prod = allProducts.find(p => String(p.id) === String(prodId)); 
+    if (prod) setProcedurePrice(prod.price);
+  }
+
+  async function addProcedure() {
+    if (!selectedProductId) return setAlertMessage("Please select a procedure.");
+    
+    const { isEuth, hasConsent } = checkEuthAndConsent(selectedProductId, procedureNotes);
+    
+    if (isEuth && !hasConsent) {
+      setShowConsentPrompt(true); 
+      return; 
+    }
+
+    const prod = allProducts.find(p => String(p.id) === String(selectedProductId));
+    const newInvoiceId = generateUUID(); 
+    const payload = { 
+      patient_id: id, 
+      product_id: selectedProductId, 
+      product_name: prod.name, 
+      price: Number(procedurePrice), 
+      notes: procedureNotes, 
+      is_paid: false,
+      invoice_id: newInvoiceId 
+    };
+    
+    const { error } = await supabase.from("patient_procedures").insert([payload]);
+    
+    if (!error) { 
+      setSelectedProductId(""); setProcedurePrice(""); setProcedureNotes(""); fetchProcedures(); 
+      if (isEuth && !patient.is_deceased) {
+        autoMarkDeceased();
       }
-      if (statModalMode === "sedations" || statModalMode === "consents") {
-        return (item.patients?.name || "").toLowerCase().includes(searchLower);
+    }
+  }
+
+  function startEditProcedure(proc) {
+    setEditingProcId(proc.id);
+    setEditProcPrice(proc.price);
+    setEditProcNotes(proc.notes || "");
+  }
+
+  async function saveEditProcedure(procId) {
+    const { error } = await supabase
+      .from("patient_procedures")
+      .update({ price: Number(editProcPrice), notes: editProcNotes })
+      .eq("id", procId);
+    
+    if (!error) {
+      setEditingProcId(null);
+      fetchProcedures();
+    } else {
+      setAlertMessage("Error saving procedure: " + error.message);
+    }
+  }
+
+  async function saveInlineProcedure(targetInvoiceId) {
+    if (!inlineProdId) return setAlertMessage("Select a product.");
+    
+    const { isEuth, hasConsent } = checkEuthAndConsent(inlineProdId, inlineNotes);
+    
+    if (isEuth && !hasConsent) {
+      setShowConsentPrompt(true);
+      return; 
+    }
+
+    const prod = allProducts.find(p => String(p.id) === String(inlineProdId));
+    const payload = { 
+      patient_id: id, 
+      product_id: inlineProdId, 
+      product_name: prod.name, 
+      price: Number(inlinePrice), 
+      notes: inlineNotes, 
+      is_paid: false,
+      invoice_id: targetInvoiceId === 'Legacy' ? null : targetInvoiceId 
+    };
+    
+    const { error } = await supabase.from("patient_procedures").insert([payload]);
+    
+    if (!error) { 
+      setAddingToInvId(null); setInlineProdId(""); setInlinePrice(""); setInlineNotes(""); fetchProcedures(); 
+      if (isEuth && !patient.is_deceased) {
+        autoMarkDeceased();
       }
-      return true;
+    } else {
+      setAlertMessage("Error adding item: " + error.message);
+    }
+  }
+
+  async function markInvoicePaid(invoiceId) {
+    if (invoiceId === 'Legacy') {
+      const { error } = await supabase.from("patient_procedures").update({ is_paid: true }).is("invoice_id", null).eq("patient_id", id);
+      if (!error) fetchProcedures();
+    } else {
+      const { error } = await supabase.from("patient_procedures").update({ is_paid: true }).eq("invoice_id", invoiceId);
+      if (!error) fetchProcedures();
+    }
+  }
+
+  function unmarkInvoicePaid(invoiceId) {
+    if (!isAdmin) return setAlertMessage("Only administrators can unmark invoices as unpaid.");
+    
+    setConfirmModal({
+      title: "Unmark Invoice",
+      message: "Are you sure you want to unmark this entire invoice as unpaid?",
+      confirmText: "Yes, Unmark",
+      confirmColor: "#f39c12",
+      onConfirm: async () => {
+        if (invoiceId === 'Legacy') {
+          const { error } = await supabase.from("patient_procedures").update({ is_paid: false }).is("invoice_id", null).eq("patient_id", id);
+          if (!error) fetchProcedures();
+        } else {
+          const { error } = await supabase.from("patient_procedures").update({ is_paid: false }).eq("invoice_id", invoiceId);
+          if (!error) fetchProcedures();
+        }
+        setConfirmModal(null);
+      }
     });
-
-    if (filtered.length === 0) return <p style={{ color: "#666", textAlign: "center", marginTop: "20px" }}>No records found.</p>;
-
-    return filtered.map(item => (
-       <div key={item.id} style={{ background: "#f8f9fb", padding: "12px", borderRadius: "8px", marginBottom: "8px", border: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-         { statModalMode === "clients" && (
-           <>
-             <div>
-               <strong style={{ color: "#333", fontSize: "15px" }}>{item.name} {item.surname}</strong>
-               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{item.email || "No email"} | {item.phone || "No phone"}</div>
-             </div>
-             <button onClick={() => navigate(`/client/${item.id}`)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
-           </>
-         )}
-         { (statModalMode === "patients" || statModalMode === "deceased") && (
-           <>
-             <div>
-               <strong style={{ color: "#333", fontSize: "15px" }}>{item.name}</strong> <span style={{ color: "#7f8c8d", fontSize: "13px" }}>({item.clients?.surname || "No Client"})</span>
-               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{item.species} - {item.weight}kg</div>
-             </div>
-             <button onClick={() => navigate(`/patient/${item.id}`)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
-           </>
-         )}
-         { statModalMode === "sedations" && (
-           <>
-             <div>
-               <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Unknown"}</strong>
-               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{new Date(item.created_at).toLocaleDateString('en-GB')}</div>
-             </div>
-             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "dosing" } })} style={{ background: "#27ae60", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View Record</button>
-           </>
-         )}
-         { statModalMode === "consents" && (
-           <>
-             <div>
-               <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Unknown"}</strong>
-               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>Signed by: {item.name}</div>
-             </div>
-             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "consent" } })} style={{ background: "#f39c12", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View Form</button>
-           </>
-         )}
-       </div>
-    ));
   }
 
-  if (loading) {
+  async function saveConsent(andSedate = false) {
+    if (!consentName) return setAlertMessage("Please enter signatory name.");
+    if (!sigPadRef.current || sigPadRef.current.isEmpty()) return setAlertMessage("Please provide a signature.");
+    const { error } = await supabase.from("consent_records").insert([{ patient_id: id, name: consentName, signature: sigPadRef.current.toDataURL() }]);
+    if (!error) {
+      sigPadRef.current.clear(); setConsentName(""); fetchConsentHistory();
+      if (andSedate) setActiveTab("dosing");
+    }
+  }
+
+  function deleteConsent(consentId) {
+    setConfirmModal({
+      title: "Delete Consent",
+      message: "Are you sure you want to delete this consent record?",
+      confirmText: "Yes, Delete",
+      confirmColor: "#e74c3c",
+      onConfirm: async () => {
+        await supabase.from("consent_records").delete().eq("id", consentId);
+        fetchConsentHistory();
+        setConfirmModal(null);
+      }
+    });
+  }
+
+  async function saveAppointment() {
+    if (!aptDate || !aptUserId) return setAlertMessage("Date and User are required");
+    
+    // Combine start and end times
+    const combinedTime = (aptStartTime && aptEndTime) ? `${aptStartTime} - ${aptEndTime}` : (aptStartTime || aptEndTime || "");
+    
+    const payload = { user_id: aptUserId, date: aptDate, time_range: combinedTime, entry_type: aptType, client_id: patient?.client_id || null, patient_id: id, title: aptTitle, notes: aptNotes };
+    if (isEditingApt) await supabase.from("diary_entries").update(payload).eq("id", editAptId);
+    else await supabase.from("diary_entries").insert([payload]);
+    resetAptForm(); fetchAppointments();
+  }
+
+  function deleteAppointment(aptId) {
+    setConfirmModal({
+      title: "Delete Appointment",
+      message: "Are you sure you want to delete this appointment?",
+      confirmText: "Yes, Delete",
+      confirmColor: "#e74c3c",
+      onConfirm: async () => {
+        await supabase.from("diary_entries").delete().eq("id", aptId);
+        fetchAppointments();
+        setConfirmModal(null);
+      }
+    });
+  }
+
+  function startEditApt(apt) {
+    setIsEditingApt(true); setEditAptId(apt.id); setAptUserId(apt.user_id); setAptDate(apt.date); 
+    
+    // Split combined time back out
+    const times = apt.time_range ? apt.time_range.split(" - ") : ["", ""];
+    setAptStartTime(times[0] || "");
+    setAptEndTime(times[1] || "");
+
+    setAptType(apt.entry_type || "Consultation"); setAptTitle(apt.title || ""); setAptNotes(apt.notes || "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetAptForm() { setIsEditingApt(false); setEditAptId(null); setAptStartTime(""); setAptEndTime(""); setAptType("Consultation"); setAptTitle(""); setAptNotes(""); }
+
+  const currentSpeciesKey = editData.species?.toLowerCase().trim() || "";
+  const activeBreeds = BREED_MAP[currentSpeciesKey] || [];
+
+  const invoices = {};
+  patientProcedures.forEach(p => {
+     const invId = p.invoice_id || 'Legacy';
+     if (!invoices[invId]) invoices[invId] = { id: invId, procedures: [], total: 0, due: 0, date: p.created_at };
+     invoices[invId].procedures.push(p);
+     invoices[invId].total += Number(p.price);
+     if (!p.is_paid) invoices[invId].due += Number(p.price);
+  });
+  const invoiceList = Object.values(invoices).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  if (isLoading) {
     return (
       <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
         <Loader />
-        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Dashboard...</p>
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Patient Data...</p>
       </div>
     );
   }
 
-  if (!isAdmin) return <div className="page">Access Denied</div>;
-
-  const TABS = [
-    { id: "overview", label: "Overview" },
-    { id: "reports", label: "Reports" }, 
-    { id: "products", label: "Products" },
-    { id: "stock", label: "Stock" },
-    { id: "protocols", label: "Protocols" }
-  ];
-
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
-      <h1 style={{ textAlign: "center" }}>Admin Control</h1>
+      
+      <div style={{ textAlign: "center", marginBottom: "20px" }}>
+        <h1 style={{ margin: "0 0 10px 0" }}>{patient?.name || "Patient"}</h1>
+        {patient?.is_deceased ? (
+          <div style={{ display: "inline-block", background: "#7f8c8d", color: "white", padding: "5px 15px", borderRadius: "15px", fontSize: "14px", fontWeight: "bold" }}>🕊️ Deceased</div>
+        ) : (
+          <div style={{ display: "inline-block", background: "#27ae60", color: "white", padding: "5px 15px", borderRadius: "15px", fontSize: "14px", fontWeight: "bold" }}>Alive</div>
+        )}
+      </div>
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "30px", background: "white", padding: "10px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
+      <div style={{ display: "flex", gap: "10px", marginBottom: "20px", background: "white", padding: "10px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
         {TABS.map(tab => (
-          <button key={tab.id} style={{ ...btnStyle, flex: 1, padding: "12px 20px", background: activeTab === tab.id ? '#5b8fb9' : 'transparent', color: activeTab === tab.id ? 'white' : '#666' }} onClick={() => setActiveTab(tab.id)}>
+          <button key={tab.id} style={{ ...btnStyle, padding: "10px 20px", background: activeTab === tab.id ? '#5b8fb9' : 'transparent', color: activeTab === tab.id ? 'white' : '#666' }} onClick={() => setActiveTab(tab.id)}>
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* ================= TAB 1: OVERVIEW ================= */}
-      {activeTab === "overview" && (
-        <>
-          <h3 style={{ color: "#2c3e50", marginTop: 0 }}>Financial Overview</h3>
-          <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
-            <div style={{...statCard, cursor: "default"}}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Gross Revenue</div>
-              <div style={{ fontSize: "28px", fontWeight: "bold", color: "#2c3e50" }}>£{totalSales.toFixed(2)}</div>
-            </div>
-            <div style={{...statCard, cursor: "default"}}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Outstanding Due</div>
-              <div style={{ fontSize: "28px", fontWeight: "bold", color: "#e74c3c" }}>£{outstandingTotal.toFixed(2)}</div>
-            </div>
-          </div>
-
-          <h3 style={{ color: "#2c3e50" }}>Clinical Records <span style={{fontSize: "12px", color: "#7f8c8d", fontWeight: "normal", marginLeft: "10px"}}>(Tap to view list)</span></h3>
-          <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
-            <div style={statCard} onClick={() => { setStatModalMode("clients"); setStatSearch(""); }}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Clients</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#8e44ad" }}>{allClientsList.length}</div>
-            </div>
-            <div style={statCard} onClick={() => { setStatModalMode("patients"); setStatSearch(""); }}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Patients</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>{allPatientsList.length}</div>
-            </div>
-            <div style={statCard} onClick={() => { setStatModalMode("deceased"); setStatSearch(""); }}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Deceased</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#95a5a6" }}>{allPatientsList.filter(p => p.is_deceased).length}</div>
-            </div>
-            <div style={statCard} onClick={() => { setStatModalMode("sedations"); setStatSearch(""); }}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Sedations</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#27ae60" }}>{allSedationsList.length}</div>
-            </div>
-            <div style={statCard} onClick={() => { setStatModalMode("consents"); setStatSearch(""); }}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Consents</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#f39c12" }}>{allConsentsList.length}</div>
-            </div>
-          </div>
-
-          <h3 style={{ color: "#2c3e50", borderBottom: "2px solid #eee", paddingBottom: "10px" }}>Action Required: Unpaid Invoices</h3>
-          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
-            {outstandingInvoices.length === 0 ? (
-              <p style={{ color: "#27ae60", textAlign: "center", fontWeight: "bold" }}>All accounts are settled! 🎉</p>
+      {/* ================= TAB 1: DETAILS ================= */}
+      {activeTab === "details" && (
+        <div className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+            <h3 style={{ margin: 0 }}>Patient Info</h3>
+            {!editMode ? (
+              <div style={{ display: "flex", gap: "8px" }}>
+                {(!patient?.is_deceased || isAdmin) && (
+                  <button onClick={toggleDeceased} style={{ background: patient?.is_deceased ? "#95a5a6" : "#e74c3c", color: "white", padding: "6px 10px", borderRadius: "6px", border: "none", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
+                    {patient?.is_deceased ? "Unmark Deceased" : "Mark Deceased"}
+                  </button>
+                )}
+                <button onClick={() => setEditMode(true)} style={{ background: "#5b8fb9", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
+                  Edit
+                </button>
+              </div>
             ) : (
-              outstandingInvoices.map(inv => (
-                <div key={inv.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <button onClick={() => { setEditMode(false); fetchPatient(); }} style={{ background: "#f39c12", color: "white", padding: "6px 12px", border: "none", borderRadius: "6px", fontWeight: "bold", fontSize: "12px" }}>Cancel</button>
+            )}
+          </div>
+
+          {!editMode ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <p><strong>Species:</strong> {patient?.species || "N/A"}</p>
+                <p><strong>Breed:</strong> {patient?.breed || "N/A"}</p>
+                <p><strong>Colour:</strong> {patient?.colour || "N/A"}</p>
+                <p><strong>Gender:</strong> {patient?.gender || "N/A"}</p>
+                <p><strong>Age:</strong> {patient?.age_years || 0}y {patient?.age_months || 0}m</p>
+                <p><strong>Weight:</strong> {patient?.weight ? `${patient.weight} kg` : "N/A"}</p>
+                <p style={{ gridColumn: "1 / -1" }}><strong>Microchip:</strong> {patient?.microchip || "N/A"}</p>
+              </div>
+              <div style={{ marginTop: "15px" }}>
+                <strong>Notes:</strong>
+                <div style={{ marginTop: "5px", padding: "15px", background: "#f8f9fb", borderRadius: "10px", minHeight: "50px" }}>
+                  {patient?.notes || "No notes"}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <input placeholder="Name" value={editData.name} onChange={(e) => setEditData({...editData, name: e.target.value})} style={inputStyle} />
+              <input list="species-options" placeholder="Species" value={editData.species} onChange={(e) => setEditData({...editData, species: e.target.value, breed: ""})} style={inputStyle} />
+              <datalist id="species-options">{SPECIES_OPTIONS.map(s => <option key={s} value={s} />)}</datalist>
+              <input list="breed-options" placeholder="Breed" value={editData.breed} onChange={(e) => setEditData({...editData, breed: e.target.value})} style={inputStyle} />
+              <datalist id="breed-options">{activeBreeds.map(b => <option key={b} value={b} />)}</datalist>
+              <input list="colour-options" placeholder="Colour" value={editData.colour} onChange={(e) => setEditData({...editData, colour: e.target.value})} style={inputStyle} />
+              <datalist id="colour-options">{COMMON_COLOURS.map(c => <option key={c} value={c} />)}</datalist>
+              <input list="gender-options" placeholder="Gender" value={editData.gender} onChange={(e) => setEditData({...editData, gender: e.target.value})} style={inputStyle} />
+              <datalist id="gender-options">{GENDER_OPTIONS.map(g => <option key={g} value={g} />)}</datalist>
+              <input placeholder="Microchip" value={editData.microchip} onChange={(e) => setEditData({...editData, microchip: e.target.value})} style={inputStyle} />
+              
+              <div style={{ display: "flex", gap: "10px" }}>
+                <input placeholder="Age (Yrs)" type="number" value={editData.age_years || ""} onChange={(e) => setEditData({...editData, age_years: e.target.value})} style={inputStyle} />
+                <input placeholder="Age (Mos)" type="number" value={editData.age_months || ""} onChange={(e) => setEditData({...editData, age_months: e.target.value})} style={inputStyle} />
+              </div>
+
+              <input placeholder="Weight (kg)" type="number" step="0.01" value={editData.weight || ""} onChange={(e) => setEditData({...editData, weight: e.target.value})} style={inputStyle} />
+              <textarea rows={4} placeholder="Notes..." value={editData.notes || ""} onChange={(e) => setEditData({...editData, notes: e.target.value})} style={inputStyle} />
+              
+              <button onClick={updatePatient} style={{ ...btnStyle, background: "#27ae60", color: "white" }}>Save Changes</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= TAB 2: DOSING CALC ================= */}
+      {activeTab === "dosing" && (
+        <div className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+            <h3 style={{ margin: 0 }}>Dosing Calculator</h3>
+            {patient?.weight && <span style={{ background: "#27ae60", color: "white", padding: "5px 10px", borderRadius: "10px", fontWeight: "bold" }}>{patient.weight} kg</span>}
+          </div>
+
+          {!patient?.weight && (
+            <div style={{ background: "#fdf3f2", color: "#e74c3c", padding: "10px", borderRadius: "8px", marginBottom: "15px", fontWeight: "bold" }}>
+              ⚠️ Please set patient weight in the Details tab first.
+            </div>
+          )}
+
+          <h4 style={{ borderBottom: "1px solid #eee", paddingBottom: "5px", color: "#5b8fb9" }}>Sedation Protocol</h4>
+          <select value={protocolId} onChange={handleProtocolChange} style={inputStyle} disabled={!patient?.weight}>
+            <option value="">-- Select Protocol --</option>
+            {protocols.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+
+          {calcResults.map((r, i) => (
+            <div key={i} style={{ padding: "12px", background: "#f8f9fb", borderRadius: "10px", marginTop: "10px", border: "1px solid #eee" }}>
+              <strong>{r.label}</strong>
+              <div style={{ display: "flex", gap: "10px", marginTop: "5px" }}>
+                <div style={{ flex: 1 }}><label style={{ fontSize: "12px", color: "#666" }}>Dose (ml)</label><input type="number" step="0.01" value={r.ml} onChange={e => updateDose(i, e.target.value)} style={inputStyle} /></div>
+                <div style={{ flex: 1 }}><label style={{ fontSize: "12px", color: "#666" }}>Waste (ml)</label><input type="number" step="0.01" value={r.waste} onChange={e => updateWaste(i, e.target.value)} style={inputStyle} /></div>
+              </div>
+              <select value={r.batchId} onChange={e => updateBatch(i, e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
+                <option value="">-- Select Stock Batch --</option>
+                {getStockForDrug(r.drug).map(s => <option key={s.id} value={s.id}>{s.batch} ({s.total_ml} ml left)</option>)}
+              </select>
+            </div>
+          ))}
+
+          <button onClick={saveDosing} style={{ ...btnStyle, width: "100%", background: "#27ae60", color: "white", marginTop: "20px" }} disabled={!patient?.weight || calcResults.length === 0}>
+            Record Doses & Deduct from Stock
+          </button>
+          
+          {sedationHistory.length > 0 && (
+            <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "15px", marginTop: "30px", border: "1px solid #eee" }}>
+              <h3 style={{ marginTop: 0, marginBottom: "15px", color: "#2c3e50" }}>Dosing History</h3>
+              {sedationHistory.map(h => (
+                <div key={h.id} style={{ ...whiteShadowBox, marginBottom: "10px", padding: "15px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold" }}>
+                      {new Date(h.created_at).toLocaleString('en-GB')}
+                    </span>
+                    <span style={{ fontSize: "13px", color: "#3498db", fontWeight: "bold" }}>
+                      Weight: {h.weight} kg
+                    </span>
+                  </div>
+                  
+                  {editingHistoryId === h.id ? (
+                    <>
+                      {editHistoryResults.map((r, i) => (
+                        <div key={i} style={{ display: "flex", gap: "5px", alignItems: "center", marginBottom: "8px", fontSize: "14px" }}>
+                          <strong style={{ width: "110px", color: "#333", fontSize: "13px" }}>{r.label || r.drug}</strong>
+                          <input type="number" step="0.01" style={{ width: "60px", padding: "6px", borderRadius: "5px", border: "1px solid #ccc", fontSize: "13px" }} value={r.ml} onChange={e => { const u = [...editHistoryResults]; u[i].ml = e.target.value; setEditHistoryResults(u); }} /> <span style={{fontSize: "12px", color: "#666"}}>ml</span>
+                          <span style={{color: "#666", fontSize: "12px", marginLeft: "5px"}}>waste:</span>
+                          <input type="number" step="0.01" style={{ width: "60px", padding: "6px", borderRadius: "5px", border: "1px solid #ccc", fontSize: "13px" }} value={r.waste} onChange={e => { const u = [...editHistoryResults]; u[i].waste = e.target.value; setEditHistoryResults(u); }} /> <span style={{fontSize: "12px", color: "#666"}}>ml</span>
+                        </div>
+                      ))}
+                      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                        <button style={{ background: "#27ae60", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }} onClick={() => saveEditHistory(h.id)}>Save Changes</button>
+                        <button style={{ background: "#f39c12", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }} onClick={() => setEditingHistoryId(null)}>Cancel</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {h.results?.map((r, idx) => (
+                        <div key={idx} style={{ fontSize: "14px", color: "#333", marginBottom: "5px" }}>
+                          <strong>{r.label || r.drug}</strong>: {r.ml} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {r.waste} ml waste)</span> : ""}
+                        </div>
+                      ))}
+                      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                        <button onClick={() => startEditHistory(h)} style={{ background: "#5b8fb9", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>Edit Details</button>
+                        {isAdmin && (
+                          <button onClick={() => {
+                            setConfirmModal({
+                              title: "Confirm Deletion",
+                              message: "Are you sure you want to delete this dosing calculation? This will return all recorded drug volumes back into stock inventory.",
+                              confirmText: "Yes, Delete",
+                              confirmColor: "#e74c3c",
+                              onConfirm: async () => {
+                                const { data: original } = await supabase.from("sedation_records").select("*").eq("id", h.id).single();
+                                if (original && original.results) {
+                                  for (const r of original.results) {
+                                    const totalToReturn = (parseFloat(r.ml) || 0) + (r.waste !== undefined ? parseFloat(r.waste) : 0);
+                                    if (r.batchId && totalToReturn > 0) {
+                                      const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", r.batchId).single();
+                                      if (currentStock) await supabase.from("stock").update({ total_ml: currentStock.total_ml + totalToReturn }).eq("id", r.batchId);
+                                    }
+                                  }
+                                }
+                                await supabase.from("sedation_records").delete().eq("id", h.id);
+                                fetchSedationHistory(); 
+                                fetchStock();
+                                setConfirmModal(null);
+                              }
+                            });
+                          }} style={{ background: "#e74c3c", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>Delete Record</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ================= TAB 3: PROCEDURES & INVOICES ================= */}
+      {activeTab === "procedures" && (
+        <>
+          <div className="card">
+            <h3 style={{ margin: "0 0 15px 0", color: "#2c3e50" }}>Start New Invoice</h3>
+
+            <select value={selectedProductId} onChange={handleProductSelect} style={inputStyle}>
+              <option value="">-- Select Initial Procedure --</option>
+              {allProducts.map(p => <option key={p.id} value={p.id}>{p.name} (£{p.price})</option>)}
+            </select>
+            
+            {selectedProductId && (
+              <div style={{ display: "flex", gap: "10px" }}>
+                <input type="number" step="0.01" placeholder="Price (£)" value={procedurePrice} onChange={e => setProcedurePrice(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                <input placeholder="Optional Notes..." value={procedureNotes} onChange={e => setProcedureNotes(e.target.value)} style={{ ...inputStyle, flex: 2 }} />
+              </div>
+            )}
+            <button onClick={addProcedure} style={{ ...btnStyle, width: "100%", background: "#3498db", color: "white" }}>Create Invoice with Item</button>
+          </div>
+
+          <div style={{ marginTop: "20px" }}>
+            {invoiceList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No invoices yet.</p>}
+            
+            {invoiceList.map(inv => (
+              <div 
+                key={inv.id} 
+                id={`invoice-${inv.id}`} 
+                style={{ 
+                  background: highlightedInvoice === inv.id ? "#fff9e6" : "#f8f9fb", 
+                  border: highlightedInvoice === inv.id ? "2px solid #f39c12" : "1px solid transparent",
+                  padding: "20px", 
+                  borderRadius: "20px", 
+                  marginBottom: "20px",
+                  transition: "all 0.3s ease"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "15px" }}>
                   <div>
-                    <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
-                    <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
-                      {inv.client?.name} {inv.client?.surname} <span style={{ color: "#7f8c8d", fontWeight: "normal" }}>(Pet: {inv.patientName})</span>
-                    </div>
-                    <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
-                      {inv.items.join(", ")}
-                    </div>
-                    <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>
-                      Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}
+                    <h3 style={{ margin: 0 }}>Invoice</h3>
+                    <div style={{ fontSize: "12px", color: "#7f8c8d", marginTop: "4px" }}>
+                      Created: {new Date(inv.date).toLocaleDateString()}
                     </div>
                   </div>
                   <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                    {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
-                    <button onClick={() => navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures" }})} style={{...blueBtn, padding: "8px 15px"}}>View Invoice</button>
+                    <div style={{ fontSize: "14px", color: "#7f8c8d" }}>Total: £{inv.total.toFixed(2)}</div>
+                    <div style={{ fontSize: "18px", fontWeight: "bold", color: inv.due > 0 ? "#e74c3c" : "#27ae60", marginBottom: "5px" }}>
+                      Due: £{inv.due.toFixed(2)}
+                    </div>
+                    {inv.total > 0 && inv.due > 0 && <button onClick={() => markInvoicePaid(inv.id)} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>Mark Paid</button>}
+                    
+                    {/* Admin-only Unmark Invoice */}
+                    {inv.total > 0 && inv.due === 0 && isAdmin && (
+                      <button onClick={() => unmarkInvoicePaid(inv.id)} style={{ background: "#95a5a6", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>Unmark Invoice</button>
+                    )}
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ================= TAB 1.5: REPORTS ================= */}
-      {activeTab === "reports" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          
-          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Inventory Stock Report</h3>
-              <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a PDF of all active and archived stock.</p>
-            </div>
-            <button onClick={generateStockReport} style={{ ...blueBtn, flex: "none", padding: "12px 20px" }}>Generate PDF</button>
-          </div>
-
-          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Master Invoice Report</h3>
-              <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a PDF list of all billed procedures and their payment status.</p>
-            </div>
-            <button onClick={generateInvoiceReport} style={{ ...greenBtn, flex: "none", padding: "12px 20px" }}>Generate PDF</button>
-          </div>
-
-          <div className="card">
-            <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Patient Full History Report</h3>
-            <p style={{ margin: "0 0 15px 0", color: "#7f8c8d", fontSize: "14px" }}>Select a patient to generate a comprehensive PDF of their details, procedures, and sedation history.</p>
-            
-            <div style={{ display: "flex", gap: "10px" }}>
-              <select 
-                value={selectedPatientForReport} 
-                onChange={(e) => setSelectedPatientForReport(e.target.value)} 
-                style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
-              >
-                <option value="">-- Select a Patient --</option>
-                {allPatientsList.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.clients?.surname || "Unknown"})</option>
-                ))}
-              </select>
-              
-              <button 
-                onClick={generatePatientReport} 
-                style={{ ...yellowBtn, flex: "none", padding: "12px 20px", width: "150px" }}
-              >
-                Generate PDF
-              </button>
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* ================= TAB 2: PRODUCTS ================= */}
-      {activeTab === "products" && (
-        <>
-          <div className="card" style={{ marginBottom: "20px", border: isEditingProd ? "2px solid #f39c12" : "none" }}>
-            <h3 style={{ marginTop: 0 }}>{isEditingProd ? "Edit Product" : "Add New Product"}</h3>
-            <input placeholder="Product / Service Name" value={prodName} onChange={e => setProdName(e.target.value)} style={inputStyle} />
-            <textarea placeholder="Description..." value={prodDesc} onChange={e => setProdDesc(e.target.value)} style={inputStyle} rows={2} />
-            <input placeholder="Price (£)" type="number" step="0.01" value={prodPrice} onChange={e => setProdPrice(e.target.value)} style={inputStyle} />
-            <div style={btnRow}>
-              <button onClick={saveProduct} style={greenBtn}>{isEditingProd ? "Update Product" : "Save Product"}</button>
-              {isEditingProd && <button onClick={() => {setIsEditingProd(false); setEditProdId(null); setProdName(""); setProdDesc(""); setProdPrice("");}} style={redBtn}>Cancel</button>}
-            </div>
-          </div>
-
-          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
-            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Product Library</h3>
-            {productsList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No products available.</p>}
-            {productsList.map(p => (
-              <div key={p.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <strong style={{ fontSize: "18px", display: "block", color: "#333" }}>{p.name}</strong>
-                  <div style={{ color: "#7f8c8d", fontSize: "14px", marginTop: "5px" }}>{p.description}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "20px", fontWeight: "bold", color: "#27ae60" }}>£{Number(p.price).toFixed(2)}</div>
-                  <div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-                    <button onClick={() => startEditProd(p)} style={{ ...blueBtn, padding: "5px 10px", fontSize: "12px" }}>Edit</button>
-                    <button onClick={() => setProductToDelete(p)} style={{ ...redBtn, padding: "5px 10px", fontSize: "12px" }}>Delete</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ================= TAB 3: STOCK ================= */}
-      {activeTab === "stock" && (
-        <>
-          <div className="card">
-            <h3 style={{marginTop:0}}>Add Stock</h3>
-            <input placeholder="Drug" value={stockDrugName} onChange={e => setStockDrugName(e.target.value)} style={inputStyle} />
-            <input placeholder="Batch" value={stockBatch} onChange={e => setStockBatch(e.target.value)} style={inputStyle} />
-            <div style={{ display: "flex", gap: "10px" }}>
-              <input type="number" placeholder="Total ml" value={stockQty} onChange={e => setStockQty(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-              <input type="date" value={stockExp} onChange={e => setStockExp(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-            </div>
-            <button onClick={addStock} style={{ ...blueBtn, marginTop: "15px", width: "100%" }}>Add Stock</button>
-          </div>
-          
-          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
-            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Current Inventory</h3>
-            {stockList.filter(s => !s.is_archived).map(s => (
-              <div key={s.id} style={whiteShadowBox}>
-                {editingStockId === s.id ? (
-                  <>
-                    <input value={editStockData.drug} onChange={e => setEditStockData({ ...editStockData, drug: e.target.value })} style={inputStyle} />
-                    <input value={editStockData.batch} onChange={e => setEditStockData({ ...editStockData, batch: e.target.value })} style={inputStyle} />
-                    <div style={{ display: "flex", gap: "10px" }}>
-                      <input type="number" value={editStockData.total_ml} onChange={e => setEditStockData({ ...editStockData, total_ml: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-                      <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-                    </div>
-                    <div style={btnRow}>
-                      <button style={blueBtn} onClick={() => saveEditStock(s.id)}>Save</button>
-                      <button style={redBtn} onClick={() => setEditingStockId(null)}>Cancel</button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <strong style={{fontSize: "18px", color: "#333"}}>{s.drug}</strong><br/>
-                    <div style={{ color: "#7f8c8d", fontSize: "14px", lineHeight: "1.6", marginTop: "5px" }}>
-                      Batch: {s.batch} | <strong>{s.total_ml} ml remaining</strong><br/>
-                      {s.expiry_date && `Expires: ${new Date(s.expiry_date).toLocaleDateString('en-GB')}`}
-                    </div>
-                    <div style={{...btnRow, marginTop: "15px"}}>
-                      <button style={{...blueBtn, padding: "8px"}} onClick={() => startEditStock(s)}>Edit</button>
-                      <button style={{...yellowBtn, padding: "8px"}} onClick={() => archiveStock(s.id)}>Archive</button>
-                      <button style={{...redBtn, padding: "8px"}} onClick={() => setStockToDelete(s)}>Delete</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-            {stockList.filter(s => !s.is_archived).length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No stock available.</p>}
-          </div>
-        </>
-      )}
-
-      {/* ================= TAB 4: PROTOCOLS ================= */}
-      {activeTab === "protocols" && (
-        <>
-          <div className="card" style={{ border: editingProtoId ? "2px solid #f39c12" : "none" }}>
-            <h3 style={{marginTop:0}}>{editingProtoId ? "Edit Protocol" : "Add Protocol"}</h3>
-            <input placeholder="Protocol name" value={protoName} onChange={e => setProtoName(e.target.value)} style={inputStyle} />
-            <input placeholder="Species (Optional)" value={protoSpecies} onChange={e => setProtoSpecies(e.target.value)} style={inputStyle} />
-
-            <div style={{ background: "#f8f9fb", padding: "15px", borderRadius: "10px", marginTop: "10px" }}>
-              <h4 style={{ marginTop: 0 }}>Add Drug to Protocol</h4>
-              <div style={{ display: "grid", gap: "8px" }}>
-                <input placeholder="Drug name" value={protoDrugName} onChange={e => setProtoDrugName(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <input placeholder="mg/kg" value={protoMgKg} onChange={e => setProtoMgKg(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-                  <input placeholder="mg/ml" value={protoMgMl} onChange={e => setProtoMgMl(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-                </div>
-              </div>
-              <button style={{ marginTop: "10px", background: "#5b8fb9", color: "white", padding: "10px", borderRadius: "8px", border: "none", cursor: "pointer", width: "100%", fontWeight: "bold" }} onClick={addProtoDrug}>+ Add Drug</button>
-            </div>
-
-            {protoDrugs.map((d, i) => (
-              <div key={i} style={{ marginTop: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "white", padding: "10px", borderRadius: "10px", border: "1px solid #eee" }}>
-                <span><strong>{d.drug_name}</strong> — {d.mg_per_kg} mg/kg</span>
-                <button onClick={() => setProtoDrugs(protoDrugs.filter((_, idx) => idx !== i))} style={{ background: "#e74c3c", color: "white", padding: "5px 10px", border: "none", borderRadius: "8px", cursor: "pointer" }}>Remove</button>
-              </div>
-            ))}
-
-            <div style={btnRow}>
-              <button style={greenBtn} onClick={saveProtocolObj}>{editingProtoId ? "Save Changes" : "Save Protocol"}</button>
-              {editingProtoId && <button onClick={() => {setEditingProtoId(null); setProtoName(""); setProtoSpecies(""); setProtoDrugs([]);}} style={redBtn}>Cancel</button>}
-            </div>
-          </div>
-
-          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
-            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Protocol Library</h3>
-            <input placeholder="Search protocols..." value={protoSearch} onChange={e => setProtoSearch(e.target.value)} style={inputStyle} />
-
-            {protocolsList.filter(p => p.name.toLowerCase().includes(protoSearch.toLowerCase())).map(p => (
-              <div key={p.id} style={whiteShadowBox}>
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: "center"}}>
-                  <strong style={{ fontSize: "18px", color: "#333" }}>{p.name}</strong>
-                  {p.species && <span style={{fontSize: '12px', background: '#eef2f4', color: "#5b8fb9", padding: '4px 8px', borderRadius: '10px', fontWeight: "bold"}}>{p.species}</span>}
                 </div>
                 
-                <div style={{ fontSize: "15px", color: "#555", margin: "10px 0", background: "#f8f9fb", padding: "10px", borderRadius: "8px" }}>
-                  {p.protocol_drugs?.map((d, i) => (
-                    <div key={i}>• {d.drug_name}: {d.mg_per_kg} mg/kg</div>
-                  ))}
-                </div>
+                {inv.procedures.map(proc => (
+                  <div key={proc.id} style={{ background: proc.is_paid ? "#f0fdf4" : "white", padding: "12px", borderRadius: "12px", marginBottom: "8px", border: proc.is_paid ? "1px solid #bbf7d0" : "1px solid #eee", opacity: proc.is_paid ? 0.7 : 1 }}>
+                    
+                    {/* Inline Editing Switch */}
+                    {editingProcId === proc.id ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <strong style={{ fontSize: "15px", color: "#333" }}>{proc.product_name}</strong>
+                        <div style={{ display: "flex", gap: "10px" }}>
+                          <input type="number" step="0.01" value={editProcPrice} onChange={e => setEditProcPrice(e.target.value)} style={{ flex: 1, padding: "8px", borderRadius: "6px", border: "1px solid #ccc" }} />
+                          <input placeholder="Notes..." value={editProcNotes} onChange={e => setEditProcNotes(e.target.value)} style={{ flex: 2, padding: "8px", borderRadius: "6px", border: "1px solid #ccc" }} />
+                        </div>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button onClick={() => saveEditProcedure(proc.id)} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Save</button>
+                          <button onClick={() => setEditingProcId(null)} style={{ background: "#f39c12", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <strong style={{ display: "block", fontSize: "15px", textDecoration: proc.is_paid ? "line-through" : "none" }}>{proc.product_name}</strong>
+                          {proc.notes && <span style={{ color: "#7f8c8d", fontSize: "13px" }}>{proc.notes}</span>}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <strong style={{ fontSize: "15px" }}>£{Number(proc.price).toFixed(2)}</strong>
+                          <button onClick={() => startEditProcedure(proc)} style={{ background: "#5b8fb9", color: "white", border: "none", borderRadius: "6px", padding: "6px 10px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Edit</button>
+                          <button onClick={() => {
+                            setConfirmModal({
+                              title: "Confirm Deletion",
+                              message: `Are you sure you want to remove ${proc.product_name} from this invoice?`,
+                              confirmText: "Yes, Delete",
+                              confirmColor: "#e74c3c",
+                              onConfirm: async () => {
+                                await supabase.from("patient_procedures").delete().eq("id", proc.id);
+                                fetchProcedures();
+                                setConfirmModal(null);
+                              }
+                            });
+                          }} style={{ background: "#e74c3c", color: "white", border: "none", borderRadius: "6px", padding: "6px 10px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>X</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
 
-                <div style={btnRow}>
-                  <button style={{...blueBtn, padding: "8px"}} onClick={() => startEditProtocol(p)}>Edit</button>
-                  <button style={{...redBtn, padding: "8px"} } onClick={() => setProtocolToDelete(p)}>Delete</button>
-                </div>
+                {/* INLINE ADD NEW ITEM TO THIS SPECIFIC INVOICE */}
+                {addingToInvId === inv.id ? (
+                  <div style={{ marginTop: "10px", padding: "12px", background: "white", borderRadius: "12px", border: "2px dashed #bdc3c7" }}>
+                    <strong style={{ display: "block", marginBottom: "10px", fontSize: "14px", color: "#2c3e50" }}>Add Item to this Invoice</strong>
+                    <select value={inlineProdId} onChange={e => {
+                        setInlineProdId(e.target.value);
+                        const p = allProducts.find(x => String(x.id) === String(e.target.value));
+                        if(p) setInlinePrice(p.price);
+                    }} style={inputStyle}>
+                      <option value="">-- Select Product --</option>
+                      {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {inlineProdId && (
+                      <div style={{ display: "flex", gap: "10px" }}>
+                        <input type="number" step="0.01" placeholder="Price (£)" value={inlinePrice} onChange={e=>setInlinePrice(e.target.value)} style={{...inputStyle, flex: 1, marginBottom: "10px"}} />
+                        <input placeholder="Notes" value={inlineNotes} onChange={e=>setInlineNotes(e.target.value)} style={{...inputStyle, flex: 2, marginBottom: "10px"}} />
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button onClick={() => saveInlineProcedure(inv.id)} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "6px", padding: "8px 15px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Save Item</button>
+                      <button onClick={() => { setAddingToInvId(null); setInlineProdId(""); }} style={{ background: "#f39c12", color: "white", border: "none", borderRadius: "6px", padding: "8px 15px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddingToInvId(inv.id)} style={{ marginTop: "10px", background: "none", border: "2px dashed #bdc3c7", color: "#7f8c8d", width: "100%", padding: "10px", borderRadius: "12px", cursor: "pointer", fontWeight: "bold", transition: "0.2s" }}>
+                    + Add Item to this Invoice
+                  </button>
+                )}
+
               </div>
             ))}
-            {protocolsList.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No protocols found.</p>}
           </div>
         </>
       )}
 
-      {/* ================= STATS LIST MODAL ================= */}
-      {statModalMode && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStatModalMode(null)}>
-          <div style={{ background: "white", padding: "20px", borderRadius: "15px", width: "100%", maxWidth: "500px", maxHeight: "80vh", display: "flex", flexDirection: "column", position: "relative" }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setStatModalMode(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#eee", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold" }}>X</button>
-            <h2 style={{ marginTop: 0, textTransform: "capitalize", color: "#2c3e50" }}>{statModalMode} List</h2>
-            <input placeholder={`Search ${statModalMode}...`} value={statSearch} onChange={(e) => setStatSearch(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "15px" }} />
-            <div style={{ overflowY: "auto", flex: 1, paddingRight: "5px" }}>{renderStatModalList()}</div>
+      {/* ================= TAB 4: CONSENT ================= */}
+      {activeTab === "consent" && (
+        <>
+          <div className="card">
+            <h3>Euthanasia Consent</h3>
+            <div style={{ fontSize: "14px", marginBottom: "15px", background: "#fdf3f2", borderLeft: "4px solid #e74c3c", padding: "15px", borderRadius: "5px", lineHeight: "1.5" }}>
+              <p style={{ marginTop: 0 }}>I certify that I am the owner or the authorised agent of the owner of the above-described animal, and I have the legal authority to consent to its euthanasia. I authorize the veterinary team to humanely end the animal's life.</p>
+              <p>I confirm that, to the best of my knowledge, this animal has not bitten any person or animal in the last 15 days, nor has it been exposed to rabies.</p>
+              <strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Liability Release</strong>
+              <p style={{ marginBottom: 0 }}>I hereby release the veterinary practice, the attending veterinary surgeon, and staff from any and all liability related to the performance of this euthanasia.</p>
+            </div>
+            <input placeholder="Signatory Full Name" value={consentName} onChange={(e) => setConsentName(e.target.value)} style={inputStyle} />
+            <div style={{ border: "1px solid #ccc", borderRadius: "10px", marginTop: "10px", background: "white" }}>
+              <SignatureCanvas penColor="black" canvasProps={{ width: 300, height: 150, className: "sigCanvas" }} ref={sigPadRef} />
+            </div>
+            <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
+              <button onClick={() => sigPadRef.current.clear()} style={{ ...btnStyle, flex: 1 }}>Clear</button>
+              <button onClick={() => saveConsent(false)} style={{ ...btnStyle, flex: 1, background: "#3498db", color: "white" }}>Save</button>
+              <button onClick={() => saveConsent(true)} style={{ ...btnStyle, flex: 1, background: "#27ae60", color: "white" }}>Save & Sedate</button>
+            </div>
+          </div>
+          {consentHistory.length > 0 && (
+            <div className="card" style={{ marginTop: "20px" }}>
+              <h3>Consent History</h3>
+              {consentHistory.map(c => (
+                <div key={c.id} style={{ marginBottom: "15px", padding: "15px", background: "#f8f9fb", borderRadius: "10px", border: "1px solid #eee" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <strong>{c.name}</strong><span style={{ fontSize: "12px", color: "#666" }}>{new Date(c.created_at).toLocaleString()}</span>
+                  </div>
+                  <img src={c.signature} alt="signature" style={{ marginTop: "15px", border: "1px solid #ccc", background: "white", borderRadius: "5px", width: "100%", maxWidth: "300px" }} />
+                  <button style={{ marginTop: "10px", background: "#e74c3c", color: "white", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer" }} onClick={() => deleteConsent(c.id)}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ================= TAB 5: APPOINTMENTS ================= */}
+      {activeTab === "appointments" && (
+        <>
+          <div className="card" style={{ border: isEditingApt ? "2px solid #f39c12" : "none" }}>
+            <h3 style={{ marginTop: 0 }}>{isEditingApt ? "Edit Appointment" : "Schedule Appointment"}</h3>
+            
+            <div style={{ display: "flex", gap: "10px" }}>
+              <input type="date" value={aptDate} onChange={e => setAptDate(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+              
+              <div style={{ display: "flex", gap: "5px", flex: 1 }}>
+                <input type="time" value={aptStartTime} onChange={e => setAptStartTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                <span style={{ display: "flex", alignItems: "center", marginBottom: "10px", fontWeight: "bold", color: "#95a5a6" }}>-</span>
+                <input type="time" value={aptEndTime} onChange={e => setAptEndTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <select value={aptType} onChange={e => setAptType(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+                <option value="Working Status">Working Status</option>
+                <option value="Euthanasia">Euthanasia</option>
+                <option value="Consultation">Consultation</option>
+              </select>
+              <select value={aptUserId} onChange={e => setAptUserId(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+                {profiles.map(p => <option key={p.id} value={p.id}>{p.email}</option>)}
+              </select>
+            </div>
+            <input placeholder="Custom Title (Optional)" value={aptTitle} onChange={e => setAptTitle(e.target.value)} style={inputStyle} />
+            <textarea placeholder="Notes / Details..." rows={2} value={aptNotes} onChange={e => setAptNotes(e.target.value)} style={inputStyle} />
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+              <button onClick={saveAppointment} style={{ ...btnStyle, flex: 1, background: "#27ae60", color: "white" }}>
+                {isEditingApt ? "Update Appointment" : "Add to Diary"}
+              </button>
+              {isEditingApt && <button onClick={resetAptForm} style={{ ...btnStyle, flex: 1, background: "#e74c3c", color: "white" }}>Cancel</button>}
+            </div>
+          </div>
+
+          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Appointment History</h3>
+            {appointments.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No appointments found.</p>}
+            {appointments.map(apt => {
+              const isEuth = apt.entry_type === "Euthanasia";
+              const badgeColor = isEuth ? "#f39c12" : "#95a5a6";
+              return (
+                <div key={apt.id} style={{ ...whiteShadowBox, borderLeft: `6px solid ${badgeColor}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                        <span style={{ background: `${badgeColor}22`, color: badgeColor, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>{apt.entry_type}</span>
+                        <span style={{ color: "#333", fontWeight: "bold", fontSize: "14px" }}>{new Date(apt.date).toLocaleDateString('en-GB')} {apt.time_range && `| ${apt.time_range}`}</span>
+                      </div>
+                      {apt.title && <strong style={{ fontSize: "16px", color: "#333", display: "block" }}>{apt.title}</strong>}
+                      {apt.notes && <div style={{ color: "#666", fontSize: "14px", marginTop: "5px" }}>{apt.notes}</div>}
+                    </div>
+                    {isAdmin && (
+                      <div style={{ display: "flex", gap: "5px" }}>
+                        <button onClick={() => startEditApt(apt)} style={{ background: "#5b8fb9", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontSize: "12px" }}>Edit</button>
+                        <button onClick={() => deleteAppointment(apt.id)} style={{ background: "#e74c3c", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontSize: "12px" }}>Delete</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* ================= TAB 6: FILES ================= */}
+      {activeTab === "files" && (
+        <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
+          <h3 style={{ color: "#2c3e50" }}>Documents & Files</h3>
+          <p style={{ color: "#666", marginBottom: "20px" }}>File upload and document storage module will go here.</p>
+          <button style={{ ...btnStyle, background: "#bdc3c7", color: "white", cursor: "not-allowed" }}>Upload File (Coming Soon)</button>
+        </div>
+      )}
+
+      {/* ================= TAB 7: EMAILS ================= */}
+      {activeTab === "emails" && (
+        <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
+          <h3 style={{ color: "#2c3e50" }}>Emails & SMS</h3>
+          <p style={{ color: "#666", marginBottom: "20px" }}>Communication logs and direct messaging module will go here.</p>
+          <button style={{ ...btnStyle, background: "#bdc3c7", color: "white", cursor: "not-allowed" }}>Compose Message (Coming Soon)</button>
+        </div>
+      )}
+
+      {/* ================= GENERIC ALERT MODAL ================= */}
+      {alertMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>⚠️ Notice</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {alertMessage}
+            </p>
+            <button onClick={() => setAlertMessage("")} style={{ width: "100%", background: "#3498db", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>OK</button>
           </div>
         </div>
       )}
 
-      {/* ================= NEW DELETION MODALS ================= */}
-      {productToDelete && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setProductToDelete(null)}>
+      {/* ================= GENERIC CONFIRM MODAL ================= */}
+      {confirmModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setConfirmModal(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <h2 style={{ color: confirmModal.confirmColor || "#e74c3c", marginTop: 0 }}>⚠️ {confirmModal.title}</h2>
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
-              Are you sure you want to permanently delete product <strong>{productToDelete.name}</strong> from the system library?
+              {confirmModal.message}
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteProduct} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setProductToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmModal.onConfirm} style={{ flex: 1, background: confirmModal.confirmColor || "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>{confirmModal.confirmText || "Confirm"}</button>
+              <button onClick={() => setConfirmModal(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {stockToDelete && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStockToDelete(null)}>
-          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
-            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
-              Are you sure you want to permanently delete drug batch <strong>{stockToDelete.batch} ({stockToDelete.drug})</strong> from inventory storage?
-            </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteStock} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setStockToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {protocolToDelete && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setProtocolToDelete(null)}>
-          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
-            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
-              Are you sure you want to permanently delete sedation protocol <strong>{protocolToDelete.name}</strong>?
-            </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteProtocol} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setProtocolToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+      {/* ================= CONSENT POP-UP MODAL ================= */}
+      {showConsentPrompt && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.8)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Consent Required</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "20px", lineHeight: "1.5" }}>A signed Euthanasia Consent form must be completed before this procedure can be added to the invoice.</p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={() => { setShowConsentPrompt(false); setActiveTab("consent"); window.scrollTo(0,0); }} style={{ ...btnStyle, flex: 1, background: "#3498db", color: "white" }}>Go to Form</button>
+              <button onClick={() => setShowConsentPrompt(false)} style={{ ...btnStyle, flex: 1, background: "#95a5a6", color: "white" }}>Cancel</button>
             </div>
           </div>
         </div>
@@ -735,3 +1100,13 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+const TABS = [
+  { id: "details", label: "Details" },
+  { id: "dosing", label: "Dosing Calc" },
+  { id: "procedures", label: "Procedures" },
+  { id: "consent", label: "Consent" },
+  { id: "appointments", label: "Appointments" },
+  { id: "files", label: "Files" },
+  { id: "emails", label: "Emails/SMS" }
+];

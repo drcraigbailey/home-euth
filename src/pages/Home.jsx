@@ -25,11 +25,15 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]); 
   
   const [viewEntry, setViewEntry] = useState(null);
-  const [entryToDelete, setEntryToDelete] = useState(null); // Modal State for Deletion
+  const [entryToDelete, setEntryToDelete] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [timeRange, setTimeRange] = useState("");
+  
+  // NEW TIME STATES
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  
   const [entryType, setEntryType] = useState("Euthanasia");
   const [clientId, setClientId] = useState(""); 
   const [patientId, setPatientId] = useState(""); 
@@ -87,8 +91,12 @@ export default function Home() {
 
   async function saveEntry() {
     if (!title && !clientId && !patientId) return alert("Please provide a Title, or link a Client/Patient.");
+    
+    // Combine start and end time into one string for the database
+    const combinedTime = (startTime && endTime) ? `${startTime} - ${endTime}` : (startTime || endTime || "");
+
     const payload = {
-      user_id: selectedUserId, date: selectedDate, time_range: timeRange, entry_type: entryType,
+      user_id: selectedUserId, date: selectedDate, time_range: combinedTime, entry_type: entryType,
       client_id: clientId || null, patient_id: patientId || null, title, notes, phone, address
     };
 
@@ -108,15 +116,27 @@ export default function Home() {
   }
 
   function startEdit(entry) {
-    setIsEditing(true); setEditId(entry.id); setTimeRange(entry.time_range || ""); setEntryType(entry.entry_type || "Euthanasia");
-    setClientId(entry.client_id || ""); setPatientId(entry.patient_id || ""); setTitle(entry.title || ""); setNotes(entry.notes || "");
-    setPhone(entry.phone || ""); setAddress(entry.address || "");
+    setIsEditing(true); 
+    setEditId(entry.id); 
+    
+    // Split the database string back into start and end inputs
+    const times = entry.time_range ? entry.time_range.split(" - ") : ["", ""];
+    setStartTime(times[0] || "");
+    setEndTime(times[1] || "");
+
+    setEntryType(entry.entry_type || "Euthanasia");
+    setClientId(entry.client_id || ""); 
+    setPatientId(entry.patient_id || ""); 
+    setTitle(entry.title || ""); 
+    setNotes(entry.notes || "");
+    setPhone(entry.phone || ""); 
+    setAddress(entry.address || "");
     setViewEntry(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetForm() {
-    setIsEditing(false); setEditId(null); setTimeRange(""); setEntryType("Euthanasia");
+    setIsEditing(false); setEditId(null); setStartTime(""); setEndTime(""); setEntryType("Euthanasia");
     setClientId(""); setPatientId(""); setTitle(""); setNotes(""); setPhone(""); setAddress("");
   }
 
@@ -148,9 +168,15 @@ export default function Home() {
       {isAdmin && (
         <div className="card" style={{ border: isEditing ? "2px solid #f39c12" : "none" }}>
           <h3 style={{ marginTop: 0 }}>{isEditing ? "Edit Diary Entry" : "Add Diary Entry"}</h3>
+          
           <div style={{ display: "flex", gap: "10px" }}>
-            <input placeholder="Time (e.g. 08:00 - 10:00)" value={timeRange} onChange={e => setTimeRange(e.target.value)} style={inputStyle} />
-            <select value={entryType} onChange={e => setEntryType(e.target.value)} style={inputStyle}>
+            <div style={{ display: "flex", gap: "5px", flex: 1 }}>
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+              <span style={{ display: "flex", alignItems: "center", marginBottom: "10px", fontWeight: "bold", color: "#95a5a6" }}>-</span>
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+            </div>
+            
+            <select value={entryType} onChange={e => setEntryType(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
               <option value="Working Status">Working Status</option>
               <option value="Euthanasia">Euthanasia</option>
               <option value="Consultation">Consultation</option>

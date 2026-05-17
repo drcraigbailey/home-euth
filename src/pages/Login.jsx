@@ -12,10 +12,13 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
+  // Custom Modal State
+  const [alertMessage, setAlertMessage] = useState("");
+
   async function handleLogin() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      alert(error.message);
+      setAlertMessage(error.message);
       return;
     }
     navigate("/");
@@ -105,6 +108,20 @@ export default function Login() {
         </div>
 
       </div>
+
+      {/* ================= GENERIC ALERT MODAL ================= */}
+      {alertMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>⚠️ Notice</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {alertMessage}
+            </p>
+            <button onClick={() => setAlertMessage("")} style={{ width: "100%", background: "#3498db", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>OK</button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
