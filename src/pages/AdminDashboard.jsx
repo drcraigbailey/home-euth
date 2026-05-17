@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
+import Loader from "../Loader"; // <-- Ensure this path is correct
 
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
-const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px" };
+const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px", cursor: "pointer", transition: "transform 0.1s" };
 const btnStyle = { padding: "12px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
@@ -18,16 +19,19 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview"); 
 
-  // --- STATS DATA ---
   const [totalSales, setTotalSales] = useState(0);
   const [outstandingTotal, setOutstandingTotal] = useState(0);
-  const [outstandingAccounts, setOutstandingAccounts] = useState([]);
-  const [totalPatients, setTotalPatients] = useState(0);
-  const [deceasedPatients, setDeceasedPatients] = useState(0);
-  const [totalSedations, setTotalSedations] = useState(0);
-  const [totalConsents, setTotalConsents] = useState(0);
+  const [outstandingInvoices, setOutstandingInvoices] = useState([]); 
+  
+  // New States for Lists
+  const [allPatientsList, setAllPatientsList] = useState([]);
+  const [allSedationsList, setAllSedationsList] = useState([]);
+  const [allConsentsList, setAllConsentsList] = useState([]);
 
-  // --- PRODUCTS DATA ---
+  // Modal States
+  const [statModalMode, setStatModalMode] = useState(null); // 'patients' | 'deceased' | 'sedations' | 'consents'
+  const [statSearch, setStatSearch] = useState("");
+
   const [productsList, setProductsList] = useState([]);
   const [isEditingProd, setIsEditingProd] = useState(false);
   const [editProdId, setEditProdId] = useState(null);
@@ -35,7 +39,6 @@ export default function AdminDashboard() {
   const [prodDesc, setProdDesc] = useState("");
   const [prodPrice, setProdPrice] = useState("");
 
-  // --- STOCK DATA ---
   const [stockList, setStockList] = useState([]);
   const [stockDrugName, setStockDrugName] = useState("");
   const [stockBatch, setStockBatch] = useState("");
@@ -44,7 +47,6 @@ export default function AdminDashboard() {
   const [editingStockId, setEditingStockId] = useState(null);
   const [editStockData, setEditStockData] = useState({});
 
-  // --- PROTOCOLS DATA ---
   const [protocolsList, setProtocolsList] = useState([]);
   const [protoSearch, setProtoSearch] = useState("");
   const [protoName, setProtoName] = useState("");
@@ -66,72 +68,66 @@ export default function AdminDashboard() {
       if (profile?.is_admin) {
         setIsAdmin(true);
         await Promise.all([
-          fetchReports(),
-          fetchProducts(),
-          fetchStock(),
-          fetchProtocols()
+          fetchReports(), fetchProducts(), fetchStock(), fetchProtocols()
         ]);
-      } else {
-        navigate("/"); 
-      }
+      } else navigate("/"); 
     }
     setLoading(false);
   }
 
-  // --- FETCHERS ---
   async function fetchReports() {
+    // Fetch Financials
     const { data: procedures } = await supabase.from("patient_procedures").select("*, patients(name, clients(id, name, surname, phone))");
     if (procedures) {
-      let sales = 0; let outstanding = 0; const unpaidList = [];
+      let sales = 0; let outstanding = 0; const groupedInvoices = {};
       procedures.forEach(proc => {
         sales += Number(proc.price);
-        if (!proc.is_paid) { outstanding += Number(proc.price); unpaidList.push(proc); }
+        if (!proc.is_paid) { 
+            outstanding += Number(proc.price); 
+            const invId = proc.invoice_id || proc.id; 
+            if (!groupedInvoices[invId]) {
+              groupedInvoices[invId] = {
+                id: invId,
+                patientId: proc.patient_id,
+                patientName: proc.patients?.name,
+                client: proc.patients?.clients,
+                date: proc.created_at,
+                total: 0,
+                items: []
+              };
+            }
+            groupedInvoices[invId].total += Number(proc.price);
+            groupedInvoices[invId].items.push(proc.product_name);
+        }
       });
-      setTotalSales(sales); setOutstandingTotal(outstanding); setOutstandingAccounts(unpaidList);
+      setTotalSales(sales); setOutstandingTotal(outstanding); setOutstandingInvoices(Object.values(groupedInvoices).sort((a,b) => new Date(b.date) - new Date(a.date)));
     }
-    const { count: patCount } = await supabase.from("patients").select("*", { count: 'exact', head: true }); setTotalPatients(patCount || 0);
-    const { count: decCount } = await supabase.from("patients").select("*", { count: 'exact', head: true }).eq("is_deceased", true); setDeceasedPatients(decCount || 0);
-    const { count: sedCount } = await supabase.from("sedation_records").select("*", { count: 'exact', head: true }); setTotalSedations(sedCount || 0);
-    const { count: conCount } = await supabase.from("consent_records").select("*", { count: 'exact', head: true }); setTotalConsents(conCount || 0);
+
+    // Fetch Full Lists for Stats instead of just counts
+    const { data: patientsData } = await supabase.from("patients").select("*, clients(surname)");
+    if (patientsData) setAllPatientsList(patientsData);
+
+    const { data: sedationData } = await supabase.from("sedation_records").select("*, patients(name)");
+    if (sedationData) setAllSedationsList(sedationData);
+
+    const { data: consentData } = await supabase.from("consent_records").select("*, patients(name)");
+    if (consentData) setAllConsentsList(consentData);
   }
 
-  async function fetchProducts() {
-    const { data } = await supabase.from("products").select("*").order("name", { ascending: true });
-    setProductsList(data || []);
-  }
+  async function fetchProducts() { const { data } = await supabase.from("products").select("*").order("name", { ascending: true }); setProductsList(data || []); }
+  async function fetchStock() { const { data } = await supabase.from("stock").select("*"); setStockList(data || []); }
+  async function fetchProtocols() { const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)").order("name"); setProtocolsList(data || []); }
 
-  async function fetchStock() {
-    const { data } = await supabase.from("stock").select("*");
-    setStockList(data || []);
-  }
-
-  async function fetchProtocols() {
-    const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)").order("name");
-    setProtocolsList(data || []);
-  }
-
-  // --- PRODUCTS ACTIONS ---
   async function saveProduct() {
     if (!prodName || !prodPrice) return alert("Name and Price are required.");
     const payload = { name: prodName, description: prodDesc, price: Number(prodPrice) };
     if (isEditingProd) await supabase.from("products").update(payload).eq("id", editProdId);
     else await supabase.from("products").insert([payload]);
-    setIsEditingProd(false); setEditProdId(null); setProdName(""); setProdDesc(""); setProdPrice("");
-    fetchProducts();
+    setIsEditingProd(false); setEditProdId(null); setProdName(""); setProdDesc(""); setProdPrice(""); fetchProducts();
   }
+  async function deleteProduct(id) { if (!window.confirm("Delete this product?")) return; await supabase.from("products").delete().eq("id", id); fetchProducts(); }
+  function startEditProd(p) { setIsEditingProd(true); setEditProdId(p.id); setProdName(p.name); setProdDesc(p.description || ""); setProdPrice(p.price); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
-  async function deleteProduct(id) {
-    if (!window.confirm("Delete this product?")) return;
-    await supabase.from("products").delete().eq("id", id);
-    fetchProducts();
-  }
-
-  function startEditProd(p) {
-    setIsEditingProd(true); setEditProdId(p.id); setProdName(p.name); setProdDesc(p.description || ""); setProdPrice(p.price);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  // --- STOCK ACTIONS ---
   async function addStock() {
     if (!stockDrugName.trim() || !stockBatch.trim() || !stockQty.trim()) return alert("Fill all stock fields");
     await supabase.from("stock").insert([{ drug: stockDrugName.trim(), batch: stockBatch.trim(), total_ml: Number(stockQty), expiry_date: stockExp || null, is_archived: false }]);
@@ -142,7 +138,6 @@ export default function AdminDashboard() {
   async function archiveStock(id) { if (window.confirm("Archive this bottle?")) { await supabase.from("stock").update({ is_archived: true }).eq("id", id); fetchStock(); } }
   async function deleteStock(id) { if (window.confirm("Delete stock completely?")) { await supabase.from("stock").delete().eq("id", id); fetchStock(); } }
 
-  // --- PROTOCOLS ACTIONS ---
   function addProtoDrug() {
     const mgKg = parseFloat(protoMgKg); const mgMl = parseFloat(protoMgMl);
     if (!protoDrugName.trim() || isNaN(mgKg) || isNaN(mgMl)) return alert("Fill all drug fields correctly");
@@ -162,32 +157,74 @@ export default function AdminDashboard() {
         pId = data.id;
       }
       await supabase.from("protocol_drugs").insert(protoDrugs.map(d => ({ protocol_id: pId, ...d })));
-      setProtoName(""); setProtoSpecies(""); setProtoDrugs([]); setEditingProtoId(null);
-      fetchProtocols(); alert("Protocol saved successfully!");
+      setProtoName(""); setProtoSpecies(""); setProtoDrugs([]); setEditingProtoId(null); fetchProtocols(); alert("Protocol saved successfully!");
     } catch (err) { alert(`Save failed: ${err.message}`); }
   }
   function startEditProtocol(p) { setEditingProtoId(p.id); setProtoName(p.name); setProtoSpecies(p.species || ""); setProtoDrugs(p.protocol_drugs || []); window.scrollTo({ top: 0, behavior: "smooth" }); }
   async function deleteProtocolObj(id) { if (!window.confirm("Delete protocol?")) return; await supabase.from("protocol_drugs").delete().eq("protocol_id", id); await supabase.from("protocols").delete().eq("id", id); fetchProtocols(); }
 
+  // --- STAT MODAL RENDERING LOGIC ---
+  function renderStatModalList() {
+    let list = [];
+    if (statModalMode === "patients") list = allPatientsList;
+    if (statModalMode === "deceased") list = allPatientsList.filter(p => p.is_deceased);
+    if (statModalMode === "sedations") list = allSedationsList;
+    if (statModalMode === "consents") list = allConsentsList;
+
+    const filtered = list.filter(item => {
+      const searchLower = statSearch.toLowerCase();
+      if (statModalMode === "patients" || statModalMode === "deceased") {
+        return (item.name || "").toLowerCase().includes(searchLower) || (item.clients?.surname || "").toLowerCase().includes(searchLower);
+      }
+      if (statModalMode === "sedations" || statModalMode === "consents") {
+        return (item.patients?.name || "").toLowerCase().includes(searchLower);
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) return <p style={{ color: "#666", textAlign: "center", marginTop: "20px" }}>No records found.</p>;
+
+    return filtered.map(item => (
+       <div key={item.id} style={{ background: "#f8f9fb", padding: "12px", borderRadius: "8px", marginBottom: "8px", border: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+         
+         { (statModalMode === "patients" || statModalMode === "deceased") && (
+           <>
+             <div>
+               <strong style={{ color: "#333", fontSize: "15px" }}>{item.name}</strong> <span style={{ color: "#7f8c8d", fontSize: "13px" }}>({item.clients?.surname || "No Client"})</span>
+               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{item.species} - {item.weight}kg</div>
+             </div>
+             <button onClick={() => navigate(`/patient/${item.id}`)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
+           </>
+         )}
+         
+         { statModalMode === "sedations" && (
+           <>
+             <div>
+               <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Unknown"}</strong>
+               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{new Date(item.created_at).toLocaleDateString()}</div>
+             </div>
+             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "dosing" } })} style={{ background: "#27ae60", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View Record</button>
+           </>
+         )}
+         
+         { statModalMode === "consents" && (
+           <>
+             <div>
+               <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Unknown"}</strong>
+               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>Signed by: {item.name}</div>
+             </div>
+             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "consent" } })} style={{ background: "#f39c12", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View Form</button>
+           </>
+         )}
+       </div>
+    ));
+  }
+
   if (loading) {
     return (
       <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <style>
-          {`
-            @keyframes pawWalk {
-              0% { opacity: 0; transform: translateY(5px); }
-              25% { opacity: 1; transform: translateY(0); }
-              50% { opacity: 0; transform: translateY(-5px); }
-              100% { opacity: 0; }
-            }
-          `}
-        </style>
-        <div style={{ position: "relative", width: "100px", height: "120px", marginBottom: "10px" }}>
-          <svg viewBox="0 0 512 512" width="35" height="35" fill="none" stroke="#5b8fb9" strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", bottom: "10px", left: "10px", transform: "rotate(-15deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "0s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
-          <svg viewBox="0 0 512 512" width="35" height="35" fill="none" stroke="#5b8fb9" strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", top: "40px", right: "15px", transform: "rotate(15deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "0.5s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
-          <svg viewBox="0 0 512 512" width="35" height="35" fill="none" stroke="#5b8fb9" strokeWidth="40" strokeLinecap="round" strokeLinejoin="round" style={{ position: "absolute", top: "0px", left: "20px", transform: "rotate(-5deg)", animation: "pawWalk 1.5s infinite linear", animationDelay: "1s", opacity: 0 }}><path d="M226.5 92.9c14.3 7.3 22.9 23 22.9 39.1 0 16.1-8.6 31.8-22.9 39.1-14.3 7.3-33.8 7.3-48.1 0-14.3-7.3-22.9-23-22.9-39.1 0-16.1 8.6-31.8 22.9-39.1 14.3-7.3 33.8-7.3 48.1 0zm98.6-39.1c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-147 197.8c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm195.8 0c-14.3 7.3-22.9 23-22.9 39.1 0 16.1 8.6 31.8 22.9 39.1 14.3 7.3 33.8 7.3 48.1 0 14.3-7.3 22.9-23 22.9-39.1 0-16.1-8.6-31.8-22.9-39.1-14.3-7.3-33.8-7.3-48.1 0zm-87.4-42.5c-48.6-25.1-115.5-25.1-164.1 0-24.1 12.4-38.6 39-38.6 66.5 0 27.5 14.5 54.1 38.6 66.5 24.3 12.5 56.6 15.3 84.8 8.6 28.2-6.7 54.2-22.7 78.5-47.5 24.3 24.8 50.3 40.8 78.5 47.5 28.2 6.7 60.5 3.9 84.8-8.6 24.1-12.4 38.6-39 38.6-66.5 0-27.5-14.5-54.1-38.6-66.5-48.6-25.1-115.5-25.1-164.1 0z"/></svg>
-        </div>
-        <p style={{ marginTop: "10px", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Dashboard...</p>
+        <Loader />
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Dashboard...</p>
       </div>
     );
   }
@@ -205,7 +242,6 @@ export default function AdminDashboard() {
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1 style={{ textAlign: "center" }}>Admin Control</h1>
 
-      {/* SCROLLABLE MINI MENU */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "30px", background: "white", padding: "10px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
         {TABS.map(tab => (
           <button key={tab.id} style={{ ...btnStyle, flex: 1, padding: "12px 20px", background: activeTab === tab.id ? '#5b8fb9' : 'transparent', color: activeTab === tab.id ? 'white' : '#666' }} onClick={() => setActiveTab(tab.id)}>
@@ -219,49 +255,67 @@ export default function AdminDashboard() {
         <>
           <h3 style={{ color: "#2c3e50", marginTop: 0 }}>Financial Overview</h3>
           <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
-            <div style={statCard}>
+            <div style={{...statCard, cursor: "default"}}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Gross Revenue</div>
               <div style={{ fontSize: "28px", fontWeight: "bold", color: "#2c3e50" }}>£{totalSales.toFixed(2)}</div>
             </div>
-            <div style={statCard}>
+            <div style={{...statCard, cursor: "default"}}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Outstanding Due</div>
               <div style={{ fontSize: "28px", fontWeight: "bold", color: "#e74c3c" }}>£{outstandingTotal.toFixed(2)}</div>
             </div>
           </div>
 
-          <h3 style={{ color: "#2c3e50" }}>Clinical Records</h3>
+          <h3 style={{ color: "#2c3e50" }}>Clinical Records <span style={{fontSize: "12px", color: "#7f8c8d", fontWeight: "normal", marginLeft: "10px"}}>(Tap to view list)</span></h3>
           <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
-            <div style={statCard}><div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Patients</div><div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>{totalPatients}</div></div>
-            <div style={statCard}><div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Deceased</div><div style={{ fontSize: "24px", fontWeight: "bold", color: "#95a5a6" }}>{deceasedPatients}</div></div>
-            <div style={statCard}><div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Sedations</div><div style={{ fontSize: "24px", fontWeight: "bold", color: "#27ae60" }}>{totalSedations}</div></div>
-            <div style={statCard}><div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Consents</div><div style={{ fontSize: "24px", fontWeight: "bold", color: "#f39c12" }}>{totalConsents}</div></div>
+            
+            {/* Clickable Stat Cards */}
+            <div style={statCard} onClick={() => { setStatModalMode("patients"); setStatSearch(""); }}>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Patients</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>{allPatientsList.length}</div>
+            </div>
+            
+            <div style={statCard} onClick={() => { setStatModalMode("deceased"); setStatSearch(""); }}>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Deceased</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#95a5a6" }}>{allPatientsList.filter(p => p.is_deceased).length}</div>
+            </div>
+            
+            <div style={statCard} onClick={() => { setStatModalMode("sedations"); setStatSearch(""); }}>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Sedations</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#27ae60" }}>{allSedationsList.length}</div>
+            </div>
+            
+            <div style={statCard} onClick={() => { setStatModalMode("consents"); setStatSearch(""); }}>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Consents</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#f39c12" }}>{allConsentsList.length}</div>
+            </div>
+
           </div>
 
           <h3 style={{ color: "#2c3e50", borderBottom: "2px solid #eee", paddingBottom: "10px" }}>Action Required: Unpaid Invoices</h3>
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
-            {outstandingAccounts.length === 0 ? (
+            {outstandingInvoices.length === 0 ? (
               <p style={{ color: "#27ae60", textAlign: "center", fontWeight: "bold" }}>All accounts are settled! 🎉</p>
             ) : (
-              outstandingAccounts.map(acc => {
-                const client = acc.patients?.clients;
-                return (
-                  <div key={acc.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{Number(acc.price).toFixed(2)} Due</strong>
-                      <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
-                        {client?.name} {client?.surname} <span style={{ color: "#7f8c8d", fontWeight: "normal" }}>(Pet: {acc.patients?.name})</span>
-                      </div>
-                      <div style={{ color: "#666", fontSize: "13px", marginTop: "2px" }}>
-                        {acc.product_name} | {new Date(acc.created_at).toLocaleDateString()}
-                      </div>
+              outstandingInvoices.map(inv => (
+                <div key={inv.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
+                    <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
+                      {inv.client?.name} {inv.client?.surname} <span style={{ color: "#7f8c8d", fontWeight: "normal" }}>(Pet: {inv.patientName})</span>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      {client?.phone && <a href={`tel:${client.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
-                      <button onClick={() => navigate(`/patient/${acc.patient_id}`)} style={{...blueBtn, padding: "8px 15px"}}>View Patient</button>
+                    <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>
+                      {inv.items.join(", ")}
+                    </div>
+                    <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>
+                      Invoice Date: {new Date(inv.date).toLocaleDateString()}
                     </div>
                   </div>
-                );
-              })
+                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                    {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
+                    <button onClick={() => navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures" }})} style={{...blueBtn, padding: "8px 15px"}}>View Invoice</button>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </>
@@ -415,6 +469,28 @@ export default function AdminDashboard() {
           </div>
         </>
       )}
+
+      {/* ================= STATS MODAL OVERLAY ================= */}
+      {statModalMode && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStatModalMode(null)}>
+          <div style={{ background: "white", padding: "20px", borderRadius: "15px", width: "100%", maxWidth: "500px", maxHeight: "80vh", display: "flex", flexDirection: "column", position: "relative" }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setStatModalMode(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#eee", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold" }}>X</button>
+            <h2 style={{ marginTop: 0, textTransform: "capitalize", color: "#2c3e50" }}>{statModalMode} List</h2>
+            
+            <input 
+              placeholder={`Search ${statModalMode}...`} 
+              value={statSearch} 
+              onChange={(e) => setStatSearch(e.target.value)} 
+              style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "15px" }} 
+            />
+            
+            <div style={{ overflowY: "auto", flex: 1, paddingRight: "5px" }}>
+              {renderStatModalList()}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
