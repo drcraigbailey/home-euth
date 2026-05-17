@@ -608,12 +608,92 @@ export default function PatientDetail() {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px", background: "white", padding: "10px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
-        {TABS.map(tab => (
-          <button key={tab.id} style={{ ...btnStyle, padding: "10px 20px", background: activeTab === tab.id ? '#5b8fb9' : 'transparent', color: activeTab === tab.id ? 'white' : '#666' }} onClick={() => setActiveTab(tab.id)}>
-            {tab.label}
-          </button>
-        ))}
+      {/* Styled Parent Wrapper for Sub-Navigation Tabs */}
+      <div style={{ position: "relative", marginBottom: "20px" }}>
+        
+        {/* Scrollable Container - Reverted to original layout with 40px side padding added */}
+        <div className="patient-tabs-scrollbox" style={{ 
+          display: "flex", 
+          gap: "10px", 
+          background: "white", 
+          padding: "10px 40px", /* 10px top/bottom, 40px sides to perfectly clear arrows */
+          borderRadius: "15px", 
+          boxShadow: "0 2px 10px rgba(0,0,0,0.05)", 
+          overflowX: "auto", 
+          whiteSpace: "nowrap"
+        }}>
+          {TABS.map(tab => (
+            <button 
+              key={tab.id} 
+              style={{ 
+                ...btnStyle, 
+                padding: "10px 20px", 
+                background: activeTab === tab.id ? '#5b8fb9' : 'transparent', 
+                color: activeTab === tab.id ? 'white' : '#666' 
+              }} 
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Left Arrow Indicator (Absolute Overlay) */}
+        <div style={{
+          position: "absolute",
+          left: "0",
+          top: "0",
+          bottom: "0",
+          width: "40px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
+          background: "linear-gradient(270deg, rgba(255,255,255,0) 0%, white 80%)",
+          borderRadius: "15px 0 0 15px",
+          zIndex: 2
+        }}>
+           <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "chevronMoveLeft 1.2s infinite ease-in-out" }}>{"❮"}</span>
+        </div>
+
+        {/* Right Arrow Indicator (Absolute Overlay) */}
+        <div style={{
+          position: "absolute",
+          right: "0",
+          top: "0",
+          bottom: "0",
+          width: "40px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
+          background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, white 80%)",
+          borderRadius: "0 15px 15px 0",
+          zIndex: 2
+        }}>
+          <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "chevronMoveRight 1.2s infinite ease-in-out" }}>{"❯"}</span>
+        </div>
+
+        {/* Dynamic Styles (No media queries hiding arrows!) */}
+        <style>{`
+          .patient-tabs-scrollbox::-webkit-scrollbar {
+            display: none;
+          }
+          .patient-tabs-scrollbox {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          @keyframes chevronMoveRight {
+            0% { transform: translateX(-2px); opacity: 0.4; }
+            50% { transform: translateX(3px); opacity: 1; }
+            100% { transform: translateX(-2px); opacity: 0.4; }
+          }
+          @keyframes chevronMoveLeft {
+            0% { transform: translateX(2px); opacity: 0.4; }
+            50% { transform: translateX(-3px); opacity: 1; }
+            100% { transform: translateX(2px); opacity: 0.4; }
+          }
+        `}</style>
       </div>
 
       {/* ================= TAB 1: DETAILS ================= */}
@@ -716,7 +796,6 @@ export default function PatientDetail() {
             </div>
           ))}
 
-          {/* NEW: Button is always enabled to allow user to click it and see the warnings if something is missing */}
           <button onClick={saveDosing} style={{ ...btnStyle, width: "100%", background: "#27ae60", color: "white", marginTop: "20px" }}>
             Record Doses & Deduct from Stock
           </button>
@@ -845,7 +924,6 @@ export default function PatientDetail() {
                     </div>
                     {inv.total > 0 && inv.due > 0 && <button onClick={() => markInvoicePaid(inv.id)} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>Mark Paid</button>}
                     
-                    {/* Admin-only Unmark Invoice */}
                     {inv.total > 0 && inv.due === 0 && isAdmin && (
                       <button onClick={() => unmarkInvoicePaid(inv.id)} style={{ background: "#95a5a6", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>Unmark Invoice</button>
                     )}
@@ -855,7 +933,6 @@ export default function PatientDetail() {
                 {inv.procedures.map(proc => (
                   <div key={proc.id} style={{ background: proc.is_paid ? "#f0fdf4" : "white", padding: "12px", borderRadius: "12px", marginBottom: "8px", border: proc.is_paid ? "1px solid #bbf7d0" : "1px solid #eee", opacity: proc.is_paid ? 0.7 : 1 }}>
                     
-                    {/* Inline Editing Switch */}
                     {editingProcId === proc.id ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <strong style={{ fontSize: "15px", color: "#333" }}>{proc.product_name}</strong>
@@ -896,7 +973,6 @@ export default function PatientDetail() {
                   </div>
                 ))}
 
-                {/* INLINE ADD NEW ITEM TO THIS SPECIFIC INVOICE */}
                 {addingToInvId === inv.id ? (
                   <div style={{ marginTop: "10px", padding: "12px", background: "white", borderRadius: "12px", border: "2px dashed #bdc3c7" }}>
                     <strong style={{ display: "block", marginBottom: "10px", fontSize: "14px", color: "#2c3e50" }}>Add Item to this Invoice</strong>

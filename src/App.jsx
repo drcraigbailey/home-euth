@@ -2,7 +2,7 @@
 import { BrowserRouter as Router, Routes, Route, NavLink, useLocation, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
-import Loader from "./Loader"; // <-- Added custom loader
+import Loader from "./Loader"; 
 
 // pages
 import Login from "./pages/Login";
@@ -66,48 +66,76 @@ function Navbar() {
         <div className="nav-container-inner" style={{ position: "relative" }}>
           
           {/* Scrollable container element */}
-          <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", paddingRight: "35px" }}>
+          <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center" }}>
+            
+            {/* INVISIBLE SPACER: Safely forces empty space before "Home" starts */}
+            <div style={{ flexShrink: 0, width: "50px", height: "1px" }}></div>
+            
             <NavLink to="/" end className="nav-item">Home</NavLink>
             <NavLink to="/clients" className="nav-item">Clients</NavLink>
             <NavLink to="/patients" className="nav-item">Patients</NavLink> 
             <NavLink to="/sedation" className="nav-item">Sedation</NavLink>
             <NavLink to="/products" className="nav-item">Products</NavLink>
             {isAdmin && <NavLink to="/admin" className="nav-item" style={{ color: "#e74c3c" }}>Admin</NavLink>}
+            
+            {/* INVISIBLE SPACER: Safely forces empty space at the end */}
+            <div style={{ flexShrink: 0, width: "50px", height: "1px" }}></div>
           </div>
 
-          {/* Little Blue Scroll Indicator Arrow */}
+          {/* Left Arrow (Absolute Overlay) */}
           <div style={{
             position: "absolute",
-            right: "85px", /* Positioned right before the logout button */
+            left: "0",
             top: "50%",
             transform: "translateY(-50%)",
             display: "flex",
             alignItems: "center",
-            pointerEvents: "none", /* Ensures it doesn't block touch/clicks */
-            background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 40%)", /* Smooth blending backdrop */
-            paddingLeft: "15px",
-            height: "100%"
+            justifyContent: "flex-start",
+            width: "55px",
+            pointerEvents: "none",
+            background: "linear-gradient(270deg, rgba(255,255,255,0) 0%, #fff 60%)",
+            paddingLeft: "10px",
+            height: "100%",
+            zIndex: 1
           }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5b8fb9" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "bounceRight 1s infinite alternate" }}>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-              <polyline points="12 5 19 12 12 19"></polyline>
-            </svg>
+            <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "bounceLeft 1s infinite alternate" }}>{"❮"}</span>
+          </div>
+
+          {/* Right Arrow (Absolute Overlay) */}
+          <div style={{
+            position: "absolute",
+            right: "85px", 
+            top: "50%",
+            transform: "translateY(-50%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            width: "55px",
+            pointerEvents: "none", 
+            background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 60%)", 
+            paddingRight: "15px",
+            height: "100%",
+            zIndex: 1
+          }}>
+            <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "bounceRight 1s infinite alternate" }}>{"❯"}</span>
           </div>
 
           <button onClick={logout} className="logout-btn-minimal" style={{ position: "relative", zIndex: 2 }}>Logout</button>
         </div>
       </nav>
 
-      {/* Injecting a quick keyframe animation for a subtle breathing/bouncing effect */}
+      {/* Animations (Media query hiding arrows is strictly removed) */}
       <style>{`
+        .nav-links-group::-webkit-scrollbar {
+          display: none;
+        }
         @keyframes bounceRight {
           0% { transform: translateX(0); opacity: 0.6; }
           100% { transform: translateX(4px); opacity: 1; }
         }
-        /* Optional: Hide arrow on desktop screens where layout doesn't overflow */
-        @media (min-width: 768px) {
-          .nav-links-group { padding-right: 0 !important; }
-          div[style*="pointerEvents: none"] { display: none !important; }
+        @keyframes bounceLeft {
+          0% { transform: translateX(0); opacity: 0.6; }
+          100% { transform: translateX(-4px); opacity: 1; }
         }
       `}</style>
     </div>
