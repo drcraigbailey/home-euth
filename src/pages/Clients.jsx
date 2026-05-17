@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef } from "react";
+// Clients.jsx
+import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 
-// Styling constants to match Sedation history style
+// Styling constants
 const whiteShadowBox = {
   background: "white",
   padding: "20px",
@@ -32,7 +33,6 @@ const redBtn = {
 
 export default function Clients() {
   const navigate = useNavigate();
-  const petFormRef = useRef(null); 
 
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState("");
@@ -46,18 +46,13 @@ export default function Clients() {
   const [city, setCity] = useState("");      
   const [postcode, setPostcode] = useState(""); 
 
+  // Modal State for New Pet
   const [newClient, setNewClient] = useState(null); 
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
   const [petWeight, setPetWeight] = useState("");
 
   useEffect(() => { fetchClients(); }, []);
-
-  useEffect(() => {
-    if (newClient && petFormRef.current) {
-      petFormRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [newClient]);
 
   async function fetchClients() {
     const { data, error } = await supabase.from("clients").select("*").order("surname");
@@ -130,30 +125,14 @@ export default function Clients() {
             <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
             <input placeholder="Postcode" value={postcode} onChange={(e) => setPostcode(e.target.value)} />
           </div>
-          <button onClick={addClient} style={{ background: "#5499c7", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "600" }}>Add Client</button>
+          <button onClick={addClient} style={{ background: "#5499c7", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "600", cursor: "pointer" }}>Add Client</button>
         </div>
       </div>
-
-      {newClient && (
-        <div ref={petFormRef} className="card" style={{ marginTop: "20px", border: "2px solid #27ae60", background: "#fafffb" }}>
-          <h3 style={{ color: "#27ae60" }}>Add Pet for {newClient.fullName}</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <input placeholder="Pet Name" value={petName} onChange={(e) => setPetName(e.target.value)} />
-            <input placeholder="Species" value={petSpecies} onChange={(e) => setPetSpecies(e.target.value)} />
-            <input placeholder="Weight" value={petWeight} onChange={(e) => setPetWeight(e.target.value)} />
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={addPet} style={{ flex: 1, background: "#27ae60", color: "white", padding: "12px", borderRadius: "8px", border: "none" }}>Save Pet</button>
-              <button onClick={() => { alert("Complete!"); setNewClient(null); }} style={{ flex: 1, background: "#f39c12", color: "white", padding: "12px", borderRadius: "8px", border: "none" }}>Skip</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="card" style={{ marginTop: "20px" }}>
         <input placeholder="Search name..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      {/* --- UPDATED ACTIVE CLIENTS SECTION --- */}
       <div style={{ marginTop: "20px", background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
         <h3 style={{ marginBottom: "20px" }}>Active Clients</h3>
         {filtered.map(c => (
@@ -186,6 +165,30 @@ export default function Clients() {
         ))}
         {filtered.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No clients found.</p>}
       </div>
+
+      {/* POP-UP MODAL FOR ADDING A PET */}
+      {newClient && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setNewClient(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", position: "relative", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setNewClient(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#eee", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold" }}>X</button>
+            
+            <h2 style={{ marginTop: 0, color: "#27ae60", paddingRight: "30px" }}>Client Created!</h2>
+            <p style={{ color: "#666", marginBottom: "20px", fontSize: "15px" }}>Would you like to register a pet for <strong>{newClient.fullName}</strong> now?</p>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <input placeholder="Pet Name" value={petName} onChange={(e) => setPetName(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
+              <input placeholder="Species" value={petSpecies} onChange={(e) => setPetSpecies(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
+              <input placeholder="Weight (kg)" type="number" step="0.1" value={petWeight} onChange={(e) => setPetWeight(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
+              
+              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                <button onClick={addPet} style={{ flex: 1, background: "#27ae60", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Save Pet</button>
+                <button onClick={() => setNewClient(null)} style={{ flex: 1, background: "#f39c12", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Skip for now</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

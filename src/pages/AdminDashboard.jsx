@@ -23,13 +23,14 @@ export default function AdminDashboard() {
   const [outstandingTotal, setOutstandingTotal] = useState(0);
   const [outstandingInvoices, setOutstandingInvoices] = useState([]); 
   
-  // New States for Lists
+  // Lists for Stats
+  const [allClientsList, setAllClientsList] = useState([]);
   const [allPatientsList, setAllPatientsList] = useState([]);
   const [allSedationsList, setAllSedationsList] = useState([]);
   const [allConsentsList, setAllConsentsList] = useState([]);
 
   // Modal States
-  const [statModalMode, setStatModalMode] = useState(null); // 'patients' | 'deceased' | 'sedations' | 'consents'
+  const [statModalMode, setStatModalMode] = useState(null); // 'clients' | 'patients' | 'deceased' | 'sedations' | 'consents'
   const [statSearch, setStatSearch] = useState("");
 
   const [productsList, setProductsList] = useState([]);
@@ -103,7 +104,10 @@ export default function AdminDashboard() {
       setTotalSales(sales); setOutstandingTotal(outstanding); setOutstandingInvoices(Object.values(groupedInvoices).sort((a,b) => new Date(b.date) - new Date(a.date)));
     }
 
-    // Fetch Full Lists for Stats instead of just counts
+    // Fetch Full Lists for Stats
+    const { data: clientsData } = await supabase.from("clients").select("*");
+    if (clientsData) setAllClientsList(clientsData);
+
     const { data: patientsData } = await supabase.from("patients").select("*, clients(surname)");
     if (patientsData) setAllPatientsList(patientsData);
 
@@ -166,6 +170,7 @@ export default function AdminDashboard() {
   // --- STAT MODAL RENDERING LOGIC ---
   function renderStatModalList() {
     let list = [];
+    if (statModalMode === "clients") list = allClientsList;
     if (statModalMode === "patients") list = allPatientsList;
     if (statModalMode === "deceased") list = allPatientsList.filter(p => p.is_deceased);
     if (statModalMode === "sedations") list = allSedationsList;
@@ -173,6 +178,9 @@ export default function AdminDashboard() {
 
     const filtered = list.filter(item => {
       const searchLower = statSearch.toLowerCase();
+      if (statModalMode === "clients") {
+        return (`${item.name || ""} ${item.surname || ""}`).toLowerCase().includes(searchLower);
+      }
       if (statModalMode === "patients" || statModalMode === "deceased") {
         return (item.name || "").toLowerCase().includes(searchLower) || (item.clients?.surname || "").toLowerCase().includes(searchLower);
       }
@@ -187,6 +195,16 @@ export default function AdminDashboard() {
     return filtered.map(item => (
        <div key={item.id} style={{ background: "#f8f9fb", padding: "12px", borderRadius: "8px", marginBottom: "8px", border: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
          
+         { statModalMode === "clients" && (
+           <>
+             <div>
+               <strong style={{ color: "#333", fontSize: "15px" }}>{item.name} {item.surname}</strong>
+               <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{item.email || "No email"} | {item.phone || "No phone"}</div>
+             </div>
+             <button onClick={() => navigate(`/client/${item.id}`)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
+           </>
+         )}
+
          { (statModalMode === "patients" || statModalMode === "deceased") && (
            <>
              <div>
@@ -269,6 +287,11 @@ export default function AdminDashboard() {
           <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
             
             {/* Clickable Stat Cards */}
+            <div style={statCard} onClick={() => { setStatModalMode("clients"); setStatSearch(""); }}>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Clients</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#8e44ad" }}>{allClientsList.length}</div>
+            </div>
+
             <div style={statCard} onClick={() => { setStatModalMode("patients"); setStatSearch(""); }}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Patients</div>
               <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>{allPatientsList.length}</div>
