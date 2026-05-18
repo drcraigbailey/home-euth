@@ -7,6 +7,11 @@ import Loader from "../Loader";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// --- CAPACITOR IMPORTS FOR NATIVE PDF SHARING ---
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+
 // --- STYLING CONSTANTS ---
 const btnStyle = { padding: "12px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" }; // Main toolbar tab style
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
@@ -74,9 +79,13 @@ export default function PatientDetail() {
 
   const [patient, setPatient] = useState(null);
   
-  // Tab 1: Details
+  // Tab 1: Details & Clinical Notes
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState({});
+  const [notesList, setNotesList] = useState([]);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editNoteText, setEditNoteText] = useState("");
 
   // Tab 2: Dosing Calc
   const [protocols, setProtocols] = useState([]);
@@ -170,7 +179,29 @@ export default function PatientDetail() {
 
   async function fetchPatient() {
     const { data } = await supabase.from("patients").select("*, clients(*)").eq("id", id).single();
-    if (data) { setPatient(data); setEditData(data); }
+    if (data) { 
+      setPatient(data); 
+      setEditData(data); 
+
+      // Safely parse JSON array of clinical notes (or fallback to legacy text format)
+      let parsedNotes = [];
+      if (data.notes) {
+        try {
+          parsedNotes = JSON.parse(data.notes);
+          if (!Array.isArray(parsedNotes)) throw new Error("Not an array");
+        } catch (e) {
+          // If it fails, it's an old plain-text note string. We wrap it in the new JSON format
+          parsedNotes = [{ 
+            id: generateUUID(), 
+            date: data.created_at || new Date().toISOString(), 
+            text: data.notes 
+          }];
+        }
+      }
+      // Order newest first
+      parsedNotes.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setNotesList(parsedNotes);
+    }
   }
 
   // --- FILE HANDLING ---
@@ -285,8 +316,12 @@ export default function PatientDetail() {
     setStock(data || []);
   }
 
+  // --- PATIENT INFO ACTIONS ---
   async function updatePatient() {
     const payload = { ...editData, age_years: Number(editData.age_years) || null, age_months: Number(editData.age_months) || null, weight: Number(editData.weight) };
+    // Prevent the generic update function from wiping out the JSON string of clinical notes
+    delete payload.notes; 
+
     const { error } = await supabase.from("patients").update(payload).eq("id", id);
     if (!error) { setEditMode(false); fetchPatient(); } else setAlertMessage(error.message);
   }
@@ -332,6 +367,62 @@ export default function PatientDetail() {
     }
   }
 
+  // --- CLINICAL NOTES ACTIONS ---
+  async function saveNotesToSupabase(updatedNotesArray) {
+    const jsonString = JSON.stringify(updatedNotesArray);
+    const { error } = await supabase.from("patients").update({ notes: jsonString }).eq("id", id);
+    if (error) {
+      setAlertMessage("Error saving notes: " + error.message);
+      return false;
+    }
+    setPatient(prev => ({ ...prev, notes: jsonString }));
+    return true;
+  }
+
+  async function addNote() {
+    if (!newNoteText.trim()) return;
+    const newNote = { id: generateUUID(), date: new Date().toISOString(), text: newNoteText.trim() };
+    const updated = [newNote, ...notesList]; // Add to top
+    const success = await saveNotesToSupabase(updated);
+    if (success) {
+      setNotesList(updated);
+      setNewNoteText("");
+    }
+  }
+
+  function startEditNote(note) {
+    setEditingNoteId(note.id);
+    setEditNoteText(note.text);
+  }
+
+  async function saveEditNote(noteId) {
+    if (!editNoteText.trim()) return setAlertMessage("Note text cannot be empty.");
+    const updated = notesList.map(n => n.id === noteId ? { ...n, text: editNoteText.trim() } : n);
+    const success = await saveNotesToSupabase(updated);
+    if (success) {
+      setNotesList(updated);
+      setEditingNoteId(null);
+    }
+  }
+
+  function confirmDeleteNote(noteId) {
+    setConfirmModal({
+      title: "Delete Note?",
+      message: "Are you sure you want to permanently delete this clinical note?",
+      confirmText: "Yes, Delete",
+      confirmColor: "#e74c3c",
+      onConfirm: async () => {
+        const updated = notesList.filter(n => n.id !== noteId);
+        const success = await saveNotesToSupabase(updated);
+        if (success) {
+          setNotesList(updated);
+        }
+        setConfirmModal(null);
+      }
+    });
+  }
+
+  // --- DOSING ACTIONS ---
   function getStockForDrug(drug) {
     return stock.filter(s => normaliseDrugName(s.drug) === normaliseDrugName(drug) && s.total_ml > 0 && !s.is_archived);
   }
@@ -466,6 +557,7 @@ export default function PatientDetail() {
     setEditingHistoryId(null); fetchSedationHistory(); fetchStock();
   }
 
+  // --- PROCEDURES ACTIONS ---
   function checkEuthAndConsent(productId, notesText) {
     const prod = allProducts.find(p => String(p.id) === String(productId));
     const isEuthProd = prod && (prod.name.toLowerCase().includes("euth") || prod.name.toLowerCase().includes("euthanasia"));
@@ -600,7 +692,7 @@ export default function PatientDetail() {
     });
   }
 
-  function downloadSpecificInvoice(inv) {
+  async function downloadSpecificInvoice(inv) {
     try {
       const doc = new jsPDF();
       
@@ -633,7 +725,22 @@ export default function PatientDetail() {
       doc.setTextColor(inv.due > 0 ? 231 : 39, inv.due > 0 ? 76 : 174, inv.due > 0 ? 60 : 96); 
       doc.text(`Amount Due: £${inv.due.toFixed(2)}`, 14, finalY + 8);
 
-      doc.save(`Invoice_${patient?.name || "Patient"}_${new Date(inv.date).toISOString().split('T')[0]}.pdf`);
+      const fileName = `Invoice_${patient?.name || "Patient"}_${new Date(inv.date).toISOString().split('T')[0]}.pdf`;
+
+      if (Capacitor.isNativePlatform()) {
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: fileName,
+          url: savedFile.uri,
+        });
+      } else {
+        doc.save(fileName);
+      }
 
     } catch (error) {
       console.error(error);
@@ -641,6 +748,7 @@ export default function PatientDetail() {
     }
   }
 
+  // --- CONSENT & APPOINTMENTS ACTIONS ---
   async function saveConsent(andSedate = false) {
     if (!consentName) return setAlertMessage("Please enter signatory name.");
     if (!sigPadRef.current || sigPadRef.current.isEmpty()) return setAlertMessage("Please provide a signature.");
@@ -779,7 +887,7 @@ export default function PatientDetail() {
         }
       `}</style>
 
-      {/* ================= TAB 1: DETAILS ================= */}
+      {/* ================= TAB 1: DETAILS & CLINICAL NOTES ================= */}
       {activeTab === "details" && (
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
@@ -801,23 +909,15 @@ export default function PatientDetail() {
           </div>
 
           {!editMode ? (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                <p><strong>Species:</strong> {patient?.species || "N/A"}</p>
-                <p><strong>Breed:</strong> {patient?.breed || "N/A"}</p>
-                <p><strong>Colour:</strong> {patient?.colour || "N/A"}</p>
-                <p><strong>Gender:</strong> {patient?.gender || "N/A"}</p>
-                <p><strong>Age:</strong> {patient?.age_years || 0}y {patient?.age_months || 0}m</p>
-                <p><strong>Weight:</strong> {patient?.weight ? `${patient.weight} kg` : "N/A"}</p>
-                <p style={{ gridColumn: "1 / -1" }}><strong>Microchip:</strong> {patient?.microchip || "N/A"}</p>
-              </div>
-              <div style={{ marginTop: "15px" }}>
-                <strong>Notes:</strong>
-                <div style={{ marginTop: "5px", padding: "15px", background: "#f8f9fb", borderRadius: "10px", minHeight: "50px" }}>
-                  {patient?.notes || "No notes"}
-                </div>
-              </div>
-            </>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <p><strong>Species:</strong> {patient?.species || "N/A"}</p>
+              <p><strong>Breed:</strong> {patient?.breed || "N/A"}</p>
+              <p><strong>Colour:</strong> {patient?.colour || "N/A"}</p>
+              <p><strong>Gender:</strong> {patient?.gender || "N/A"}</p>
+              <p><strong>Age:</strong> {patient?.age_years || 0}y {patient?.age_months || 0}m</p>
+              <p><strong>Weight:</strong> {patient?.weight ? `${patient.weight} kg` : "N/A"}</p>
+              <p style={{ gridColumn: "1 / -1" }}><strong>Microchip:</strong> {patient?.microchip || "N/A"}</p>
+            </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <input placeholder="Name" value={editData.name} onChange={(e) => setEditData({...editData, name: e.target.value})} style={inputStyle} />
@@ -837,11 +937,59 @@ export default function PatientDetail() {
               </div>
 
               <input placeholder="Weight (kg)" type="number" step="0.01" value={editData.weight || ""} onChange={(e) => setEditData({...editData, weight: e.target.value})} style={inputStyle} />
-              <textarea rows={4} placeholder="Notes..." value={editData.notes || ""} onChange={(e) => setEditData({...editData, notes: e.target.value})} style={inputStyle} />
               
               <button onClick={updatePatient} style={greenBtn}>Save Changes</button>
             </div>
           )}
+
+          {/* --- CLINICAL NOTES SECTION --- */}
+          <div style={{ marginTop: "30px", borderTop: "2px solid #eee", paddingTop: "20px" }}>
+            <h3 style={{ color: "#2c3e50", marginBottom: "15px", marginTop: 0 }}>Clinical Notes</h3>
+
+            <div style={{ background: "#f8f9fb", padding: "15px", borderRadius: "10px", marginBottom: "20px", border: "1px solid #eee" }}>
+              <textarea 
+                rows={3} 
+                placeholder="Write a new note..." 
+                value={newNoteText} 
+                onChange={e => setNewNoteText(e.target.value)} 
+                style={{ ...inputStyle, marginBottom: "10px" }} 
+              />
+              <button onClick={addNote} style={blueBtn}>Save Note</button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {notesList.map(note => (
+                <div key={note.id} style={{ background: "white", padding: "15px", borderRadius: "10px", border: "1px solid #eee", boxShadow: "0 2px 5px rgba(0,0,0,0.02)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", borderBottom: "1px solid #f1f1f1", paddingBottom: "8px" }}>
+                    <span style={{ fontSize: "13px", color: "#7f8c8d", fontWeight: "bold" }}>
+                      {new Date(note.date).toLocaleString('en-GB')}
+                    </span>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <button onClick={() => startEditNote(note)} style={{ ...blueBtn, minWidth: "60px", padding: "6px 12px" }}>Edit</button>
+                      {isAdmin && (
+                        <button onClick={() => confirmDeleteNote(note.id)} style={{ ...redBtn, minWidth: "60px", padding: "6px 12px" }}>Delete</button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {editingNoteId === note.id ? (
+                    <div>
+                      <textarea rows={3} value={editNoteText} onChange={e => setEditNoteText(e.target.value)} style={{ ...inputStyle, marginBottom: "10px" }} />
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button onClick={() => saveEditNote(note.id)} style={greenBtn}>Update Note</button>
+                        <button onClick={() => setEditingNoteId(null)} style={greyBtn}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ whiteSpace: "pre-wrap", color: "#333", fontSize: "15px", lineHeight: "1.5" }}>
+                      {note.text}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {notesList.length === 0 && <p style={{ color: "#666", textAlign: "center", fontSize: "14px", marginTop: "10px" }}>No clinical notes recorded yet.</p>}
+            </div>
+          </div>
         </div>
       )}
 
@@ -883,7 +1031,7 @@ export default function PatientDetail() {
             Record Doses & Deduct from Stock
           </button>
           
-          {sedationHistory.length > 0 && (
+       {sedationHistory.length > 0 && (
             <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "15px", marginTop: "30px", border: "1px solid #eee" }}>
               <h3 style={{ marginTop: 0, marginBottom: "15px", color: "#2c3e50" }}>Dosing History</h3>
               {sedationHistory.map(h => (
@@ -899,12 +1047,22 @@ export default function PatientDetail() {
                   
                   {editingHistoryId === h.id ? (
                     <>
+                      {/* FIXED MOBILE RESPONSIVE EDITING LAYOUT */}
                       {editHistoryResults.map((r, i) => (
-                        <div key={i} style={{ display: "flex", gap: "5px", alignItems: "center", marginBottom: "8px", fontSize: "14px" }}>
-                          <strong style={{ width: "110px", color: "#333", fontSize: "13px" }}>{r.label || r.drug}</strong>
-                          <input type="number" step="0.01" style={{ width: "60px", padding: "6px", borderRadius: "5px", border: "1px solid #ccc", fontSize: "13px" }} value={r.ml} onChange={e => { const u = [...editHistoryResults]; u[i].ml = e.target.value; setEditHistoryResults(u); }} /> <span style={{fontSize: "12px", color: "#666"}}>ml</span>
-                          <span style={{color: "#666", fontSize: "12px", marginLeft: "5px"}}>waste:</span>
-                          <input type="number" step="0.01" style={{ width: "60px", padding: "6px", borderRadius: "5px", border: "1px solid #ccc", fontSize: "13px" }} value={r.waste} onChange={e => { const u = [...editHistoryResults]; u[i].waste = e.target.value; setEditHistoryResults(u); }} /> <span style={{fontSize: "12px", color: "#666"}}>ml</span>
+                        <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "12px", background: "#fdfdfd", padding: "8px", borderRadius: "8px", border: "1px dashed #bdc3c7" }}>
+                          <strong style={{ color: "#333", fontSize: "14px" }}>{r.label || r.drug}</strong>
+                          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4px" }}>
+                              <span style={{ fontSize: "12px", color: "#64748b", minWidth: "35px" }}>Dose:</span>
+                              <input type="number" step="0.01" style={{ width: "100%", minWidth: "50px", padding: "6px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }} value={r.ml} onChange={e => { const u = [...editHistoryResults]; u[i].ml = e.target.value; setEditHistoryResults(u); }} />
+                              <span style={{ fontSize: "12px", color: "#64748b" }}>ml</span>
+                            </div>
+                            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4px" }}>
+                              <span style={{ fontSize: "12px", color: "#64748b", minWidth: "38px" }}>Waste:</span>
+                              <input type="number" step="0.01" style={{ width: "100%", minWidth: "50px", padding: "6px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }} value={r.waste} onChange={e => { const u = [...editHistoryResults]; u[i].waste = e.target.value; setEditHistoryResults(u); }} />
+                              <span style={{ fontSize: "12px", color: "#64748b" }}>ml</span>
+                            </div>
+                          </div>
                         </div>
                       ))}
                       <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
@@ -920,7 +1078,8 @@ export default function PatientDetail() {
                         </div>
                       ))}
                       <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-                        <button onClick={() => startEditHistory(h)} style={blueBtn}>Edit Details</button>
+                        {/* UPDATED BUTTON NAME */}
+                        <button onClick={() => startEditHistory(h)} style={blueBtn}>Edit Amounts</button>
                         {isAdmin && (
                           <button onClick={() => {
                             setConfirmModal({
@@ -1041,52 +1200,62 @@ export default function PatientDetail() {
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                           <strong style={{ fontSize: "15px" }}>£{Number(proc.price).toFixed(2)}</strong>
-                          <button onClick={() => startEditProcedure(proc)} style={{ ...blueBtn, minWidth: "60px" }}>Edit</button>
-                          <button onClick={() => {
-                            setConfirmModal({
-                              title: "Confirm Deletion",
-                              message: `Are you sure you want to remove ${proc.product_name} from this invoice?`,
-                              confirmText: "Yes, Delete",
-                              confirmColor: "#e74c3c",
-                              onConfirm: async () => {
-                                await supabase.from("patient_procedures").delete().eq("id", proc.id);
-                                fetchProcedures();
-                                setConfirmModal(null);
-                              }
-                            });
-                          }} style={{ ...redBtn, minWidth: "40px" }}>X</button>
+                          
+                          {/* ONLY SHOW EDIT/DELETE IF NOT PAID */}
+                          {!proc.is_paid && (
+                            <>
+                              <button onClick={() => startEditProcedure(proc)} style={{ ...blueBtn, minWidth: "60px" }}>Edit</button>
+                              <button onClick={() => {
+                                setConfirmModal({
+                                  title: "Confirm Deletion",
+                                  message: `Are you sure you want to remove ${proc.product_name} from this invoice?`,
+                                  confirmText: "Yes, Delete",
+                                  confirmColor: "#e74c3c",
+                                  onConfirm: async () => {
+                                    await supabase.from("patient_procedures").delete().eq("id", proc.id);
+                                    fetchProcedures();
+                                    setConfirmModal(null);
+                                  }
+                                });
+                              }} style={{ ...redBtn, minWidth: "40px" }}>X</button>
+                            </>
+                          )}
+
                         </div>
                       </div>
                     )}
                   </div>
                 ))}
 
-                {addingToInvId === inv.id ? (
-                  <div style={{ marginTop: "10px", padding: "12px", background: "white", borderRadius: "12px", border: "2px dashed #bdc3c7" }}>
-                    <strong style={{ display: "block", marginBottom: "10px", fontSize: "14px", color: "#2c3e50" }}>Add Item to this Invoice</strong>
-                    <select value={inlineProdId} onChange={e => {
-                        setInlineProdId(e.target.value);
-                        const p = allProducts.find(x => String(x.id) === String(e.target.value));
-                        if(p) setInlinePrice(p.price);
-                    }} style={inputStyle}>
-                      <option value="">-- Select Product --</option>
-                      {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                    {inlineProdId && (
-                      <div style={{ display: "flex", gap: "10px" }}>
-                        <input type="number" step="0.01" placeholder="Price (£)" value={inlinePrice} onChange={e=>setInlinePrice(e.target.value)} style={{...inputStyle, flex: 1, marginBottom: "10px"}} />
-                        <input placeholder="Notes" value={inlineNotes} onChange={e=>setInlineNotes(e.target.value)} style={{...inputStyle, flex: 2, marginBottom: "10px"}} />
+                {/* ONLY ALLOW ADDING NEW ITEMS IF THERE IS A BALANCE DUE */}
+                {inv.due > 0 && (
+                  addingToInvId === inv.id ? (
+                    <div style={{ marginTop: "10px", padding: "12px", background: "white", borderRadius: "12px", border: "2px dashed #bdc3c7" }}>
+                      <strong style={{ display: "block", marginBottom: "10px", fontSize: "14px", color: "#2c3e50" }}>Add Item to this Invoice</strong>
+                      <select value={inlineProdId} onChange={e => {
+                          setInlineProdId(e.target.value);
+                          const p = allProducts.find(x => String(x.id) === String(e.target.value));
+                          if(p) setInlinePrice(p.price);
+                      }} style={inputStyle}>
+                        <option value="">-- Select Product --</option>
+                        {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      {inlineProdId && (
+                        <div style={{ display: "flex", gap: "10px" }}>
+                          <input type="number" step="0.01" placeholder="Price (£)" value={inlinePrice} onChange={e=>setInlinePrice(e.target.value)} style={{...inputStyle, flex: 1, marginBottom: "10px"}} />
+                          <input placeholder="Notes" value={inlineNotes} onChange={e=>setInlineNotes(e.target.value)} style={{...inputStyle, flex: 2, marginBottom: "10px"}} />
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button onClick={() => saveInlineProcedure(inv.id)} style={greenBtn}>Save Item</button>
+                        <button onClick={() => { setAddingToInvId(null); setInlineProdId(""); }} style={yellowBtn}>Cancel</button>
                       </div>
-                    )}
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => saveInlineProcedure(inv.id)} style={greenBtn}>Save Item</button>
-                      <button onClick={() => { setAddingToInvId(null); setInlineProdId(""); }} style={yellowBtn}>Cancel</button>
                     </div>
-                  </div>
-                ) : (
-                  <button onClick={() => setAddingToInvId(inv.id)} style={{ marginTop: "10px", background: "none", border: "2px dashed #bdc3c7", color: "#7f8c8d", width: "100%", padding: "10px", borderRadius: "12px", cursor: "pointer", fontWeight: "bold", transition: "0.2s" }}>
-                    + Add Item to this Invoice
-                  </button>
+                  ) : (
+                    <button onClick={() => setAddingToInvId(inv.id)} style={{ marginTop: "10px", background: "none", border: "2px dashed #bdc3c7", color: "#7f8c8d", width: "100%", padding: "10px", borderRadius: "12px", cursor: "pointer", fontWeight: "bold", transition: "0.2s" }}>
+                      + Add Item to this Invoice
+                    </button>
+                  )
                 )}
 
               </div>
@@ -1123,6 +1292,7 @@ export default function PatientDetail() {
               {consentHistory.map(c => (
                 <div key={c.id} style={{ marginBottom: "15px", padding: "15px", background: "#f8f9fb", borderRadius: "10px", border: "1px solid #eee" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    boxSizing: "border-box"
                     <strong>{c.name}</strong><span style={{ fontSize: "12px", color: "#666" }}>{new Date(c.created_at).toLocaleString()}</span>
                   </div>
                   <img src={c.signature} alt="signature" style={{ marginTop: "15px", border: "1px solid #ccc", background: "white", borderRadius: "5px", width: "100%", maxWidth: "300px" }} />

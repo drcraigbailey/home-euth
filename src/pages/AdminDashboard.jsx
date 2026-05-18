@@ -6,6 +6,11 @@ import Loader from "../Loader";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// --- CAPACITOR IMPORTS FOR NATIVE PDF SHARING ---
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+
 // --- STYLING CONSTANTS ---
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
 const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px", cursor: "pointer", transition: "transform 0.1s" };
@@ -168,7 +173,7 @@ export default function AdminDashboard() {
     return 45; 
   }
 
-  function generateStockReport() {
+  async function generateStockReport() {
     try {
       const doc = new jsPDF();
       const startY = drawReportHeader(doc, "Master Inventory Stock Report");
@@ -187,7 +192,24 @@ export default function AdminDashboard() {
       });
       
       autoTable(doc, { head: [tableColumn], body: tableRows, startY: startY });
-      doc.save(`Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      const fileName = `Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+      if (Capacitor.isNativePlatform()) {
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: fileName,
+          url: savedFile.uri,
+        });
+      } else {
+        doc.save(fileName);
+      }
+
     } catch (error) {
       console.error(error);
       setAlertMessage("Error generating PDF. Check console for details.");
@@ -212,7 +234,24 @@ export default function AdminDashboard() {
       ]);
       
       autoTable(doc, { head: [cols], body: rows, startY: startY });
-      doc.save(`Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      const fileName = `Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+      if (Capacitor.isNativePlatform()) {
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: fileName,
+          url: savedFile.uri,
+        });
+      } else {
+        doc.save(fileName);
+      }
+
     } catch (error) {
       console.error(error);
       setAlertMessage("Error generating PDF. Check console for details.");
@@ -288,7 +327,23 @@ export default function AdminDashboard() {
       
       autoTable(doc, { head: [sedCols], body: sedRows, startY: yPos });
       
-      doc.save(`Patient_History_${patient.name.replace(/\s+/g, '_')}.pdf`);
+      const fileName = `Patient_History_${patient.name.replace(/\s+/g, '_')}.pdf`;
+
+      if (Capacitor.isNativePlatform()) {
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: fileName,
+          url: savedFile.uri,
+        });
+      } else {
+        doc.save(fileName);
+      }
+
     } catch (error) {
       console.error(error);
       setAlertMessage("Error generating PDF. Check console for details.");

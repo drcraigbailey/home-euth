@@ -68,47 +68,30 @@ function Navbar() {
   return (
     <div className="app-header" style={{ position: "relative" }}>
       <nav className="header-nav" style={{ position: "relative", width: "100%" }}>
-        <div className="nav-container-inner" style={{ position: "relative" }}>
+        <div className="nav-container-inner" style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
           
-          {/* Scrollable container element */}
-          <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center" }}>
+          {/* MAIN NAVBAR CONTAINER WITH MIN-WIDTH CORRECTION TO FORCE SCROLLING */}
+          <div style={{ display: "flex", alignItems: "center", flex: 1, background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px", minWidth: 0 }}>
+            <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none", flexShrink: 0 }}>&lt;</span>
             
-            <NavLink to="/" end className="nav-item">Home</NavLink>
-            <NavLink to="/clients" className="nav-item">Clients</NavLink>
-            <NavLink to="/patients" className="nav-item">Patients</NavLink> 
-            <NavLink to="/sedation" className="nav-item">Sedation</NavLink>
-            <NavLink to="/products" className="nav-item">Products</NavLink>
-            {isAdmin && <NavLink to="/admin" className="nav-item" style={{ color: "#e74c3c" }}>Admin</NavLink>}
-            
-            {/* INVISIBLE SPACER: Safely forces empty space at the end so the last item isn't hidden under the arrow */}
-            <div style={{ flexShrink: 0, width: "40px", height: "1px" }}></div>
+            {/* Scrollable container element */}
+            <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center", flex: 1, padding: "10px 0", minWidth: 0 }}>
+              <NavLink to="/" end className="nav-item">Home</NavLink>
+              <NavLink to="/clients" className="nav-item">Clients</NavLink>
+              <NavLink to="/patients" className="nav-item">Patients</NavLink> 
+              <NavLink to="/sedation" className="nav-item">Sedation</NavLink>
+              <NavLink to="/products" className="nav-item">Products</NavLink>
+              {isAdmin && <NavLink to="/admin" className="nav-item" style={{ color: "#e74c3c" }}>Admin</NavLink>}
+            </div>
+
+            <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingLeft: "5px", userSelect: "none", flexShrink: 0 }}>&gt;</span>
           </div>
 
-          {/* Right Arrow (Absolute Overlay) */}
-          <div style={{
-            position: "absolute",
-            right: "85px", 
-            top: "50%",
-            transform: "translateY(-50%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            width: "55px",
-            pointerEvents: "none", 
-            background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, #fff 60%)", 
-            paddingRight: "15px",
-            height: "100%",
-            zIndex: 1
-          }}>
-            <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "bounceRight 1s infinite alternate" }}>{"❯"}</span>
-          </div>
-
-          {/* Toolbars are kept exactly the same per your instructions */}
-          <button onClick={logout} className="logout-btn-minimal" style={{ position: "relative", zIndex: 2 }}>Logout</button>
+          <button onClick={logout} className="logout-btn-minimal" style={{ position: "relative", zIndex: 2, flexShrink: 0 }}>Logout</button>
         </div>
       </nav>
 
-      {/* Animations */}
+      {/* Styles */}
       <style>{`
         .nav-links-group::-webkit-scrollbar {
           display: none;
@@ -116,10 +99,6 @@ function Navbar() {
         .nav-links-group {
           -ms-overflow-style: none;
           scrollbar-width: none;
-        }
-        @keyframes bounceRight {
-          0% { transform: translateX(0); opacity: 0.6; }
-          100% { transform: translateX(4px); opacity: 1; }
         }
       `}</style>
     </div>
