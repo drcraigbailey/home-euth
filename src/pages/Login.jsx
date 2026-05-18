@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
+import Loader from "../Loader"; // <-- 1. Import Loader
 
 // Import the image directly
 import logoImage from "../assets/logo.png";
@@ -15,6 +16,7 @@ const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer
 const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 
 export default function Login() {
+  const [isLoading, setIsLoading] = useState(false); // <-- 2. Add loading state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,12 +26,25 @@ export default function Login() {
   const [alertMessage, setAlertMessage] = useState("");
 
   async function handleLogin() {
+    setIsLoading(true); // <-- 3. Start loading when button is clicked
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setIsLoading(false); // <-- 4. Stop loading once Supabase responds
+
     if (error) {
       setAlertMessage(error.message);
       return;
     }
     navigate("/");
+  }
+
+  // <-- 5. Show the Loader UI while signing in
+  if (isLoading) {
+    return (
+      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Loader />
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Signing in...</p>
+      </div>
+    );
   }
 
   return (

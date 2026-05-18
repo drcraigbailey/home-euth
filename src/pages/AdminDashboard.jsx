@@ -484,17 +484,36 @@ export default function AdminDashboard() {
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1 style={{ textAlign: "center" }}>Admin Control</h1>
 
-      {/* ADMIN TABS NAVIGATION SCROLLBAR OVERLAY BAR */}
-      <div style={{ position: "relative", marginBottom: "30px" }}>
-        <div style={{ position: "absolute", left: "-5px", top: "50%", transform: "translateY(-50%)", zIndex: 10, background: "rgba(255,255,255,0.9)", padding: "5px", borderRadius: "50%", fontWeight: "bold", color: "#5b8fb9", pointerEvents: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }}>◀</div>
-        <div className="admin-tabs-scrollbox" style={{ display: "flex", gap: "10px", background: "white", padding: "10px 25px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
+      {/* ================= SUB-NAVIGATION TABS WITH DIRECTIONAL ARROWS WITHIN FRAME ================= */}
+      <div style={{ display: "flex", alignItems: "center", marginBottom: "30px", background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px" }}>
+        <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none" }}>&lt;</span>
+        <div className="admin-tabs-scrollbox" style={{ 
+          display: "flex", 
+          gap: "10px", 
+          flex: 1,
+          padding: "10px 0", 
+          overflowX: "auto", 
+          whiteSpace: "nowrap" 
+        }}>
           {TABS.map(tab => (
-            <button key={tab.id} style={{ ...tabBtnStyle, flex: 1, background: activeTab === tab.id ? '#5b8fb9' : 'transparent', color: activeTab === tab.id ? 'white' : '#666' }} onClick={() => setActiveTab(tab.id)}>
+            <button 
+              key={tab.id} 
+              style={{ 
+                ...tabBtnStyle,
+                padding: "12px 20px",
+                background: 'transparent', 
+                color: activeTab === tab.id ? '#5b8fb9' : '#7f8c8d',
+                borderBottom: activeTab === tab.id ? '3px solid #5b8fb9' : '3px solid transparent',
+                borderRadius: "0",
+                transition: "all 0.2s ease"
+              }} 
+              onClick={() => setActiveTab(tab.id)}
+            >
               {tab.label}
             </button>
           ))}
         </div>
-        <div style={{ position: "absolute", right: "-5px", top: "50%", transform: "translateY(-50%)", zIndex: 10, background: "rgba(255,255,255,0.9)", padding: "5px", borderRadius: "50%", fontWeight: "bold", color: "#5b8fb9", pointerEvents: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }}>▶</div>
+        <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingLeft: "5px", userSelect: "none" }}>&gt;</span>
       </div>
 
       {/* ADMIN SCROLLBAR CSS HIDDEN */}

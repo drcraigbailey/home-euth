@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
+import Loader from "../Loader";
 
 // --- STYLING CONSTANTS ---
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" };
@@ -16,6 +17,7 @@ const greyBtn  = { background: "#95a5a6", color: "white", ...standardBtnProps };
 const blueBtn  = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 
 export default function Patients() {
+  const [isLoading, setIsLoading] = useState(true);
   const [patients, setPatients] = useState([]);
   const [search, setSearch] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -25,8 +27,13 @@ export default function Patients() {
   const [patientToDelete, setPatientToDelete] = useState(null);
 
   useEffect(() => {
-    checkAdminStatus();
-    fetchPatients();
+    async function loadData() {
+      setIsLoading(true);
+      await checkAdminStatus();
+      await fetchPatients();
+      setIsLoading(false);
+    }
+    loadData();
   }, []);
 
   async function checkAdminStatus() {
@@ -62,6 +69,15 @@ export default function Patients() {
     (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (p.species || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  if (isLoading) {
+    return (
+      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Loader />
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Patients...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>

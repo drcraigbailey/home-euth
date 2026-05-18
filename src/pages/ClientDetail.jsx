@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import Loader from "../Loader";
 
 // --- STYLING CONSTANTS ---
 const greyBox = { background: "#f8f9fb", padding: "25px", borderRadius: "20px", marginTop: "20px" };
@@ -28,6 +29,7 @@ export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const [isLoading, setIsLoading] = useState(true);
   const [client, setClient] = useState(null);
   const [patients, setPatients] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -50,9 +52,14 @@ export default function ClientDetail() {
   const [patientToDelete, setPatientToDelete] = useState(null);
 
   useEffect(() => {
-    checkAdminStatus();
-    fetchClient();
-    fetchPatients();
+    async function loadData() {
+      setIsLoading(true);
+      await checkAdminStatus();
+      await fetchClient();
+      await fetchPatients();
+      setIsLoading(false);
+    }
+    loadData();
   }, [id]);
 
   async function checkAdminStatus() {
@@ -102,12 +109,20 @@ export default function ClientDetail() {
     if (!error) { setIsEditing(false); fetchClient(); }
   }
 
-  // FIXED: Corrected the template literal string syntax below
-  const googleMapsUrl = client?.address ? `https://maps.google.com/?q=${encodeURIComponent(`${client.address}, ${client.city || ""} ${client.postcode || ""}`)}` : null;
+  const googleMapsUrl = client?.address ? `https://maps.google.com/?q=$${encodeURIComponent(`${client.address}, ${client.city || ""} ${client.postcode || ""}`)}` : null;
+
+  if (isLoading) {
+    return (
+      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Loader />
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Client File...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
-      <h1 style={{ textAlign: "center" }}>{client ? `${client.name} ${client.surname}` : "Loading..."}</h1>
+      <h1 style={{ textAlign: "center" }}>{client?.name} {client?.surname}</h1>
 
       {/* --- CLIENT INFO CARD --- */}
       <div className="card">

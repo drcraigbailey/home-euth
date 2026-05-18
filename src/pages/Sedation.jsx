@@ -1,6 +1,7 @@
 // Sedation.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import Loader from "../Loader";
 
 // --- STYLING CONSTANTS ---
 const inputStyle = { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" };
@@ -32,6 +33,7 @@ function normaliseDrugName(name) {
 }
 
 export default function Sedation() {
+  const [isLoading, setIsLoading] = useState(true);
   const [protocols, setProtocols] = useState([]);
   const [stock, setStock] = useState([]);
 
@@ -48,10 +50,15 @@ export default function Sedation() {
   const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
-    window.scrollTo(0, 0); 
-    fetchProtocols();
-    fetchStock();
-    loadTemporaryHistory();
+    async function loadData() {
+      setIsLoading(true);
+      window.scrollTo(0, 0); 
+      await fetchProtocols();
+      await fetchStock();
+      loadTemporaryHistory();
+      setIsLoading(false);
+    }
+    loadData();
   }, []);
 
   async function fetchProtocols() {
@@ -130,6 +137,15 @@ export default function Sedation() {
         setConfirmModal(null);
       }
     });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Loader />
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Calculator...</p>
+      </div>
+    );
   }
 
   return (

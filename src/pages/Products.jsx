@@ -1,6 +1,7 @@
 // Products.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import Loader from "../Loader";
 
 // --- STYLING CONSTANTS ---
 const whiteShadowBox = { background: "white", padding: "15px", borderRadius: "12px", marginBottom: "15px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: "1px solid #eee" };
@@ -11,11 +12,17 @@ const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer
 const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 
 export default function Products() {
+  const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetchProducts();
+    async function loadData() {
+      setIsLoading(true);
+      await fetchProducts();
+      setIsLoading(false);
+    }
+    loadData();
   }, []);
 
   async function fetchProducts() {
@@ -27,6 +34,15 @@ export default function Products() {
     p.name.toLowerCase().includes(search.toLowerCase()) || 
     (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
   );
+
+  if (isLoading) {
+    return (
+      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Loader />
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Products...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>

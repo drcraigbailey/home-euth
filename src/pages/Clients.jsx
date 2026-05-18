@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
+import Loader from "../Loader";
 
 // --- STYLING CONSTANTS ---
 const whiteShadowBox = {
@@ -33,6 +34,7 @@ const blueBtn        = { background: "#3498db", color: "white", ...standardBtnPr
 export default function Clients() {
   const navigate = useNavigate();
 
+  const [isLoading, setIsLoading] = useState(true);
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -57,8 +59,13 @@ export default function Clients() {
   const [petWeight, setPetWeight] = useState("");
 
   useEffect(() => { 
-    checkAdminStatus();
-    fetchClients(); 
+    async function loadData() {
+      setIsLoading(true);
+      await checkAdminStatus();
+      await fetchClients(); 
+      setIsLoading(false);
+    }
+    loadData();
   }, []);
 
   async function checkAdminStatus() {
@@ -150,6 +157,15 @@ export default function Clients() {
     return fullName.includes(search.toLowerCase());
   });
 
+  if (isLoading) {
+    return (
+      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Loader />
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Clients...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1>Clients</h1>
@@ -215,7 +231,6 @@ export default function Clients() {
       {newClient && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setNewClient(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", position: "relative", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
-            {/* UPDATED CLOSE BUTTON WITH THEME BLUE BACKGROUND AND BOLD WHITE TEXT */}
             <button onClick={() => setNewClient(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
             
             <h2 style={{ marginTop: 0, color: "#27ae60", paddingRight: "30px" }}>Client Created!</h2>

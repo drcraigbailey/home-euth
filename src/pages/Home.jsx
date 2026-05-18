@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
+import Loader from "../Loader";
 
 // --- STYLING CONSTANTS ---
 const greyBox = { background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" };
@@ -20,6 +21,7 @@ const greyBtn  = { background: "#95a5a6", color: "white", ...standardBtnProps };
 
 export default function Home() {
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   
@@ -51,9 +53,14 @@ export default function Home() {
   const [address, setAddress] = useState("");
 
   useEffect(() => {
-    checkUserAndAdmin();
-    fetchClients(); 
-    fetchPatients(); 
+    async function loadInitialData() {
+      setIsLoading(true);
+      await checkUserAndAdmin();
+      await fetchClients(); 
+      await fetchPatients(); 
+      setIsLoading(false);
+    }
+    loadInitialData();
   }, []);
 
   useEffect(() => {
@@ -151,6 +158,15 @@ export default function Home() {
   function setToday() { setSelectedDate(new Date().toISOString().split("T")[0]); }
 
   const availablePatients = allPatients.filter(p => p.client_id === clientId);
+
+  if (isLoading) {
+    return (
+      <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <Loader />
+        <p style={{ margin: "15px 0 0 0", color: "#5b8fb9", fontWeight: "bold", fontSize: "18px" }}>Loading Diary...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
@@ -293,7 +309,7 @@ export default function Home() {
                         width="100%" 
                         height="200" 
                         frameBorder="0" 
-                        src={`https://maps.google.com/maps?q=${encodeURIComponent(addr)}&output=embed`} 
+                        src={`https://maps.google.com/maps?q=$${encodeURIComponent(addr)}&output=embed`} 
                         title="map"
                       ></iframe>
                     </div>

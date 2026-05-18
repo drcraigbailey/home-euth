@@ -754,8 +754,11 @@ export default function PatientDetail() {
               style={{ 
                 ...btnStyle, 
                 padding: "12px 20px", 
-                background: activeTab === tab.id ? '#5b8fb9' : 'transparent', 
-                color: activeTab === tab.id ? 'white' : '#666' 
+                background: 'transparent', 
+                color: activeTab === tab.id ? '#5b8fb9' : '#7f8c8d', 
+                borderBottom: activeTab === tab.id ? '3px solid #5b8fb9' : '3px solid transparent',
+                borderRadius: "0",
+                transition: "all 0.2s ease"
               }} 
               onClick={() => setActiveTab(tab.id)}
             >
