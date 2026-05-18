@@ -1,3 +1,4 @@
+// AdminDashboard.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
@@ -35,7 +36,6 @@ export default function AdminDashboard() {
   const [statModalMode, setStatModalMode] = useState(null); 
   const [statSearch, setStatSearch] = useState("");
 
-  // New Generic Notice Modal
   const [alertMessage, setAlertMessage] = useState("");
 
   const [productToDelete, setProductToDelete] = useState(null);
@@ -68,6 +68,15 @@ export default function AdminDashboard() {
   const [protoMgKg, setProtoMgKg] = useState("");
   const [protoMgMl, setProtoMgMl] = useState("");
 
+  // Template States
+  const [templatesList, setTemplatesList] = useState([]);
+  const [isEditingTemplate, setIsEditingTemplate] = useState(false);
+  const [editTemplateId, setEditTemplateId] = useState(null);
+  const [templateName, setTemplateName] = useState("");
+  const [templateSubject, setTemplateSubject] = useState("");
+  const [templateBody, setTemplateBody] = useState("");
+  const [templateToDelete, setTemplateToDelete] = useState(null);
+
   useEffect(() => {
     checkAdminAndFetchData();
   }, []);
@@ -79,7 +88,7 @@ export default function AdminDashboard() {
       if (profile?.is_admin) {
         setIsAdmin(true);
         await Promise.all([
-          fetchReports(), fetchProducts(), fetchStock(), fetchProtocols()
+          fetchReports(), fetchProducts(), fetchStock(), fetchProtocols(), fetchTemplates()
         ]);
       } else navigate("/"); 
     }
@@ -129,6 +138,7 @@ export default function AdminDashboard() {
   async function fetchProducts() { const { data } = await supabase.from("products").select("*").order("name", { ascending: true }); setProductsList(data || []); }
   async function fetchStock() { const { data } = await supabase.from("stock").select("*"); setStockList(data || []); }
   async function fetchProtocols() { const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)").order("name"); setProtocolsList(data || []); }
+  async function fetchTemplates() { const { data } = await supabase.from("email_templates").select("*").order("name", { ascending: true }); setTemplatesList(data || []); }
 
   function drawReportHeader(doc, subtitle) {
     doc.setFontSize(22);
@@ -350,6 +360,31 @@ export default function AdminDashboard() {
     fetchProtocols();
   }
 
+  async function saveTemplate() {
+    if (!templateName || !templateSubject || !templateBody) return setAlertMessage("Name, Subject, and Body are required.");
+    const payload = { name: templateName, subject: templateSubject, body: templateBody };
+    
+    if (isEditingTemplate) {
+      await supabase.from("email_templates").update(payload).eq("id", editTemplateId);
+    } else {
+      await supabase.from("email_templates").insert([payload]);
+    }
+    
+    setIsEditingTemplate(false); setEditTemplateId(null); setTemplateName(""); setTemplateSubject(""); setTemplateBody(""); fetchTemplates();
+  }
+
+  function startEditTemplate(t) {
+    setIsEditingTemplate(true); setEditTemplateId(t.id); setTemplateName(t.name); setTemplateSubject(t.subject); setTemplateBody(t.body);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function confirmDeleteTemplate() {
+    if (!templateToDelete) return;
+    await supabase.from("email_templates").delete().eq("id", templateToDelete.id);
+    setTemplateToDelete(null);
+    fetchTemplates();
+  }
+
   function renderStatModalList() {
     let list = [];
     if (statModalMode === "clients") list = allClientsList;
@@ -432,20 +467,33 @@ export default function AdminDashboard() {
     { id: "reports", label: "Reports" }, 
     { id: "products", label: "Products" },
     { id: "stock", label: "Stock" },
-    { id: "protocols", label: "Protocols" }
+    { id: "protocols", label: "Protocols" },
+    { id: "templates", label: "Email Templates" }
   ];
 
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1 style={{ textAlign: "center" }}>Admin Control</h1>
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "30px", background: "white", padding: "10px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
+      {/* ADMIN TABS COMPONENT */}
+      <div className="admin-tabs-scrollbox" style={{ display: "flex", gap: "10px", marginBottom: "30px", background: "white", padding: "10px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
         {TABS.map(tab => (
           <button key={tab.id} style={{ ...btnStyle, flex: 1, padding: "12px 20px", background: activeTab === tab.id ? '#5b8fb9' : 'transparent', color: activeTab === tab.id ? 'white' : '#666' }} onClick={() => setActiveTab(tab.id)}>
             {tab.label}
           </button>
         ))}
       </div>
+
+      {/* ADMIN SCROLLBAR CSS HIDDEN */}
+      <style>{`
+        .admin-tabs-scrollbox::-webkit-scrollbar {
+          display: none;
+        }
+        .admin-tabs-scrollbox {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
 
       {/* ================= TAB 1: OVERVIEW ================= */}
       {activeTab === "overview" && (
@@ -717,6 +765,44 @@ export default function AdminDashboard() {
         </>
       )}
 
+      {/* ================= TAB 5: EMAIL TEMPLATES ================= */}
+      {activeTab === "templates" && (
+        <>
+          <div className="card" style={{ marginBottom: "20px", border: isEditingTemplate ? "2px solid #f39c12" : "none" }}>
+            <h3 style={{ marginTop: 0 }}>{isEditingTemplate ? "Edit Template" : "Add New Template"}</h3>
+            <p style={{ fontSize: "13px", color: "#7f8c8d", marginTop: 0, marginBottom: "15px" }}>
+              Use <strong>{'{patient_name}'}</strong> and <strong>{'{client_name}'}</strong> as placeholders in your subject and body. They will be auto-filled in the patient's file.
+            </p>
+            <input placeholder="Template Name (e.g., Sympathy Card)" value={templateName} onChange={e => setTemplateName(e.target.value)} style={inputStyle} />
+            <input placeholder="Email Subject" value={templateSubject} onChange={e => setTemplateSubject(e.target.value)} style={inputStyle} />
+            <textarea placeholder="Email Body..." value={templateBody} onChange={e => setTemplateBody(e.target.value)} style={{...inputStyle, fontFamily: "inherit"}} rows={6} />
+            
+            <div style={btnRow}>
+              <button onClick={saveTemplate} style={greenBtn}>{isEditingTemplate ? "Update Template" : "Save Template"}</button>
+              {isEditingTemplate && <button onClick={() => {setIsEditingTemplate(false); setEditTemplateId(null); setTemplateName(""); setTemplateSubject(""); setTemplateBody("");}} style={redBtn}>Cancel</button>}
+            </div>
+          </div>
+
+          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Template Library</h3>
+            {templatesList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No templates available.</p>}
+            {templatesList.map(t => (
+              <div key={t.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1, paddingRight: "15px" }}>
+                  <strong style={{ fontSize: "18px", display: "block", color: "#333", marginBottom: "5px" }}>{t.name}</strong>
+                  <div style={{ fontSize: "14px", color: "#2c3e50", fontWeight: "bold", marginBottom: "5px" }}>Subject: {t.subject}</div>
+                  <div style={{ color: "#7f8c8d", fontSize: "13px", whiteSpace: "pre-wrap", background: "#f0f2f5", padding: "10px", borderRadius: "8px" }}>{t.body}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: "none" }}>
+                  <button onClick={() => startEditTemplate(t)} style={{ ...blueBtn, padding: "8px 15px", fontSize: "12px" }}>Edit</button>
+                  <button onClick={() => setTemplateToDelete(t)} style={{ ...redBtn, padding: "8px 15px", fontSize: "12px" }}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* ================= STATS LIST MODAL ================= */}
       {statModalMode && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStatModalMode(null)}>
@@ -798,6 +884,21 @@ export default function AdminDashboard() {
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={confirmDeleteProtocol} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
               <button onClick={() => setProtocolToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {templateToDelete && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setTemplateToDelete(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete the template <strong>{templateToDelete.name}</strong>?
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmDeleteTemplate} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
+              <button onClick={() => setTemplateToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         </div>

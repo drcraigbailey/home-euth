@@ -107,12 +107,23 @@ export default function PatientDetail() {
   const [aptTitle, setAptTitle] = useState("");
   const [aptNotes, setAptNotes] = useState("");
 
+  // Tab 6: Files
+  const [patientFiles, setPatientFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Tab 7: Emails
+  const [emailTemplates, setEmailTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+
   useEffect(() => {
     async function loadAllData() {
       setIsLoading(true);
       await Promise.all([
         checkAdmin(), fetchPatient(), fetchConsentHistory(), fetchProducts(),
-        fetchProcedures(), fetchAppointments(), fetchProtocols(), fetchStock(), fetchSedationHistory()
+        fetchProcedures(), fetchAppointments(), fetchProtocols(), fetchStock(), fetchSedationHistory(),
+        fetchFiles(), fetchTemplates()
       ]);
       setIsLoading(false);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -128,17 +139,6 @@ export default function PatientDetail() {
       setHighlightedInvoice(location.state.targetInvoiceId);
     }
   }, [location.state]);
-
-  useEffect(() => {
-    if (activeTab === "procedures" && highlightedInvoice) {
-      setTimeout(() => {
-        const el = document.getElementById(`invoice-${highlightedInvoice}`);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      }, 500); 
-    }
-  }, [activeTab, highlightedInvoice, patientProcedures.length]);
 
   async function checkAdmin() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -157,8 +157,89 @@ export default function PatientDetail() {
   }
 
   async function fetchPatient() {
-    const { data } = await supabase.from("patients").select("*").eq("id", id).single();
+    // Notice we grab the attached client record here so we have their email address
+    const { data } = await supabase.from("patients").select("*, clients(*)").eq("id", id).single();
     if (data) { setPatient(data); setEditData(data); }
+  }
+
+  // --- FILE HANDLING ---
+  async function fetchFiles() {
+    const { data, error } = await supabase.storage.from("patient_documents").list(id);
+    if (data) setPatientFiles(data);
+  }
+
+  async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    setIsUploading(true);
+    // Include a timestamp so files with the same name don't overwrite each other
+    const filePath = `${id}/${Date.now()}_${file.name}`;
+    const { error } = await supabase.storage.from("patient_documents").upload(filePath, file);
+    
+    setIsUploading(false);
+    if (error) {
+      setAlertMessage("Failed to upload file: " + error.message);
+    } else {
+      setAlertMessage("File uploaded successfully!");
+      fetchFiles();
+    }
+  }
+
+  async function viewFile(fileName) {
+    const { data } = await supabase.storage.from("patient_documents").getPublicUrl(`${id}/${fileName}`);
+    if (data?.publicUrl) window.open(data.publicUrl, "_blank");
+  }
+
+  function deleteFile(fileName) {
+    setConfirmModal({
+      title: "Delete File?",
+      message: `Are you sure you want to delete ${fileName}?`,
+      confirmText: "Yes, Delete",
+      confirmColor: "#e74c3c",
+      onConfirm: async () => {
+        await supabase.storage.from("patient_documents").remove([`${id}/${fileName}`]);
+        fetchFiles();
+        setConfirmModal(null);
+      }
+    });
+  }
+
+  // --- EMAIL HANDLING ---
+  async function fetchTemplates() {
+    const { data } = await supabase.from("email_templates").select("*").order("name");
+    setEmailTemplates(data || []);
+  }
+
+  function handleTemplateSelect(e) {
+    const tmplId = e.target.value;
+    setSelectedTemplate(tmplId);
+    
+    if (!tmplId) {
+      setEmailSubject("");
+      setEmailBody("");
+      return;
+    }
+
+    const tmpl = emailTemplates.find(t => String(t.id) === String(tmplId));
+    if (!tmpl) return;
+
+    const cName = patient?.clients?.name || "Client";
+    const pName = patient?.name || "your pet";
+    
+    // Replace the placeholders with actual data
+    setEmailSubject(tmpl.subject.replace(/{patient_name}/g, pName).replace(/{client_name}/g, cName));
+    setEmailBody(tmpl.body.replace(/{patient_name}/g, pName).replace(/{client_name}/g, cName));
+  }
+
+  function sendEmail() {
+    const clientEmail = patient?.clients?.email;
+    if (!clientEmail) {
+      return setAlertMessage("This client does not have an email address saved. Please update their profile in the Clients tab.");
+    }
+    // Formats a mailto link which automatically opens the user's default email app
+    const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+    window.location.href = mailtoLink;
   }
 
   async function fetchSedationHistory() {
@@ -608,93 +689,43 @@ export default function PatientDetail() {
         )}
       </div>
 
-      {/* Styled Parent Wrapper for Sub-Navigation Tabs */}
-      <div style={{ position: "relative", marginBottom: "20px" }}>
-        
-        {/* Scrollable Container - Reverted to original layout with 40px side padding added */}
-        <div className="patient-tabs-scrollbox" style={{ 
-          display: "flex", 
-          gap: "10px", 
-          background: "white", 
-          padding: "10px 40px", /* 10px top/bottom, 40px sides to perfectly clear arrows */
-          borderRadius: "15px", 
-          boxShadow: "0 2px 10px rgba(0,0,0,0.05)", 
-          overflowX: "auto", 
-          whiteSpace: "nowrap"
-        }}>
-          {TABS.map(tab => (
-            <button 
-              key={tab.id} 
-              style={{ 
-                ...btnStyle, 
-                padding: "10px 20px", 
-                background: activeTab === tab.id ? '#5b8fb9' : 'transparent', 
-                color: activeTab === tab.id ? 'white' : '#666' 
-              }} 
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Left Arrow Indicator (Absolute Overlay) */}
-        <div style={{
-          position: "absolute",
-          left: "0",
-          top: "0",
-          bottom: "0",
-          width: "40px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          pointerEvents: "none",
-          background: "linear-gradient(270deg, rgba(255,255,255,0) 0%, white 80%)",
-          borderRadius: "15px 0 0 15px",
-          zIndex: 2
-        }}>
-           <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "chevronMoveLeft 1.2s infinite ease-in-out" }}>{"❮"}</span>
-        </div>
-
-        {/* Right Arrow Indicator (Absolute Overlay) */}
-        <div style={{
-          position: "absolute",
-          right: "0",
-          top: "0",
-          bottom: "0",
-          width: "40px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          pointerEvents: "none",
-          background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, white 80%)",
-          borderRadius: "0 15px 15px 0",
-          zIndex: 2
-        }}>
-          <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "chevronMoveRight 1.2s infinite ease-in-out" }}>{"❯"}</span>
-        </div>
-
-        {/* Dynamic Styles (No media queries hiding arrows!) */}
-        <style>{`
-          .patient-tabs-scrollbox::-webkit-scrollbar {
-            display: none;
-          }
-          .patient-tabs-scrollbox {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-          }
-          @keyframes chevronMoveRight {
-            0% { transform: translateX(-2px); opacity: 0.4; }
-            50% { transform: translateX(3px); opacity: 1; }
-            100% { transform: translateX(-2px); opacity: 0.4; }
-          }
-          @keyframes chevronMoveLeft {
-            0% { transform: translateX(2px); opacity: 0.4; }
-            50% { transform: translateX(-3px); opacity: 1; }
-            100% { transform: translateX(2px); opacity: 0.4; }
-          }
-        `}</style>
+      {/* ================= SUB-NAVIGATION TABS ================= */}
+      <div className="patient-tabs-scrollbox" style={{ 
+        display: "flex", 
+        gap: "10px", 
+        marginBottom: "20px", 
+        background: "white", 
+        padding: "10px", 
+        borderRadius: "15px", 
+        boxShadow: "0 2px 10px rgba(0,0,0,0.05)", 
+        overflowX: "auto", 
+        whiteSpace: "nowrap" 
+      }}>
+        {TABS.map(tab => (
+          <button 
+            key={tab.id} 
+            style={{ 
+              ...btnStyle, 
+              padding: "12px 20px", 
+              background: activeTab === tab.id ? '#5b8fb9' : 'transparent', 
+              color: activeTab === tab.id ? 'white' : '#666' 
+            }} 
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      <style>{`
+        .patient-tabs-scrollbox::-webkit-scrollbar {
+          display: none;
+        }
+        .patient-tabs-scrollbox {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
 
       {/* ================= TAB 1: DETAILS ================= */}
       {activeTab === "details" && (
@@ -1013,7 +1044,10 @@ export default function PatientDetail() {
           <div className="card">
             <h3>Euthanasia Consent</h3>
             <div style={{ fontSize: "14px", marginBottom: "15px", background: "#fdf3f2", borderLeft: "4px solid #e74c3c", padding: "15px", borderRadius: "5px", lineHeight: "1.5" }}>
-              <p style={{ marginTop: 0 }}>I certify that I am the owner or the authorised agent of the owner of the above-described animal, and I have the legal authority to consent to its euthanasia. I authorize the veterinary team to humanely end the animal's life.</p>
+             
+<strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Declaration and Consent for Euthanasia</strong>
+
+ <p style={{ marginTop: 0 }}>I certify that I am the owner or the authorised agent of the owner of the above-described animal, and I have the legal authority to consent to its euthanasia. I authorize the veterinary team to humanely end the animal's life.</p>
               <p>I confirm that, to the best of my knowledge, this animal has not bitten any person or animal in the last 15 days, nor has it been exposed to rabies.</p>
               <strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Liability Release</strong>
               <p style={{ marginBottom: 0 }}>I hereby release the veterinary practice, the attending veterinary surgeon, and staff from any and all liability related to the performance of this euthanasia.</p>
@@ -1114,19 +1148,93 @@ export default function PatientDetail() {
 
       {/* ================= TAB 6: FILES ================= */}
       {activeTab === "files" && (
-        <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
-          <h3 style={{ color: "#2c3e50" }}>Documents & Files</h3>
-          <p style={{ color: "#666", marginBottom: "20px" }}>File upload and document storage module will go here.</p>
-          <button style={{ ...btnStyle, background: "#bdc3c7", color: "white", cursor: "not-allowed" }}>Upload File (Coming Soon)</button>
-        </div>
+        <>
+          <div className="card">
+            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Upload Document</h3>
+            <p style={{ fontSize: "14px", color: "#7f8c8d", marginTop: 0, marginBottom: "15px" }}>
+              Upload PDFs, images, or records related to this patient.
+            </p>
+            <input 
+              type="file" 
+              onChange={handleFileUpload} 
+              disabled={isUploading}
+              style={{ ...inputStyle, padding: "10px", background: "#f8f9fb" }} 
+            />
+            {isUploading && <div style={{ color: "#3498db", fontWeight: "bold", fontSize: "14px" }}>Uploading...</div>}
+          </div>
+
+          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Attached Files</h3>
+            {patientFiles.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No files uploaded yet.</p>}
+            
+            {patientFiles.map(file => {
+              // Supabase adds the folder path to the name in `.list()`, we want to display just the filename
+              const displayName = file.name.split('_').slice(1).join('_') || file.name; 
+              
+              return (
+                <div key={file.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "10px" }}>
+                    <strong style={{ fontSize: "14px", color: "#2c3e50" }}>{displayName}</strong>
+                    <div style={{ fontSize: "12px", color: "#7f8c8d", marginTop: "4px" }}>
+                      {(file.metadata?.size / 1024).toFixed(1)} KB • {new Date(file.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button onClick={() => viewFile(file.name)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
+                    {isAdmin && (
+                      <button onClick={() => deleteFile(file.name)} style={{ background: "#e74c3c", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>Delete</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ================= TAB 7: EMAILS ================= */}
       {activeTab === "emails" && (
-        <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
-          <h3 style={{ color: "#2c3e50" }}>Emails & SMS</h3>
-          <p style={{ color: "#666", marginBottom: "20px" }}>Communication logs and direct messaging module will go here.</p>
-          <button style={{ ...btnStyle, background: "#bdc3c7", color: "white", cursor: "not-allowed" }}>Compose Message (Coming Soon)</button>
+        <div className="card">
+          <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Email Client</h3>
+          
+          <div style={{ marginBottom: "20px" }}>
+            <label style={{ fontSize: "14px", fontWeight: "bold", color: "#2c3e50", display: "block", marginBottom: "5px" }}>Client Email Address:</label>
+            <div style={{ padding: "10px", background: "#f8f9fb", border: "1px solid #ccc", borderRadius: "8px", color: patient?.clients?.email ? "#2c3e50" : "#e74c3c", fontWeight: patient?.clients?.email ? "normal" : "bold" }}>
+              {patient?.clients?.email || "No email on file. Update Client Details first."}
+            </div>
+          </div>
+
+          <label style={{ fontSize: "14px", fontWeight: "bold", color: "#2c3e50", display: "block", marginBottom: "5px" }}>Choose Template:</label>
+          <select value={selectedTemplate} onChange={handleTemplateSelect} style={inputStyle}>
+            <option value="">-- Start Blank or Select Template --</option>
+            {emailTemplates.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+
+          <label style={{ fontSize: "14px", fontWeight: "bold", color: "#2c3e50", display: "block", marginBottom: "5px", marginTop: "10px" }}>Subject:</label>
+          <input 
+            value={emailSubject} 
+            onChange={(e) => setEmailSubject(e.target.value)} 
+            placeholder="Email Subject" 
+            style={inputStyle} 
+          />
+
+          <label style={{ fontSize: "14px", fontWeight: "bold", color: "#2c3e50", display: "block", marginBottom: "5px", marginTop: "10px" }}>Message Body:</label>
+          <textarea 
+            rows={8} 
+            value={emailBody} 
+            onChange={(e) => setEmailBody(e.target.value)} 
+            placeholder="Type your message here..." 
+            style={{ ...inputStyle, fontFamily: "inherit" }} 
+          />
+
+          <button onClick={sendEmail} style={{ ...btnStyle, background: "#5b8fb9", color: "white", marginTop: "15px" }}>
+            Open Draft in Default Mail App
+          </button>
+          <p style={{ fontSize: "12px", color: "#7f8c8d", textAlign: "center", marginTop: "10px" }}>
+            This will open your device's default email client (e.g., Outlook, Apple Mail) so you can review the message before sending.
+          </p>
         </div>
       )}
 

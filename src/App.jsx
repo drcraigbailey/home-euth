@@ -68,9 +68,6 @@ function Navbar() {
           {/* Scrollable container element */}
           <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center" }}>
             
-            {/* INVISIBLE SPACER: Safely forces empty space before "Home" starts */}
-            <div style={{ flexShrink: 0, width: "50px", height: "1px" }}></div>
-            
             <NavLink to="/" end className="nav-item">Home</NavLink>
             <NavLink to="/clients" className="nav-item">Clients</NavLink>
             <NavLink to="/patients" className="nav-item">Patients</NavLink> 
@@ -78,27 +75,8 @@ function Navbar() {
             <NavLink to="/products" className="nav-item">Products</NavLink>
             {isAdmin && <NavLink to="/admin" className="nav-item" style={{ color: "#e74c3c" }}>Admin</NavLink>}
             
-            {/* INVISIBLE SPACER: Safely forces empty space at the end */}
-            <div style={{ flexShrink: 0, width: "50px", height: "1px" }}></div>
-          </div>
-
-          {/* Left Arrow (Absolute Overlay) */}
-          <div style={{
-            position: "absolute",
-            left: "0",
-            top: "50%",
-            transform: "translateY(-50%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-start",
-            width: "55px",
-            pointerEvents: "none",
-            background: "linear-gradient(270deg, rgba(255,255,255,0) 0%, #fff 60%)",
-            paddingLeft: "10px",
-            height: "100%",
-            zIndex: 1
-          }}>
-            <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "bounceLeft 1s infinite alternate" }}>{"❮"}</span>
+            {/* INVISIBLE SPACER: Safely forces empty space at the end so the last item isn't hidden under the arrow */}
+            <div style={{ flexShrink: 0, width: "40px", height: "1px" }}></div>
           </div>
 
           {/* Right Arrow (Absolute Overlay) */}
@@ -124,7 +102,7 @@ function Navbar() {
         </div>
       </nav>
 
-      {/* Animations (Media query hiding arrows is strictly removed) */}
+      {/* Animations */}
       <style>{`
         .nav-links-group::-webkit-scrollbar {
           display: none;
@@ -132,10 +110,6 @@ function Navbar() {
         @keyframes bounceRight {
           0% { transform: translateX(0); opacity: 0.6; }
           100% { transform: translateX(4px); opacity: 1; }
-        }
-        @keyframes bounceLeft {
-          0% { transform: translateX(0); opacity: 0.6; }
-          100% { transform: translateX(-4px); opacity: 1; }
         }
       `}</style>
     </div>
