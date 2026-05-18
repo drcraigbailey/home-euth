@@ -4,6 +4,8 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../supabase";
 import SignatureCanvas from "react-signature-canvas";
 import Loader from "../Loader"; 
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
 const BREED_MAP = {
@@ -593,6 +595,52 @@ export default function PatientDetail() {
     });
   }
 
+  function downloadSpecificInvoice(inv) {
+    try {
+      // Generate the specific PDF
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFontSize(22);
+      doc.setTextColor(44, 62, 80); 
+      doc.setFont("helvetica", "bold");
+      doc.text("SP Home Euthanasia", 14, 22);
+      doc.setFontSize(14);
+      doc.setTextColor(127, 140, 141); 
+      doc.setFont("helvetica", "normal");
+      doc.text("Invoice", 14, 30);
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Date: ${new Date(inv.date).toLocaleDateString('en-GB')}`, 14, 40);
+      doc.text(`Client: ${patient?.clients?.name || ""} ${patient?.clients?.surname || ""}`, 14, 46);
+      doc.text(`Patient: ${patient?.name || ""}`, 14, 52);
+
+      // Table
+      const procCols = ["Item / Procedure", "Notes", "Price"];
+      const procRows = inv.procedures.map(p => [
+        p.product_name, 
+        p.notes || "", 
+        `£${Number(p.price).toFixed(2)}`
+      ]);
+      
+      autoTable(doc, { head: [procCols], body: procRows, startY: 60 });
+      
+      // Totals
+      const finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFont("helvetica", "bold");
+      doc.text(`Total: £${inv.total.toFixed(2)}`, 14, finalY);
+      doc.setTextColor(inv.due > 0 ? 231 : 39, inv.due > 0 ? 76 : 174, inv.due > 0 ? 60 : 96); // Red if due, Green if 0
+      doc.text(`Amount Due: £${inv.due.toFixed(2)}`, 14, finalY + 8);
+
+      // Download it
+      doc.save(`Invoice_${patient?.name || "Patient"}_${new Date(inv.date).toISOString().split('T')[0]}.pdf`);
+
+    } catch (error) {
+      console.error(error);
+      setAlertMessage("Error generating specific invoice.");
+    }
+  }
+
   async function saveConsent(andSedate = false) {
     if (!consentName) return setAlertMessage("Please enter signatory name.");
     if (!sigPadRef.current || sigPadRef.current.isEmpty()) return setAlertMessage("Please provide a signature.");
@@ -948,11 +996,16 @@ export default function PatientDetail() {
                       Created: {new Date(inv.date).toLocaleDateString()}
                     </div>
                   </div>
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px" }}>
                     <div style={{ fontSize: "14px", color: "#7f8c8d" }}>Total: £{inv.total.toFixed(2)}</div>
                     <div style={{ fontSize: "18px", fontWeight: "bold", color: inv.due > 0 ? "#e74c3c" : "#27ae60", marginBottom: "5px" }}>
                       Due: £{inv.due.toFixed(2)}
                     </div>
+
+                    <button onClick={() => downloadSpecificInvoice(inv)} style={{ background: "#3498db", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>
+                      Download Invoice PDF
+                    </button>
+
                     {inv.total > 0 && inv.due > 0 && <button onClick={() => markInvoicePaid(inv.id)} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>Mark Paid</button>}
                     
                     {inv.total > 0 && inv.due === 0 && isAdmin && (
@@ -1044,10 +1097,7 @@ export default function PatientDetail() {
           <div className="card">
             <h3>Euthanasia Consent</h3>
             <div style={{ fontSize: "14px", marginBottom: "15px", background: "#fdf3f2", borderLeft: "4px solid #e74c3c", padding: "15px", borderRadius: "5px", lineHeight: "1.5" }}>
-             
-<strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Declaration and Consent for Euthanasia</strong>
-
- <p style={{ marginTop: 0 }}>I certify that I am the owner or the authorised agent of the owner of the above-described animal, and I have the legal authority to consent to its euthanasia. I authorize the veterinary team to humanely end the animal's life.</p>
+              <p style={{ marginTop: 0 }}>I certify that I am the owner or the authorised agent of the owner of the above-described animal, and I have the legal authority to consent to its euthanasia. I authorize the veterinary team to humanely end the animal's life.</p>
               <p>I confirm that, to the best of my knowledge, this animal has not bitten any person or animal in the last 15 days, nor has it been exposed to rabies.</p>
               <strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Liability Release</strong>
               <p style={{ marginBottom: 0 }}>I hereby release the veterinary practice, the attending veterinary surgeon, and staff from any and all liability related to the performance of this euthanasia.</p>

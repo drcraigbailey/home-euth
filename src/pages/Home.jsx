@@ -161,7 +161,7 @@ export default function Home() {
           <button onClick={() => changeDate(-1)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#5b8fb9", fontWeight: "bold" }}>{"<"}</button>
           <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} style={{ border: "none", background: "transparent", fontSize: "16px", fontWeight: "bold", color: "#333", outline: "none" }} />
           <button onClick={() => changeDate(1)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#5b8fb9", fontWeight: "bold" }}>{">"}</button>
-          <button onClick={setToday} style={{ border: "none", background: "#eee", padding: "5px 10px", borderRadius: "5px", fontSize: "12px", cursor: "pointer" }}>Today</button>
+          <button onClick={setToday} style={{ border: "none", background: "#5b8fb9", color: "white", padding: "5px 10px", borderRadius: "5px", fontSize: "12px", cursor: "pointer", fontWeight: "bold" }}>Today</button>
         </div>
       </div>
 
