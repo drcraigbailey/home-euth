@@ -1,8 +1,14 @@
+// Products.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 
+// --- STYLING CONSTANTS ---
 const whiteShadowBox = { background: "white", padding: "15px", borderRadius: "12px", marginBottom: "15px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: "1px solid #eee" };
-const inputStyle = { width: "100%", padding: "15px", borderRadius: "12px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "20px", fontSize: "16px" };
+const inputStyle = { width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "20px" };
+
+// Strict uniform button properties copied from Admin Dashboard layout
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 
 export default function Products() {
   const [products, setProducts] = useState([]);

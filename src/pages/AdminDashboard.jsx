@@ -6,15 +6,25 @@ import Loader from "../Loader";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// --- STYLING CONSTANTS ---
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
 const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px", cursor: "pointer", transition: "transform 0.1s" };
-const btnStyle = { padding: "12px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
-const blueBtn = { flex: 1, background: "#5b8fb9", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
-const redBtn = { flex: 1, background: "#e74c3c", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
-const yellowBtn = { flex: 1, background: "#f39c12", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
-const greenBtn = { flex: 1, background: "#27ae60", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
+
+// Dedicated pristine style for the main navigation toolbar tabs
+const tabBtnStyle = { padding: "12px 20px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
+
+// Enforced compact layout properties for smaller, uniform action buttons
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+
+// Overview-matched color variations for modal action buttons
+const purpleBtn = { ...standardBtnProps, background: "#8e44ad", color: "white" }; // Matches Clients Card
+const blueBtn   = { ...standardBtnProps, background: "#3498db", color: "white" }; // Matches Patients Card
+const greyBtn   = { ...standardBtnProps, background: "#95a5a6", color: "white" }; // Matches Deceased Card
+const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }; // Matches Sedations Card
+const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; // Matches Consents Card
+const redBtn    = { ...standardBtnProps, background: "#e74c3c", color: "white" };
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -68,7 +78,6 @@ export default function AdminDashboard() {
   const [protoMgKg, setProtoMgKg] = useState("");
   const [protoMgMl, setProtoMgMl] = useState("");
 
-  // Template States
   const [templatesList, setTemplatesList] = useState([]);
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [editTemplateId, setEditTemplateId] = useState(null);
@@ -311,7 +320,7 @@ export default function AdminDashboard() {
     setStockDrugName(""); setStockBatch(""); setStockQty(""); setStockExp(""); fetchStock();
   }
   function startEditStock(s) { setEditingStockId(s.id); setEditStockData({ ...s }); }
-  async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, batch: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
+  async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, background: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
   
   async function confirmArchiveStock() {
     if (!stockToArchive) return;
@@ -417,7 +426,7 @@ export default function AdminDashboard() {
                <strong style={{ color: "#333", fontSize: "15px" }}>{item.name} {item.surname}</strong>
                <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{item.email || "No email"} | {item.phone || "No phone"}</div>
              </div>
-             <button onClick={() => navigate(`/client/${item.id}`)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
+             <button onClick={() => navigate(`/client/${item.id}`)} style={purpleBtn}>View</button>
            </>
          )}
          { (statModalMode === "patients" || statModalMode === "deceased") && (
@@ -426,7 +435,7 @@ export default function AdminDashboard() {
                <strong style={{ color: "#333", fontSize: "15px" }}>{item.name}</strong> <span style={{ color: "#7f8c8d", fontSize: "13px" }}>({item.clients?.surname || "No Client"})</span>
                <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{item.species} - {item.weight}kg</div>
              </div>
-             <button onClick={() => navigate(`/patient/${item.id}`)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
+             <button onClick={() => navigate(`/patient/${item.id}`)} style={statModalMode === "deceased" ? greyBtn : blueBtn}>View</button>
            </>
          )}
          { statModalMode === "sedations" && (
@@ -435,7 +444,7 @@ export default function AdminDashboard() {
                <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Unknown"}</strong>
                <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{new Date(item.created_at).toLocaleDateString('en-GB')}</div>
              </div>
-             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "dosing" } })} style={{ background: "#27ae60", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View Record</button>
+             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "dosing" } })} style={greenBtn}>View Record</button>
            </>
          )}
          { statModalMode === "consents" && (
@@ -444,7 +453,7 @@ export default function AdminDashboard() {
                <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Unknown"}</strong>
                <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>Signed by: {item.name}</div>
              </div>
-             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "consent" } })} style={{ background: "#f39c12", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View Form</button>
+             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "consent" } })} style={yellowBtn}>View Form</button>
            </>
          )}
        </div>
@@ -475,13 +484,17 @@ export default function AdminDashboard() {
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1 style={{ textAlign: "center" }}>Admin Control</h1>
 
-      {/* ADMIN TABS COMPONENT */}
-      <div className="admin-tabs-scrollbox" style={{ display: "flex", gap: "10px", marginBottom: "30px", background: "white", padding: "10px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
-        {TABS.map(tab => (
-          <button key={tab.id} style={{ ...btnStyle, flex: 1, padding: "12px 20px", background: activeTab === tab.id ? '#5b8fb9' : 'transparent', color: activeTab === tab.id ? 'white' : '#666' }} onClick={() => setActiveTab(tab.id)}>
-            {tab.label}
-          </button>
-        ))}
+      {/* ADMIN TABS NAVIGATION SCROLLBAR OVERLAY BAR */}
+      <div style={{ position: "relative", marginBottom: "30px" }}>
+        <div style={{ position: "absolute", left: "-5px", top: "50%", transform: "translateY(-50%)", zIndex: 10, background: "rgba(255,255,255,0.9)", padding: "5px", borderRadius: "50%", fontWeight: "bold", color: "#5b8fb9", pointerEvents: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }}>◀</div>
+        <div className="admin-tabs-scrollbox" style={{ display: "flex", gap: "10px", background: "white", padding: "10px 25px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflowX: "auto", whiteSpace: "nowrap" }}>
+          {TABS.map(tab => (
+            <button key={tab.id} style={{ ...tabBtnStyle, flex: 1, background: activeTab === tab.id ? '#5b8fb9' : 'transparent', color: activeTab === tab.id ? 'white' : '#666' }} onClick={() => setActiveTab(tab.id)}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ position: "absolute", right: "-5px", top: "50%", transform: "translateY(-50%)", zIndex: 10, background: "rgba(255,255,255,0.9)", padding: "5px", borderRadius: "50%", fontWeight: "bold", color: "#5b8fb9", pointerEvents: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.1)" }}>▶</div>
       </div>
 
       {/* ADMIN SCROLLBAR CSS HIDDEN */}
@@ -557,7 +570,7 @@ export default function AdminDashboard() {
                     <button onClick={() => {
                         if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
                         navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
-                      }} style={{...blueBtn, padding: "8px 15px"}}>
+                      }} style={blueBtn}>
                       View Invoice
                     </button>
                   </div>
@@ -577,7 +590,7 @@ export default function AdminDashboard() {
               <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Inventory Stock Report</h3>
               <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a PDF of all active and archived stock.</p>
             </div>
-            <button onClick={generateStockReport} style={{ ...blueBtn, flex: "none", padding: "12px 20px" }}>Generate PDF</button>
+            <button onClick={generateStockReport} style={blueBtn}>Generate PDF</button>
           </div>
 
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -585,7 +598,7 @@ export default function AdminDashboard() {
               <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Master Invoice Report</h3>
               <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a PDF list of all billed procedures and their payment status.</p>
             </div>
-            <button onClick={generateInvoiceReport} style={{ ...greenBtn, flex: "none", padding: "12px 20px" }}>Generate PDF</button>
+            <button onClick={generateInvoiceReport} style={greenBtn}>Generate PDF</button>
           </div>
 
           <div className="card">
@@ -604,10 +617,7 @@ export default function AdminDashboard() {
                 ))}
               </select>
               
-              <button 
-                onClick={generatePatientReport} 
-                style={{ ...yellowBtn, flex: "none", padding: "12px 20px", width: "150px" }}
-              >
+              <button onClick={generatePatientReport} style={yellowBtn}>
                 Generate PDF
               </button>
             </div>
@@ -625,8 +635,8 @@ export default function AdminDashboard() {
             <textarea placeholder="Description..." value={prodDesc} onChange={e => setProdDesc(e.target.value)} style={inputStyle} rows={2} />
             <input placeholder="Price (£)" type="number" step="0.01" value={prodPrice} onChange={e => setProdPrice(e.target.value)} style={inputStyle} />
             <div style={btnRow}>
-              <button onClick={saveProduct} style={greenBtn}>{isEditingProd ? "Update Product" : "Save Product"}</button>
-              {isEditingProd && <button onClick={() => {setIsEditingProd(false); setEditProdId(null); setProdName(""); setProdDesc(""); setProdPrice("");}} style={redBtn}>Cancel</button>}
+              <button onClick={saveProduct} style={{...greenBtn, flex: 1}}> {isEditingProd ? "Update Product" : "Save Product"} </button>
+              {isEditingProd && <button onClick={() => {setIsEditingProd(false); setEditProdId(null); setProdName(""); setProdDesc(""); setProdPrice("");}} style={{...redBtn, flex: 1}}>Cancel</button>}
             </div>
           </div>
 
@@ -642,8 +652,8 @@ export default function AdminDashboard() {
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: "20px", fontWeight: "bold", color: "#27ae60" }}>£{Number(p.price).toFixed(2)}</div>
                   <div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-                    <button onClick={() => startEditProd(p)} style={{ ...blueBtn, padding: "5px 10px", fontSize: "12px" }}>Edit</button>
-                    <button onClick={() => setProductToDelete(p)} style={{ ...redBtn, padding: "5px 10px", fontSize: "12px" }}>Delete</button>
+                    <button onClick={() => startEditProd(p)} style={blueBtn}>Edit</button>
+                    <button onClick={() => setProductToDelete(p)} style={redBtn}>Delete</button>
                   </div>
                 </div>
               </div>
@@ -663,7 +673,7 @@ export default function AdminDashboard() {
               <input type="number" placeholder="Total ml" value={stockQty} onChange={e => setStockQty(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
               <input type="date" value={stockExp} onChange={e => setStockExp(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
             </div>
-            <button onClick={addStock} style={{ ...blueBtn, marginTop: "15px", width: "100%" }}>Add Stock</button>
+            <button onClick={addStock} style={blueBtn}>Add Stock</button>
           </div>
           
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
@@ -679,8 +689,8 @@ export default function AdminDashboard() {
                       <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                     </div>
                     <div style={btnRow}>
-                      <button style={blueBtn} onClick={() => saveEditStock(s.id)}>Save</button>
-                      <button style={redBtn} onClick={() => setEditingStockId(null)}>Cancel</button>
+                      <button style={{...blueBtn, flex: 1}} onClick={() => saveEditStock(s.id)}>Save</button>
+                      <button style={{...redBtn, flex: 1}} onClick={() => setEditingStockId(null)}>Cancel</button>
                     </div>
                   </>
                 ) : (
@@ -691,9 +701,9 @@ export default function AdminDashboard() {
                       {s.expiry_date && `Expires: ${new Date(s.expiry_date).toLocaleDateString('en-GB')}`}
                     </div>
                     <div style={{...btnRow, marginTop: "15px"}}>
-                      <button style={{...blueBtn, padding: "8px"}} onClick={() => startEditStock(s)}>Edit</button>
-                      <button style={{...yellowBtn, padding: "8px"}} onClick={() => setStockToArchive(s)}>Archive</button>
-                      <button style={{...redBtn, padding: "8px"}} onClick={() => setStockToDelete(s)}>Delete</button>
+                      <button style={blueBtn} onClick={() => startEditStock(s)}>Edit</button>
+                      <button style={yellowBtn} onClick={() => setStockToArchive(s)}>Archive</button>
+                      <button style={redBtn} onClick={() => setStockToDelete(s)}>Delete</button>
                     </div>
                   </>
                 )}
@@ -721,19 +731,19 @@ export default function AdminDashboard() {
                   <input placeholder="mg/ml" value={protoMgMl} onChange={e => setProtoMgMl(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                 </div>
               </div>
-              <button style={{ marginTop: "10px", background: "#5b8fb9", color: "white", padding: "10px", borderRadius: "8px", border: "none", cursor: "pointer", width: "100%", fontWeight: "bold" }} onClick={addProtoDrug}>+ Add Drug</button>
+              <button style={blueBtn} onClick={addProtoDrug}>+ Add Drug</button>
             </div>
 
             {protoDrugs.map((d, i) => (
               <div key={i} style={{ marginTop: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "white", padding: "10px", borderRadius: "10px", border: "1px solid #eee" }}>
                 <span><strong>{d.drug_name}</strong> — {d.mg_per_kg} mg/kg</span>
-                <button onClick={() => setProtoDrugs(protoDrugs.filter((_, idx) => idx !== i))} style={{ background: "#e74c3c", color: "white", padding: "5px 10px", border: "none", borderRadius: "8px", cursor: "pointer" }}>Remove</button>
+                <button onClick={() => setProtoDrugs(protoDrugs.filter((_, idx) => idx !== i))} style={redBtn}>Remove</button>
               </div>
             ))}
 
             <div style={btnRow}>
-              <button style={greenBtn} onClick={saveProtocolObj}>{editingProtoId ? "Save Changes" : "Save Protocol"}</button>
-              {editingProtoId && <button onClick={() => {setEditingProtoId(null); setProtoName(""); setProtoSpecies(""); setProtoDrugs([]);}} style={redBtn}>Cancel</button>}
+              <button style={{...greenBtn, flex: 1}} onClick={saveProtocolObj}>{editingProtoId ? "Save Changes" : "Save Protocol"}</button>
+              {editingProtoId && <button onClick={() => {setEditingProtoId(null); setProtoName(""); setProtoSpecies(""); setProtoDrugs([]);}} style={{...redBtn, flex: 1}}>Cancel</button>}
             </div>
           </div>
 
@@ -755,8 +765,8 @@ export default function AdminDashboard() {
                 </div>
 
                 <div style={btnRow}>
-                  <button style={{...blueBtn, padding: "8px"}} onClick={() => startEditProtocol(p)}>Edit</button>
-                  <button style={{...redBtn, padding: "8px"} } onClick={() => setProtocolToDelete(p)}>Delete</button>
+                  <button style={blueBtn} onClick={() => startEditProtocol(p)}>Edit</button>
+                  <button style={redBtn} onClick={() => setProtocolToDelete(p)}>Delete</button>
                 </div>
               </div>
             ))}
@@ -778,8 +788,8 @@ export default function AdminDashboard() {
             <textarea placeholder="Email Body..." value={templateBody} onChange={e => setTemplateBody(e.target.value)} style={{...inputStyle, fontFamily: "inherit"}} rows={6} />
             
             <div style={btnRow}>
-              <button onClick={saveTemplate} style={greenBtn}>{isEditingTemplate ? "Update Template" : "Save Template"}</button>
-              {isEditingTemplate && <button onClick={() => {setIsEditingTemplate(false); setEditTemplateId(null); setTemplateName(""); setTemplateSubject(""); setTemplateBody("");}} style={redBtn}>Cancel</button>}
+              <button onClick={saveTemplate} style={{...greenBtn, flex: 1}}>{isEditingTemplate ? "Update Template" : "Save Template"}</button>
+              {isEditingTemplate && <button onClick={() => {setIsEditingTemplate(false); setEditTemplateId(null); setTemplateName(""); setTemplateSubject(""); setTemplateBody("");}} style={{...redBtn, flex: 1}}>Cancel</button>}
             </div>
           </div>
 
@@ -794,8 +804,8 @@ export default function AdminDashboard() {
                   <div style={{ color: "#7f8c8d", fontSize: "13px", whiteSpace: "pre-wrap", background: "#f0f2f5", padding: "10px", borderRadius: "8px" }}>{t.body}</div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: "none" }}>
-                  <button onClick={() => startEditTemplate(t)} style={{ ...blueBtn, padding: "8px 15px", fontSize: "12px" }}>Edit</button>
-                  <button onClick={() => setTemplateToDelete(t)} style={{ ...redBtn, padding: "8px 15px", fontSize: "12px" }}>Delete</button>
+                  <button onClick={() => startEditTemplate(t)} style={blueBtn}>Edit</button>
+                  <button onClick={() => setTemplateToDelete(t)} style={redBtn}>Delete</button>
                 </div>
               </div>
             ))}
@@ -807,7 +817,7 @@ export default function AdminDashboard() {
       {statModalMode && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStatModalMode(null)}>
           <div style={{ background: "white", padding: "20px", borderRadius: "15px", width: "100%", maxWidth: "500px", maxHeight: "80vh", display: "flex", flexDirection: "column", position: "relative" }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setStatModalMode(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#eee", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold" }}>X</button>
+            <button onClick={() => setStatModalMode(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
             <h2 style={{ marginTop: 0, textTransform: "capitalize", color: "#2c3e50" }}>{statModalMode} List</h2>
             <input placeholder={`Search ${statModalMode}...`} value={statSearch} onChange={(e) => setStatSearch(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "15px" }} />
             <div style={{ overflowY: "auto", flex: 1, paddingRight: "5px" }}>{renderStatModalList()}</div>
@@ -823,12 +833,12 @@ export default function AdminDashboard() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {alertMessage}
             </p>
-            <button onClick={() => setAlertMessage("")} style={{ width: "100%", background: "#3498db", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>OK</button>
+            <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}
 
-      {/* ================= ACTION MODALS ================= */}
+      {/* ================= ACTION CONFIRM MODALS ================= */}
       {productToDelete && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setProductToDelete(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
@@ -837,8 +847,8 @@ export default function AdminDashboard() {
               Are you sure you want to permanently delete product <strong>{productToDelete.name}</strong> from the system library?
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteProduct} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setProductToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmDeleteProduct} style={{...redBtn, flex: 1}}>Yes, Delete</button>
+              <button onClick={() => setProductToDelete(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -852,8 +862,8 @@ export default function AdminDashboard() {
               Are you sure you want to archive drug batch <strong>{stockToArchive.batch} ({stockToArchive.drug})</strong>? It will no longer appear in active dropdown menus.
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmArchiveStock} style={{ flex: 1, background: "#f39c12", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Archive</button>
-              <button onClick={() => setStockToArchive(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmArchiveStock} style={{...yellowBtn, flex: 1}}>Yes, Archive</button>
+              <button onClick={() => setStockToArchive(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -867,8 +877,8 @@ export default function AdminDashboard() {
               Are you sure you want to permanently delete drug batch <strong>{stockToDelete.batch} ({stockToDelete.drug})</strong> from inventory storage?
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteStock} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setStockToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmDeleteStock} style={{...redBtn, flex: 1}}>Yes, Delete</button>
+              <button onClick={() => setStockToDelete(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -882,8 +892,8 @@ export default function AdminDashboard() {
               Are you sure you want to permanently delete sedation protocol <strong>{protocolToDelete.name}</strong>?
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteProtocol} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setProtocolToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmDeleteProtocol} style={{...redBtn, flex: 1}}>Yes, Delete</button>
+              <button onClick={() => setProtocolToDelete(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -897,8 +907,8 @@ export default function AdminDashboard() {
               Are you sure you want to permanently delete the template <strong>{templateToDelete.name}</strong>?
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteTemplate} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setTemplateToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+              <button onClick={confirmDeleteTemplate} style={{...redBtn, flex: 1}}>Yes, Delete</button>
+              <button onClick={() => setTemplateToDelete(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
             </div>
           </div>
         </div>

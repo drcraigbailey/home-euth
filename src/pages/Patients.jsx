@@ -3,30 +3,17 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 
-// Standardized UI constants
-const greenBtn = {
-  flex: 1,
-  background: "#27ae60",
-  color: "white",
-  border: "none",
-  borderRadius: "12px",
-  padding: "12px",
-  cursor: "pointer",
-  fontWeight: "600",
-  fontSize: "15px"
-};
+// --- STYLING CONSTANTS ---
+const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" };
+const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
 
-const redBtn = {
-  flex: 1,
-  background: "#e74c3c",
-  color: "white",
-  border: "none",
-  borderRadius: "12px",
-  padding: "12px",
-  cursor: "pointer",
-  fontWeight: "600",
-  fontSize: "15px"
-};
+// Strict uniform button properties copied from Admin Dashboard layout
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+
+const greenBtn = { background: "#27ae60", color: "white", ...standardBtnProps };
+const redBtn   = { background: "#e74c3c", color: "white", ...standardBtnProps };
+const greyBtn  = { background: "#95a5a6", color: "white", ...standardBtnProps };
+const blueBtn  = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 
 export default function Patients() {
   const [patients, setPatients] = useState([]);
@@ -86,6 +73,7 @@ export default function Patients() {
           placeholder="Search patients..." 
           value={search} 
           onChange={(e) => setSearch(e.target.value)} 
+          style={inputStyle}
         />
       </div>
 
@@ -112,7 +100,7 @@ export default function Patients() {
             
             {/* Top Section: Patient Details */}
             <div 
-              style={{ cursor: 'pointer', marginBottom: '15px' }} 
+              style={{ cursor: 'pointer', marginBottom: '10px' }} 
               onClick={() => navigate(`/patient/${p.id}`)}
             >
               <div>
@@ -127,7 +115,7 @@ export default function Patients() {
             </div>
 
             {/* Bottom Section: Buttons row */}
-            <div style={{ display: "flex", gap: "10px", width: "100%" }}>
+            <div style={btnRow}>
               <button 
                 style={greenBtn}
                 onClick={() => navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } })}
@@ -161,9 +149,9 @@ export default function Patients() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               Are you sure you want to permanently delete patient <strong>{patientToDelete.name}</strong>? All records linked to this profile will be cleared.
             </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeletePatient} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setPatientToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button onClick={confirmDeletePatient} style={redBtn}>Yes, Delete</button>
+              <button onClick={() => setPatientToDelete(null)} style={greyBtn}>Cancel</button>
             </div>
           </div>
         </div>

@@ -8,8 +8,15 @@ const greyBox = { background: "#f8f9fb", padding: "20px", borderRadius: "20px", 
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", display: "flex", flexDirection: "column", gap: "8px", cursor: "pointer" };
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
-const blueBtn = { flex: 1, background: "#5b8fb9", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
-const redBtn = { flex: 1, background: "#e74c3c", color: "white", border: "none", borderRadius: "8px", padding: "10px", cursor: "pointer", fontWeight: "bold" };
+
+// Strict uniform button properties copied from Admin Dashboard layout
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+
+const blueBtn  = { background: "#5b8fb9", color: "white", ...standardBtnProps };
+const redBtn   = { background: "#e74c3c", color: "white", ...standardBtnProps };
+const greenBtn = { background: "#27ae60", color: "white", ...standardBtnProps };
+const darkBtn  = { background: "#2c3e50", color: "white", ...standardBtnProps };
+const greyBtn  = { background: "#95a5a6", color: "white", ...standardBtnProps };
 
 export default function Home() {
   const navigate = useNavigate();
@@ -26,11 +33,12 @@ export default function Home() {
   
   const [viewEntry, setViewEntry] = useState(null);
   const [entryToDelete, setEntryToDelete] = useState(null);
+  const [alertMessage, setAlertMessage] = useState("");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
   
-  // NEW TIME STATES
+  // Time inputs state fields
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   
@@ -90,9 +98,8 @@ export default function Home() {
   }
 
   async function saveEntry() {
-    if (!title && !clientId && !patientId) return alert("Please provide a Title, or link a Client/Patient.");
+    if (!title && !clientId && !patientId) return setAlertMessage("Please provide a Title, or link a Client/Patient.");
     
-    // Combine start and end time into one string for the database
     const combinedTime = (startTime && endTime) ? `${startTime} - ${endTime}` : (startTime || endTime || "");
 
     const payload = {
@@ -119,7 +126,6 @@ export default function Home() {
     setIsEditing(true); 
     setEditId(entry.id); 
     
-    // Split the database string back into start and end inputs
     const times = entry.time_range ? entry.time_range.split(" - ") : ["", ""];
     setStartTime(times[0] || "");
     setEndTime(times[1] || "");
@@ -161,7 +167,7 @@ export default function Home() {
           <button onClick={() => changeDate(-1)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#5b8fb9", fontWeight: "bold" }}>{"<"}</button>
           <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} style={{ border: "none", background: "transparent", fontSize: "16px", fontWeight: "bold", color: "#333", outline: "none" }} />
           <button onClick={() => changeDate(1)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#5b8fb9", fontWeight: "bold" }}>{">"}</button>
-          <button onClick={setToday} style={{ border: "none", background: "#5b8fb9", color: "white", padding: "5px 10px", borderRadius: "5px", fontSize: "12px", cursor: "pointer", fontWeight: "bold" }}>Today</button>
+          <button onClick={setToday} style={{ ...blueBtn, minWidth: "auto", padding: "5px 12px" }}>Today</button>
         </div>
       </div>
 
@@ -203,7 +209,7 @@ export default function Home() {
           <input placeholder="Address Override" value={address} onChange={e => setAddress(e.target.value)} style={inputStyle} />
           
           <div style={btnRow}>
-            <button onClick={saveEntry} style={{ ...blueBtn, background: "#27ae60" }}>{isEditing ? "Update Entry" : "Save to Diary"}</button>
+            <button onClick={saveEntry} style={greenBtn}>{isEditing ? "Update Entry" : "Save to Diary"}</button>
             {isEditing && <button onClick={resetForm} style={redBtn}>Cancel</button>}
           </div>
         </div>
@@ -246,7 +252,7 @@ export default function Home() {
       {viewEntry && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setViewEntry(null)}>
           <div style={{ background: "white", padding: "20px", borderRadius: "15px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflowY: "auto", position: "relative" }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setViewEntry(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#eee", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold" }}>X</button>
+            <button onClick={() => setViewEntry(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
             
             <h2 style={{ marginTop: 0, color: "#2c3e50" }}>{viewEntry.entry_type} Details</h2>
             <div style={{ fontSize: "14px", color: "#666", marginBottom: "15px" }}>{selectedDate} | {viewEntry.time_range}</div>
@@ -256,7 +262,6 @@ export default function Home() {
               {viewEntry.patients && <p style={{ margin: 0 }}><strong>Pet:</strong> {viewEntry.patients.name} ({viewEntry.patients.species})</p>}
               {viewEntry.title && !viewEntry.patients && <p style={{ margin: 0 }}><strong>Title:</strong> {viewEntry.title}</p>}
               
-              {/* CLICKABLE PHONE NUMBER */}
               {(() => {
                 const displayPhone = viewEntry.clients?.phone || viewEntry.phone;
                 return (
@@ -300,12 +305,12 @@ export default function Home() {
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px", flexDirection: "column" }}>
               {viewEntry.client_id && (
-                <button onClick={() => navigate(`/client/${viewEntry.client_id}`)} style={{ ...blueBtn, background: "#2c3e50", padding: "12px", fontSize: "16px" }}>
+                <button onClick={() => navigate(`/client/${viewEntry.client_id}`)} style={{ ...darkBtn, minWidth: "100%", padding: "10px" }}>
                   📂 Go to Client File
                 </button>
               )}
               {isAdmin && (
-                <div style={{ display: "flex", gap: "10px" }}>
+                <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
                   <button onClick={() => startEdit(viewEntry)} style={blueBtn}>Edit</button>
                   <button onClick={() => setEntryToDelete(viewEntry)} style={redBtn}>Delete</button>
                 </div>
@@ -315,7 +320,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* POP-UP MODAL FOR DELETING DIARY ENTRY */}
+      {/* POP-UP MODAL FOR DIARY DETAILS DELETION */}
       {entryToDelete && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setEntryToDelete(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
@@ -323,10 +328,23 @@ export default function Home() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               Are you sure you want to permanently delete this diary entry?
             </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeleteEntry} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setEntryToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button onClick={confirmDeleteEntry} style={redBtn}>Yes, Delete</button>
+              <button onClick={() => setEntryToDelete(null)} style={greyBtn}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= GENERIC ALERT MODAL ================= */}
+      {alertMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>⚠️ Notice</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {alertMessage}
+            </p>
+            <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}

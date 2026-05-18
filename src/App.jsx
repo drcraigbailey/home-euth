@@ -15,6 +15,11 @@ import Sedation from "./pages/Sedation";
 import Products from "./pages/Products"; 
 import AdminDashboard from "./pages/AdminDashboard";
 
+// --- GLOBAL UNIFORM STYLING CONSTANTS ---
+// Kept globally available to ensure seamless framework extension parity
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
+
 // 🔒 Protected route component
 function ProtectedRoute({ children }) {
   const [session, setSession] = useState(undefined);
@@ -98,6 +103,7 @@ function Navbar() {
             <span style={{ color: "#5b8fb9", fontWeight: "900", fontSize: "20px", animation: "bounceRight 1s infinite alternate" }}>{"❯"}</span>
           </div>
 
+          {/* Toolbars are kept exactly the same per your instructions */}
           <button onClick={logout} className="logout-btn-minimal" style={{ position: "relative", zIndex: 2 }}>Logout</button>
         </div>
       </nav>
@@ -106,6 +112,10 @@ function Navbar() {
       <style>{`
         .nav-links-group::-webkit-scrollbar {
           display: none;
+        }
+        .nav-links-group {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
         @keyframes bounceRight {
           0% { transform: translateX(0); opacity: 0.6; }

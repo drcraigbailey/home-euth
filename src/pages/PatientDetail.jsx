@@ -7,6 +7,20 @@ import Loader from "../Loader";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// --- STYLING CONSTANTS ---
+const btnStyle = { padding: "12px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" }; // Main toolbar tab style
+const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
+const whiteShadowBox = { background: "white", padding: "15px", borderRadius: "12px", marginBottom: "15px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: "1px solid #eee" };
+
+// Strict uniform button properties copied from Admin Dashboard layout
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+
+const blueBtn   = { background: "#5b8fb9", color: "white", ...standardBtnProps };
+const redBtn    = { background: "#e74c3c", color: "white", ...standardBtnProps };
+const greenBtn  = { background: "#27ae60", color: "white", ...standardBtnProps };
+const yellowBtn = { background: "#f39c12", color: "white", ...standardBtnProps };
+const greyBtn   = { background: "#95a5a6", color: "white", ...standardBtnProps };
+
 const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
 const BREED_MAP = {
   dog: ["Mixed Breed", "Labrador Retriever", "Golden Retriever", "French Bulldog", "German Shepherd", "Cocker Spaniel", "Staffordshire Bull Terrier", "Jack Russell Terrier", "Shih Tzu", "Chihuahua", "Pug", "Border Collie", "Dachshund", "Poodle", "Greyhound", "Lurcher"],
@@ -23,7 +37,7 @@ const DRUG_MAP = {
   dexmedetomidine: ["dex", "dexmedetomidine", "medetomidine"],
   acp: ["acp", "acepromazine"],
   zoletil: ["zoletil", "zol", "tiletamine"],
-  pentobarbital: ["pent", "pentobarbital", "euth", "euthatal", "somcare", "pento", "euthanasia"]
+  pentobarbital: ["pent", "pentobarbital", "euth", "euthanasia"]
 };
 
 function normaliseDrugName(name) {
@@ -41,10 +55,6 @@ function generateUUID() {
     return v.toString(16);
   });
 }
-
-const btnStyle = { padding: "12px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
-const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
-const whiteShadowBox = { background: "white", padding: "15px", borderRadius: "12px", marginBottom: "15px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: "1px solid #eee" };
 
 export default function PatientDetail() {
   const { id } = useParams();
@@ -159,7 +169,6 @@ export default function PatientDetail() {
   }
 
   async function fetchPatient() {
-    // Notice we grab the attached client record here so we have their email address
     const { data } = await supabase.from("patients").select("*, clients(*)").eq("id", id).single();
     if (data) { setPatient(data); setEditData(data); }
   }
@@ -175,7 +184,6 @@ export default function PatientDetail() {
     if (!file) return;
     
     setIsUploading(true);
-    // Include a timestamp so files with the same name don't overwrite each other
     const filePath = `${id}/${Date.now()}_${file.name}`;
     const { error } = await supabase.storage.from("patient_documents").upload(filePath, file);
     
@@ -229,7 +237,6 @@ export default function PatientDetail() {
     const cName = patient?.clients?.name || "Client";
     const pName = patient?.name || "your pet";
     
-    // Replace the placeholders with actual data
     setEmailSubject(tmpl.subject.replace(/{patient_name}/g, pName).replace(/{client_name}/g, cName));
     setEmailBody(tmpl.body.replace(/{patient_name}/g, pName).replace(/{client_name}/g, cName));
   }
@@ -239,7 +246,6 @@ export default function PatientDetail() {
     if (!clientEmail) {
       return setAlertMessage("This client does not have an email address saved. Please update their profile in the Clients tab.");
     }
-    // Formats a mailto link which automatically opens the user's default email app
     const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
     window.location.href = mailtoLink;
   }
@@ -412,7 +418,6 @@ export default function PatientDetail() {
       return setAlertMessage("Please set the patient's weight in the Details tab before recording doses.");
     }
     
-    // Check if the user has actually selected a protocol first
     if (!protocolId || calcResults.length === 0) {
       return setAlertMessage("Please select a Sedation Protocol first.");
     }
@@ -503,7 +508,7 @@ export default function PatientDetail() {
     
     const { error } = await supabase.from("patient_procedures").insert([payload]);
     
-    if (!error) { 
+    if (!error) {      
       setSelectedProductId(""); setProcedurePrice(""); setProcedureNotes(""); fetchProcedures(); 
       if (isEuth && !patient.is_deceased) {
         autoMarkDeceased();
@@ -597,10 +602,8 @@ export default function PatientDetail() {
 
   function downloadSpecificInvoice(inv) {
     try {
-      // Generate the specific PDF
       const doc = new jsPDF();
       
-      // Header
       doc.setFontSize(22);
       doc.setTextColor(44, 62, 80); 
       doc.setFont("helvetica", "bold");
@@ -615,7 +618,6 @@ export default function PatientDetail() {
       doc.text(`Client: ${patient?.clients?.name || ""} ${patient?.clients?.surname || ""}`, 14, 46);
       doc.text(`Patient: ${patient?.name || ""}`, 14, 52);
 
-      // Table
       const procCols = ["Item / Procedure", "Notes", "Price"];
       const procRows = inv.procedures.map(p => [
         p.product_name, 
@@ -625,14 +627,12 @@ export default function PatientDetail() {
       
       autoTable(doc, { head: [procCols], body: procRows, startY: 60 });
       
-      // Totals
       const finalY = doc.lastAutoTable.finalY + 10;
       doc.setFont("helvetica", "bold");
       doc.text(`Total: £${inv.total.toFixed(2)}`, 14, finalY);
-      doc.setTextColor(inv.due > 0 ? 231 : 39, inv.due > 0 ? 76 : 174, inv.due > 0 ? 60 : 96); // Red if due, Green if 0
+      doc.setTextColor(inv.due > 0 ? 231 : 39, inv.due > 0 ? 76 : 174, inv.due > 0 ? 60 : 96); 
       doc.text(`Amount Due: £${inv.due.toFixed(2)}`, 14, finalY + 8);
 
-      // Download it
       doc.save(`Invoice_${patient?.name || "Patient"}_${new Date(inv.date).toISOString().split('T')[0]}.pdf`);
 
     } catch (error) {
@@ -737,32 +737,33 @@ export default function PatientDetail() {
         )}
       </div>
 
-      {/* ================= SUB-NAVIGATION TABS ================= */}
-      <div className="patient-tabs-scrollbox" style={{ 
-        display: "flex", 
-        gap: "10px", 
-        marginBottom: "20px", 
-        background: "white", 
-        padding: "10px", 
-        borderRadius: "15px", 
-        boxShadow: "0 2px 10px rgba(0,0,0,0.05)", 
-        overflowX: "auto", 
-        whiteSpace: "nowrap" 
-      }}>
-        {TABS.map(tab => (
-          <button 
-            key={tab.id} 
-            style={{ 
-              ...btnStyle, 
-              padding: "12px 20px", 
-              background: activeTab === tab.id ? '#5b8fb9' : 'transparent', 
-              color: activeTab === tab.id ? 'white' : '#666' 
-            }} 
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* ================= SUB-NAVIGATION TABS WITH DIRECTIONAL ARROWS WITHIN FRAME ================= */}
+      <div style={{ display: "flex", alignItems: "center", marginBottom: "20px", background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px" }}>
+        <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none" }}>&lt;</span>
+        <div className="patient-tabs-scrollbox" style={{ 
+          display: "flex", 
+          gap: "10px", 
+          flex: 1,
+          padding: "10px 0", 
+          overflowX: "auto", 
+          whiteSpace: "nowrap" 
+        }}>
+          {TABS.map(tab => (
+            <button 
+              key={tab.id} 
+              style={{ 
+                ...btnStyle, 
+                padding: "12px 20px", 
+                background: activeTab === tab.id ? '#5b8fb9' : 'transparent', 
+                color: activeTab === tab.id ? 'white' : '#666' 
+              }} 
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingLeft: "5px", userSelect: "none" }}>&gt;</span>
       </div>
 
       <style>{`
@@ -783,16 +784,16 @@ export default function PatientDetail() {
             {!editMode ? (
               <div style={{ display: "flex", gap: "8px" }}>
                 {(!patient?.is_deceased || isAdmin) && (
-                  <button onClick={toggleDeceased} style={{ background: patient?.is_deceased ? "#95a5a6" : "#e74c3c", color: "white", padding: "6px 10px", borderRadius: "6px", border: "none", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
+                  <button onClick={toggleDeceased} style={patient?.is_deceased ? greyBtn : redBtn}>
                     {patient?.is_deceased ? "Unmark Deceased" : "Mark Deceased"}
                   </button>
                 )}
-                <button onClick={() => setEditMode(true)} style={{ background: "#5b8fb9", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontWeight: "bold", cursor: "pointer", fontSize: "12px" }}>
+                <button onClick={() => setEditMode(true)} style={blueBtn}>
                   Edit
                 </button>
               </div>
             ) : (
-              <button onClick={() => { setEditMode(false); fetchPatient(); }} style={{ background: "#f39c12", color: "white", padding: "6px 12px", border: "none", borderRadius: "6px", fontWeight: "bold", fontSize: "12px" }}>Cancel</button>
+              <button onClick={() => { setEditMode(false); fetchPatient(); }} style={yellowBtn}>Cancel</button>
             )}
           </div>
 
@@ -835,7 +836,7 @@ export default function PatientDetail() {
               <input placeholder="Weight (kg)" type="number" step="0.01" value={editData.weight || ""} onChange={(e) => setEditData({...editData, weight: e.target.value})} style={inputStyle} />
               <textarea rows={4} placeholder="Notes..." value={editData.notes || ""} onChange={(e) => setEditData({...editData, notes: e.target.value})} style={inputStyle} />
               
-              <button onClick={updatePatient} style={{ ...btnStyle, background: "#27ae60", color: "white" }}>Save Changes</button>
+              <button onClick={updatePatient} style={greenBtn}>Save Changes</button>
             </div>
           )}
         </div>
@@ -875,7 +876,7 @@ export default function PatientDetail() {
             </div>
           ))}
 
-          <button onClick={saveDosing} style={{ ...btnStyle, width: "100%", background: "#27ae60", color: "white", marginTop: "20px" }}>
+          <button onClick={saveDosing} style={greenBtn}>
             Record Doses & Deduct from Stock
           </button>
           
@@ -904,8 +905,8 @@ export default function PatientDetail() {
                         </div>
                       ))}
                       <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-                        <button style={{ background: "#27ae60", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }} onClick={() => saveEditHistory(h.id)}>Save Changes</button>
-                        <button style={{ background: "#f39c12", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }} onClick={() => setEditingHistoryId(null)}>Cancel</button>
+                        <button style={greenBtn} onClick={() => saveEditHistory(h.id)}>Save Changes</button>
+                        <button style={yellowBtn} onClick={() => setEditingHistoryId(null)}>Cancel</button>
                       </div>
                     </>
                   ) : (
@@ -916,7 +917,7 @@ export default function PatientDetail() {
                         </div>
                       ))}
                       <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-                        <button onClick={() => startEditHistory(h)} style={{ background: "#5b8fb9", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>Edit Details</button>
+                        <button onClick={() => startEditHistory(h)} style={blueBtn}>Edit Details</button>
                         {isAdmin && (
                           <button onClick={() => {
                             setConfirmModal({
@@ -941,7 +942,7 @@ export default function PatientDetail() {
                                 setConfirmModal(null);
                               }
                             });
-                          }} style={{ background: "#e74c3c", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "11px", fontWeight: "bold", cursor: "pointer" }}>Delete Record</button>
+                          }} style={redBtn}>Delete Record</button>
                         )}
                       </div>
                     </>
@@ -970,7 +971,7 @@ export default function PatientDetail() {
                 <input placeholder="Optional Notes..." value={procedureNotes} onChange={e => setProcedureNotes(e.target.value)} style={{ ...inputStyle, flex: 2 }} />
               </div>
             )}
-            <button onClick={addProcedure} style={{ ...btnStyle, width: "100%", background: "#3498db", color: "white" }}>Create Invoice with Item</button>
+            <button onClick={addProcedure} style={blueBtn}>Create Invoice with Item</button>
           </div>
 
           <div style={{ marginTop: "20px" }}>
@@ -1002,14 +1003,14 @@ export default function PatientDetail() {
                       Due: £{inv.due.toFixed(2)}
                     </div>
 
-                    <button onClick={() => downloadSpecificInvoice(inv)} style={{ background: "#3498db", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>
+                    <button onClick={() => downloadSpecificInvoice(inv)} style={blueBtn}>
                       Download Invoice PDF
                     </button>
 
-                    {inv.total > 0 && inv.due > 0 && <button onClick={() => markInvoicePaid(inv.id)} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>Mark Paid</button>}
+                    {inv.total > 0 && inv.due > 0 && <button onClick={() => markInvoicePaid(inv.id)} style={greenBtn}>Mark Paid</button>}
                     
                     {inv.total > 0 && inv.due === 0 && isAdmin && (
-                      <button onClick={() => unmarkInvoicePaid(inv.id)} style={{ background: "#95a5a6", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px", width: "100%" }}>Unmark Invoice</button>
+                      <button onClick={() => unmarkInvoicePaid(inv.id)} style={greyBtn}>Unmark Invoice</button>
                     )}
                   </div>
                 </div>
@@ -1025,8 +1026,8 @@ export default function PatientDetail() {
                           <input placeholder="Notes..." value={editProcNotes} onChange={e => setEditProcNotes(e.target.value)} style={{ flex: 2, padding: "8px", borderRadius: "6px", border: "1px solid #ccc" }} />
                         </div>
                         <div style={{ display: "flex", gap: "8px" }}>
-                          <button onClick={() => saveEditProcedure(proc.id)} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Save</button>
-                          <button onClick={() => setEditingProcId(null)} style={{ background: "#f39c12", color: "white", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Cancel</button>
+                          <button onClick={() => saveEditProcedure(proc.id)} style={greenBtn}>Save</button>
+                          <button onClick={() => setEditingProcId(null)} style={yellowBtn}>Cancel</button>
                         </div>
                       </div>
                     ) : (
@@ -1037,7 +1038,7 @@ export default function PatientDetail() {
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                           <strong style={{ fontSize: "15px" }}>£{Number(proc.price).toFixed(2)}</strong>
-                          <button onClick={() => startEditProcedure(proc)} style={{ background: "#5b8fb9", color: "white", border: "none", borderRadius: "6px", padding: "6px 10px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Edit</button>
+                          <button onClick={() => startEditProcedure(proc)} style={{ ...blueBtn, minWidth: "60px" }}>Edit</button>
                           <button onClick={() => {
                             setConfirmModal({
                               title: "Confirm Deletion",
@@ -1050,7 +1051,7 @@ export default function PatientDetail() {
                                 setConfirmModal(null);
                               }
                             });
-                          }} style={{ background: "#e74c3c", color: "white", border: "none", borderRadius: "6px", padding: "6px 10px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>X</button>
+                          }} style={{ ...redBtn, minWidth: "40px" }}>X</button>
                         </div>
                       </div>
                     )}
@@ -1075,8 +1076,8 @@ export default function PatientDetail() {
                       </div>
                     )}
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button onClick={() => saveInlineProcedure(inv.id)} style={{ background: "#27ae60", color: "white", border: "none", borderRadius: "6px", padding: "8px 15px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Save Item</button>
-                      <button onClick={() => { setAddingToInvId(null); setInlineProdId(""); }} style={{ background: "#f39c12", color: "white", border: "none", borderRadius: "6px", padding: "8px 15px", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}>Cancel</button>
+                      <button onClick={() => saveInlineProcedure(inv.id)} style={greenBtn}>Save Item</button>
+                      <button onClick={() => { setAddingToInvId(null); setInlineProdId(""); }} style={yellowBtn}>Cancel</button>
                     </div>
                   </div>
                 ) : (
@@ -1097,6 +1098,7 @@ export default function PatientDetail() {
           <div className="card">
             <h3>Euthanasia Consent</h3>
             <div style={{ fontSize: "14px", marginBottom: "15px", background: "#fdf3f2", borderLeft: "4px solid #e74c3c", padding: "15px", borderRadius: "5px", lineHeight: "1.5" }}>
+              <strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Owner/Authorised Agent Declaration and Consent</strong>
               <p style={{ marginTop: 0 }}>I certify that I am the owner or the authorised agent of the owner of the above-described animal, and I have the legal authority to consent to its euthanasia. I authorize the veterinary team to humanely end the animal's life.</p>
               <p>I confirm that, to the best of my knowledge, this animal has not bitten any person or animal in the last 15 days, nor has it been exposed to rabies.</p>
               <strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Liability Release</strong>
@@ -1106,10 +1108,10 @@ export default function PatientDetail() {
             <div style={{ border: "1px solid #ccc", borderRadius: "10px", marginTop: "10px", background: "white" }}>
               <SignatureCanvas penColor="black" canvasProps={{ width: 300, height: 150, className: "sigCanvas" }} ref={sigPadRef} />
             </div>
-            <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
-              <button onClick={() => sigPadRef.current.clear()} style={{ ...btnStyle, flex: 1 }}>Clear</button>
-              <button onClick={() => saveConsent(false)} style={{ ...btnStyle, flex: 1, background: "#3498db", color: "white" }}>Save</button>
-              <button onClick={() => saveConsent(true)} style={{ ...btnStyle, flex: 1, background: "#27ae60", color: "white" }}>Save & Sedate</button>
+            <div style={{ display: "flex", gap: "10px", marginTop: "15px", justifyContent: "center" }}>
+              <button onClick={() => sigPadRef.current.clear()} style={greyBtn}>Clear</button>
+              <button onClick={() => saveConsent(false)} style={blueBtn}>Save</button>
+              <button onClick={() => saveConsent(true)} style={greenBtn}>Save & Sedate</button>
             </div>
           </div>
           {consentHistory.length > 0 && (
@@ -1121,7 +1123,7 @@ export default function PatientDetail() {
                     <strong>{c.name}</strong><span style={{ fontSize: "12px", color: "#666" }}>{new Date(c.created_at).toLocaleString()}</span>
                   </div>
                   <img src={c.signature} alt="signature" style={{ marginTop: "15px", border: "1px solid #ccc", background: "white", borderRadius: "5px", width: "100%", maxWidth: "300px" }} />
-                  <button style={{ marginTop: "10px", background: "#e74c3c", color: "white", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer" }} onClick={() => deleteConsent(c.id)}>Delete</button>
+                  <button style={{ ...redBtn, marginTop: "15px" }} onClick={() => deleteConsent(c.id)}>Delete</button>
                 </div>
               ))}
             </div>
@@ -1157,11 +1159,11 @@ export default function PatientDetail() {
             </div>
             <input placeholder="Custom Title (Optional)" value={aptTitle} onChange={e => setAptTitle(e.target.value)} style={inputStyle} />
             <textarea placeholder="Notes / Details..." rows={2} value={aptNotes} onChange={e => setAptNotes(e.target.value)} style={inputStyle} />
-            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-              <button onClick={saveAppointment} style={{ ...btnStyle, flex: 1, background: "#27ae60", color: "white" }}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px", justifyContent: "center" }}>
+              <button onClick={saveAppointment} style={greenBtn}>
                 {isEditingApt ? "Update Appointment" : "Add to Diary"}
               </button>
-              {isEditingApt && <button onClick={resetAptForm} style={{ ...btnStyle, flex: 1, background: "#e74c3c", color: "white" }}>Cancel</button>}
+              {isEditingApt && <button onClick={resetAptForm} style={redBtn}>Cancel</button>}
             </div>
           </div>
 
@@ -1184,8 +1186,8 @@ export default function PatientDetail() {
                     </div>
                     {isAdmin && (
                       <div style={{ display: "flex", gap: "5px" }}>
-                        <button onClick={() => startEditApt(apt)} style={{ background: "#5b8fb9", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontSize: "12px" }}>Edit</button>
-                        <button onClick={() => deleteAppointment(apt.id)} style={{ background: "#e74c3c", color: "white", border: "none", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", fontSize: "12px" }}>Delete</button>
+                        <button onClick={() => startEditApt(apt)} style={blueBtn}>Edit</button>
+                        <button onClick={() => deleteAppointment(apt.id)} style={redBtn}>Delete</button>
                       </div>
                     )}
                   </div>
@@ -1204,13 +1206,29 @@ export default function PatientDetail() {
             <p style={{ fontSize: "14px", color: "#7f8c8d", marginTop: 0, marginBottom: "15px" }}>
               Upload PDFs, images, or records related to this patient.
             </p>
+            
+            <label 
+              htmlFor="patient-file-upload" 
+              style={{ 
+                ...blueBtn, 
+                display: "inline-block", 
+                textAlign: "center",
+                width: "100%", 
+                marginBottom: isUploading ? "10px" : "15px",
+                opacity: isUploading ? 0.7 : 1
+              }}
+            >
+              {isUploading ? "Uploading..." : "Click to Select File or Image to Upload"}
+            </label>
+
             <input 
+              id="patient-file-upload"
               type="file" 
               onChange={handleFileUpload} 
               disabled={isUploading}
-              style={{ ...inputStyle, padding: "10px", background: "#f8f9fb" }} 
+              style={{ display: "none" }} 
             />
-            {isUploading && <div style={{ color: "#3498db", fontWeight: "bold", fontSize: "14px" }}>Uploading...</div>}
+            {isUploading && <div style={{ color: "#3498db", fontWeight: "bold", fontSize: "14px", textAlign: "center" }}>Uploading...</div>}
           </div>
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
@@ -1218,7 +1236,6 @@ export default function PatientDetail() {
             {patientFiles.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No files uploaded yet.</p>}
             
             {patientFiles.map(file => {
-              // Supabase adds the folder path to the name in `.list()`, we want to display just the filename
               const displayName = file.name.split('_').slice(1).join('_') || file.name; 
               
               return (
@@ -1230,9 +1247,9 @@ export default function PatientDetail() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => viewFile(file.name)} style={{ background: "#3498db", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>View</button>
+                    <button onClick={() => viewFile(file.name)} style={blueBtn}>View</button>
                     {isAdmin && (
-                      <button onClick={() => deleteFile(file.name)} style={{ background: "#e74c3c", color: "white", padding: "6px 12px", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}>Delete</button>
+                      <button onClick={() => deleteFile(file.name)} style={redBtn}>Delete</button>
                     )}
                   </div>
                 </div>
@@ -1279,7 +1296,7 @@ export default function PatientDetail() {
             style={{ ...inputStyle, fontFamily: "inherit" }} 
           />
 
-          <button onClick={sendEmail} style={{ ...btnStyle, background: "#5b8fb9", color: "white", marginTop: "15px" }}>
+          <button onClick={sendEmail} style={{ ...blueBtn, width: "100%" }}>
             Open Draft in Default Mail App
           </button>
           <p style={{ fontSize: "12px", color: "#7f8c8d", textAlign: "center", marginTop: "10px" }}>
@@ -1296,7 +1313,7 @@ export default function PatientDetail() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {alertMessage}
             </p>
-            <button onClick={() => setAlertMessage("")} style={{ width: "100%", background: "#3498db", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>OK</button>
+            <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}
@@ -1309,9 +1326,9 @@ export default function PatientDetail() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {confirmModal.message}
             </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmModal.onConfirm} style={{ flex: 1, background: confirmModal.confirmColor || "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>{confirmModal.confirmText || "Confirm"}</button>
-              <button onClick={() => setConfirmModal(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button onClick={confirmModal.onConfirm} style={{ ...standardBtnProps, background: confirmModal.confirmColor || "#e74c3c", color: "white" }}>{confirmModal.confirmText || "Confirm"}</button>
+              <button onClick={() => setConfirmModal(null)} style={greyBtn}>Cancel</button>
             </div>
           </div>
         </div>
@@ -1323,9 +1340,9 @@ export default function PatientDetail() {
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>
             <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Consent Required</h2>
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "20px", lineHeight: "1.5" }}>A signed Euthanasia Consent form must be completed before this procedure can be added to the invoice.</p>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={() => { setShowConsentPrompt(false); setActiveTab("consent"); window.scrollTo(0,0); }} style={{ ...btnStyle, flex: 1, background: "#3498db", color: "white" }}>Go to Form</button>
-              <button onClick={() => setShowConsentPrompt(false)} style={{ ...btnStyle, flex: 1, background: "#95a5a6", color: "white" }}>Cancel</button>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+              <button onClick={() => { setShowConsentPrompt(false); setActiveTab("consent"); window.scrollTo(0,0); }} style={blueBtn}>Go to Form</button>
+              <button onClick={() => setShowConsentPrompt(false)} style={greyBtn}>Cancel</button>
             </div>
           </div>
         </div>

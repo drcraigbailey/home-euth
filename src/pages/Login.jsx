@@ -1,13 +1,18 @@
+// Login.jsx
 import { useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 
-// 1. IMPORT THE IMAGE DIRECTLY (Adjust the path if your assets folder is somewhere else)
+// Import the image directly
 import logoImage from "../assets/logo.png";
 
 // SVG Icons
 const EyeIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7f8c8d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z"/><circle cx="12" cy="12" r="3"/></svg>);
 const EyeSlashIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7f8c8d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94C16.2306 19.243 14.1491 19.9649 12 20C5 20 1 12 1 12C2.24389 9.6818 3.9691 7.65663 6.06 6.06"/><path d="M9.88 9.88C9.30811 10.362 8.91893 11.0211 8.77583 11.7249C8.63273 12.4287 8.7423 13.159 9.0874 13.8052C9.4325 14.4514 9.99811 14.9818 10.6974 15.3134C11.3967 15.6451 12.1979 15.7628 12.9774 15.6481C13.757 15.5333 14.4796 15.1916 15.0354 14.6738C15.5913 14.156 15.955 13.4862 16.071 12.7667C16.1869 12.0471 16.0501 11.3099 15.6811 10.6685C15.3121 10.0271 14.7275 9.50917 14.015 9.19"/><path d="M1 1L23 23"/></svg>);
+
+// Strict uniform button properties copied from Admin Dashboard layout
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -42,10 +47,10 @@ export default function Login() {
         maxWidth: "400px", 
         padding: "40px 30px", 
         position: "relative",
-        overflow: "hidden" /* Ensures the watermark doesn't bleed outside the rounded corners */
+        overflow: "hidden" 
       }}>
         
-        {/* 2. THE WATERMARK LOGO USING THE IMPORTED VARIABLE */}
+        {/* Watermark Logo */}
         <img 
           src={logoImage} 
           alt="Watermark Logo" 
@@ -54,9 +59,9 @@ export default function Login() {
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: "85%", /* Fills most of the card */
-            opacity: 0.2, /* Extremely subtle watermark */
-            pointerEvents: "none", /* Prevents the image from blocking clicks on the inputs */
+            width: "85%", 
+            opacity: 0.2, 
+            pointerEvents: "none", 
             zIndex: 0
           }} 
         />
@@ -69,8 +74,13 @@ export default function Login() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={{ 
-              background: "rgba(255, 255, 255, 0.8)", /* Slightly transparent white */
-              backdropFilter: "blur(4px)" /* Softens the watermark behind the input box */
+              background: "rgba(255, 255, 255, 0.8)", 
+              backdropFilter: "blur(4px)",
+              width: "100%",
+              padding: "10px",
+              borderRadius: "8px",
+              border: "1px solid #ccc",
+              boxSizing: "border-box"
             }}
           />
         </div>
@@ -87,7 +97,12 @@ export default function Login() {
               style={{ 
                 background: "rgba(255, 255, 255, 0.8)",
                 backdropFilter: "blur(4px)",
-                paddingRight: "50px" /* Leaves room so text doesn't type under the eye icon */
+                paddingRight: "50px",
+                width: "100%",
+                padding: "10px",
+                borderRadius: "8px",
+                border: "1px solid #ccc",
+                boxSizing: "border-box"
               }}
             />
             {/* Eye Icon Toggle */}
@@ -115,7 +130,7 @@ export default function Login() {
 
         {/* Login Button */}
         <div style={{ position: "relative", zIndex: 1 }}>
-          <button onClick={handleLogin}>
+          <button onClick={handleLogin} style={{ ...blueBtn, width: "100%" }}>
             Sign In
           </button>
         </div>
@@ -130,7 +145,7 @@ export default function Login() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {alertMessage}
             </p>
-            <button onClick={() => setAlertMessage("")} style={{ width: "100%", background: "#4F8FBF", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>OK</button>
+            <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}

@@ -6,9 +6,18 @@ import { supabase } from "../supabase";
 // --- STYLING CONSTANTS ---
 const greyBox = { background: "#f8f9fb", padding: "25px", borderRadius: "20px", marginTop: "20px" };
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
-const btnRow = { display: "flex", gap: "10px", marginTop: "20px" };
-const greenBtn = { flex: 1, background: "#27ae60", color: "white", border: "none", borderRadius: "12px", padding: "12px", cursor: "pointer", fontWeight: "bold", fontSize: "16px" };
-const redBtn = { flex: 1, background: "#e74c3c", color: "white", border: "none", borderRadius: "12px", padding: "12px", cursor: "pointer", fontWeight: "bold", fontSize: "16px" };
+const btnRow = { display: "flex", gap: "10px", marginTop: "20px", justifyContent: "center" };
+
+// Strict uniform button properties copied from Admin Dashboard layout
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+
+const blueBtn   = { background: "#5b8fb9", color: "white", ...standardBtnProps };
+const redBtn    = { background: "#e74c3c", color: "white", ...standardBtnProps };
+const greenBtn  = { background: "#27ae60", color: "white", ...standardBtnProps };
+const yellowBtn = { background: "#f39c12", color: "white", ...standardBtnProps };
+const greyBtn   = { background: "#95a5a6", color: "white", ...standardBtnProps };
+
+const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 
 function isValidWeight(value) {
   if (!value) return false;
@@ -93,7 +102,8 @@ export default function ClientDetail() {
     if (!error) { setIsEditing(false); fetchClient(); }
   }
 
-  const googleMapsUrl = client?.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${client.address}, ${client.city} ${client.postcode}`)}` : null;
+  // FIXED: Corrected the template literal string syntax below
+  const googleMapsUrl = client?.address ? `https://maps.google.com/?q=${encodeURIComponent(`${client.address}, ${client.city || ""} ${client.postcode || ""}`)}` : null;
 
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
@@ -104,9 +114,9 @@ export default function ClientDetail() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <h3 style={{ margin: 0 }}>Client Information</h3>
           {!isEditing ? (
-            <button onClick={() => setIsEditing(true)} style={{ padding: "8px 20px", width: "auto" }}>Edit Details</button>
+            <button onClick={() => setIsEditing(true)} style={blueBtn}>Edit Details</button>
           ) : (
-            <button onClick={() => { setIsEditing(false); fetchClient(); }} style={{ background: "#f39c12", color: "white", padding: "8px 20px", width: "auto", border: "none", borderRadius: "8px" }}>Cancel</button>
+            <button onClick={() => { setIsEditing(false); fetchClient(); }} style={yellowBtn}>Cancel</button>
           )}
         </div>
 
@@ -131,17 +141,17 @@ export default function ClientDetail() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <div><label style={{ fontSize: "12px" }}>First Name</label><input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
-              <div><label style={{ fontSize: "12px" }}>Surname</label><input value={editSurname} onChange={(e) => setEditSurname(e.target.value)} /></div>
+              <div><label style={{ fontSize: "12px" }}>First Name</label><input value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} /></div>
+              <div><label style={{ fontSize: "12px" }}>Surname</label><input value={editSurname} onChange={(e) => setEditSurname(e.target.value)} style={inputStyle} /></div>
             </div>
-            <label style={{ fontSize: "12px" }}>Phone</label><input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
-            <label style={{ fontSize: "12px" }}>Email</label><input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
-            <label style={{ fontSize: "12px" }}>Address</label><input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
+            <label style={{ fontSize: "12px" }}>Phone</label><input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} style={inputStyle} />
+            <label style={{ fontSize: "12px" }}>Email</label><input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} style={inputStyle} />
+            <label style={{ fontSize: "12px" }}>Address</label><input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} style={inputStyle} />
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <div><label style={{ fontSize: "12px" }}>City</label><input value={editCity} onChange={(e) => setEditCity(e.target.value)} /></div>
-              <div><label style={{ fontSize: "12px" }}>Postcode</label><input value={editPostcode} onChange={(e) => setEditPostcode(e.target.value)} /></div>
+              <div><label style={{ fontSize: "12px" }}>City</label><input value={editCity} onChange={(e) => setEditCity(e.target.value)} style={inputStyle} /></div>
+              <div><label style={{ fontSize: "12px" }}>Postcode</label><input value={editPostcode} onChange={(e) => setEditPostcode(e.target.value)} style={inputStyle} /></div>
             </div>
-            <button onClick={updateClient} style={{ background: "#27ae60", color: "white", padding: "12px", border: "none", borderRadius: "8px", fontWeight: "600" }}>Save Changes</button>
+            <button onClick={updateClient} style={{ ...greenBtn, width: "100%", padding: "12px", fontSize: "14px" }}>Save Changes</button>
           </div>
         )}
       </div>
@@ -149,15 +159,15 @@ export default function ClientDetail() {
       {/* --- ADD PATIENT FORM --- */}
       <div className="card" style={{ marginTop: "20px" }}>
         <h3>Add Patient</h3>
-        <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <input placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} />
-        <input type="number" step="0.1" placeholder="Weight (kg)" value={weight} onChange={(e) => setWeight(e.target.value)} />
-        <button onClick={addPatient} style={{ marginTop: "10px" }}>Add Patient</button>
+        <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+        <input placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} style={inputStyle} />
+        <input type="number" step="0.1" placeholder="Weight (kg)" value={weight} onChange={(e) => setWeight(e.target.value)} style={inputStyle} />
+        <button onClick={addPatient} style={blueBtn}>Add Patient</button>
       </div>
 
       {/* --- PATIENT LIST --- */}
       <div style={greyBox}>
-        <h3 style={{ marginBottom: "20px" }}>Patient List</h3>
+        <h3 style={{ marginBottom: "20px", marginTop: 0 }}>Patient List</h3>
         {patients.map((p) => (
           <div key={p.id} style={whiteShadowBox}>
             <div onClick={() => navigate(`/patient/${p.id}`)} style={{ cursor: "pointer" }}>
@@ -185,7 +195,7 @@ export default function ClientDetail() {
             </div>
           </div>
         ))}
-        {patients.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No patients found.</p>}
+        {patients.length === 0 && <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>No patients found.</p>}
       </div>
 
       {/* POP-UP MODAL FOR PATIENT DELETION */}
@@ -196,9 +206,9 @@ export default function ClientDetail() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               Are you sure you want to permanently delete patient <strong>{patientToDelete.name}</strong>? This action will clear their files permanently.
             </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmDeletePatient} style={{ flex: 1, background: "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Yes, Delete</button>
-              <button onClick={() => setPatientToDelete(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button onClick={confirmDeletePatient} style={redBtn}>Yes, Delete</button>
+              <button onClick={() => setPatientToDelete(null)} style={greyBtn}>Cancel</button>
             </div>
           </div>
         </div>

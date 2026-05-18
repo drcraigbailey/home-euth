@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 
-// Styling constants
+// --- STYLING CONSTANTS ---
 const whiteShadowBox = {
   background: "white",
   padding: "20px",
@@ -20,16 +20,15 @@ const btnRow = {
   marginTop: "15px" 
 };
 
-const redBtn = { 
-  flex: 1, 
-  background: "#e74c3c", 
-  color: "white", 
-  border: "none", 
-  borderRadius: "12px", 
-  padding: "10px", 
-  cursor: "pointer",
-  fontWeight: "600"
-};
+// Strict uniform button properties copied from Admin Dashboard layout
+const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+
+const primaryBlueBtn = { background: "#5499c7", color: "white", ...standardBtnProps };
+const redBtn         = { background: "#e74c3c", color: "white", ...standardBtnProps };
+const greenBtn       = { background: "#27ae60", color: "white", ...standardBtnProps };
+const yellowBtn      = { background: "#f39c12", color: "white", ...standardBtnProps };
+const greyBtn        = { background: "#95a5a6", color: "white", ...standardBtnProps };
+const blueBtn        = { background: "#3498db", color: "white", ...standardBtnProps };
 
 export default function Clients() {
   const navigate = useNavigate();
@@ -95,7 +94,6 @@ export default function Clients() {
 
     const isInfoMissing = !phone || !email || !address || !city || !postcode;
     
-    // Intercept with beautiful custom modal if info is missing
     if (isInfoMissing) {
       setConfirmModal({
         title: "Missing Information",
@@ -110,7 +108,6 @@ export default function Clients() {
       return;
     }
     
-    // If everything is filled out, proceed directly
     executeAddClient();
   }
 
@@ -171,7 +168,7 @@ export default function Clients() {
             <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
             <input placeholder="Postcode" value={postcode} onChange={(e) => setPostcode(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
           </div>
-          <button onClick={addClient} style={{ background: "#5499c7", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "600", cursor: "pointer" }}>Add Client</button>
+          <button onClick={addClient} style={primaryBlueBtn}>Add Client</button>
         </div>
       </div>
 
@@ -218,7 +215,8 @@ export default function Clients() {
       {newClient && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setNewClient(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", position: "relative", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setNewClient(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#eee", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold" }}>X</button>
+            {/* UPDATED CLOSE BUTTON WITH THEME BLUE BACKGROUND AND BOLD WHITE TEXT */}
+            <button onClick={() => setNewClient(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
             
             <h2 style={{ marginTop: 0, color: "#27ae60", paddingRight: "30px" }}>Client Created!</h2>
             <p style={{ color: "#666", marginBottom: "20px", fontSize: "15px" }}>Would you like to register a pet for <strong>{newClient.fullName}</strong> now?</p>
@@ -228,9 +226,9 @@ export default function Clients() {
               <input placeholder="Species" value={petSpecies} onChange={(e) => setPetSpecies(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
               <input placeholder="Weight (kg)" type="number" step="0.1" value={petWeight} onChange={(e) => setPetWeight(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
               
-              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                <button onClick={addPet} style={{ flex: 1, background: "#27ae60", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Save Pet</button>
-                <button onClick={() => setNewClient(null)} style={{ flex: 1, background: "#f39c12", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Skip for now</button>
+              <div style={{ display: "flex", gap: "10px", marginTop: "10px", justifyContent: "center" }}>
+                <button onClick={addPet} style={greenBtn}>Save Pet</button>
+                <button onClick={() => setNewClient(null)} style={yellowBtn}>Skip for now</button>
               </div>
             </div>
           </div>
@@ -245,7 +243,7 @@ export default function Clients() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {alertMessage}
             </p>
-            <button onClick={() => setAlertMessage("")} style={{ width: "100%", background: "#3498db", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>OK</button>
+            <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}
@@ -258,9 +256,9 @@ export default function Clients() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {confirmModal.message}
             </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={confirmModal.onConfirm} style={{ flex: 1, background: confirmModal.confirmColor || "#e74c3c", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>{confirmModal.confirmText || "Confirm"}</button>
-              <button onClick={() => setConfirmModal(null)} style={{ flex: 1, background: "#95a5a6", color: "white", padding: "12px", borderRadius: "8px", border: "none", fontWeight: "bold", cursor: "pointer" }}>Cancel</button>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button onClick={confirmModal.onConfirm} style={{ ...standardBtnProps, background: confirmModal.confirmColor || "#e74c3c", color: "white" }}>{confirmModal.confirmText || "Confirm"}</button>
+              <button onClick={() => setConfirmModal(null)} style={greyBtn}>Cancel</button>
             </div>
           </div>
         </div>
