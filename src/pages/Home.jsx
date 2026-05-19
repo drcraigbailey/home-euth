@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import Loader from "../Loader";
 import syringeIcon from "../assets/syringe.png";
 import stethoscopeIcon from "../assets/stethoscope.png";
+import fileIcon from "../assets/file.png";
 
 // --- STYLING CONSTANTS ---
 const greyBox = { background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" };
@@ -348,8 +349,9 @@ export default function Home() {
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px", flexDirection: "column" }}>
               {viewEntry.client_id && (
-                <button onClick={() => navigate(`/client/${viewEntry.client_id}`)} style={{ ...darkBtn, width: "100%", padding: "12px" }}>
-                  📂 Go to Client File
+                <button onClick={() => navigate(`/client/${viewEntry.client_id}`)} style={{ ...darkBtn, width: "100%", padding: "12px", fontSize: 0 }}>
+                  <img src={fileIcon} alt="" style={{ width: "22px", height: "22px", marginRight: "8px", objectFit: "contain" }} />
+                  <span style={{ fontSize: "13px" }}>Go to Client File</span>
                 </button>
               )}
               {isAdmin && (
