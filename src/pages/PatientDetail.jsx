@@ -242,10 +242,13 @@ export default function PatientDetail() {
     }
   }
 
-  async function viewFile(fileName) {
+  async function viewFile(fileObj) {
+    const fileName = typeof fileObj === 'string' ? fileObj : fileObj.name;
     const { data } = await supabase.storage.from("patient_documents").getPublicUrl(`${id}/${fileName}`);
+    
     if (data?.publicUrl) {
-      const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i);
+      const mimeType = fileObj.metadata?.mimetype || "";
+      const isImage = mimeType.startsWith("image/") || fileName.match(/\.(jpeg|jpg|gif|png|webp|heic|heif)$/i);
       
       if (isImage) {
         setViewingImage(data.publicUrl);
@@ -1446,7 +1449,7 @@ export default function PatientDetail() {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => viewFile(file.name)} style={blueBtn}>View</button>
+                    <button onClick={() => viewFile(file)} style={blueBtn}>View</button>
                     {isAdmin && (
                       <button onClick={() => deleteFile(file.name)} style={redBtn}>Delete</button>
                     )}
@@ -1560,8 +1563,10 @@ export default function PatientDetail() {
               src={viewingImage} 
               alt="Patient Document" 
               style={{ 
-                maxWidth: "100%",
-                maxHeight: "90vh",
+                maxWidth: "90vw",
+                maxHeight: "85vh",
+                width: "auto",
+                height: "auto",
                 objectFit: "contain",
                 borderRadius: "8px",
                 boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
