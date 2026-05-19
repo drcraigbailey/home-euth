@@ -151,7 +151,15 @@ export default function ClientDetail() {
     }
     if (!patientToDelete) return;
 
+    // --- CASCADE CLEANUP: Prevent Orphaned Records ---
+    await supabase.from("sedation_records").delete().eq("patient_id", patientToDelete.id);
+    await supabase.from("patient_procedures").delete().eq("patient_id", patientToDelete.id);
+    await supabase.from("consent_records").delete().eq("patient_id", patientToDelete.id);
+    await supabase.from("diary_entries").delete().eq("patient_id", patientToDelete.id);
+
+    // Delete Patient File
     const { error } = await supabase.from("patients").delete().eq("id", patientToDelete.id);
+    
     if (!error) {
       setPatientToDelete(null);
       fetchPatients();
@@ -314,7 +322,7 @@ export default function ClientDetail() {
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
             <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
-              Are you sure you want to permanently delete patient <strong>{patientToDelete.name}</strong>? This action will clear their files permanently.
+              Are you sure you want to permanently delete patient <strong>{patientToDelete.name}</strong>? All records, invoices, and drug logs linked to this profile will be cleared.
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
               <button onClick={confirmDeletePatient} style={{ ...redBtn, flex: 1 }}>Yes, Delete</button>

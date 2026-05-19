@@ -24,19 +24,20 @@ const tabBtnStyle = { padding: "12px 20px", borderRadius: "8px", border: "none",
 const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
 
 // Overview-matched color variations for modal action buttons
-const purpleBtn = { ...standardBtnProps, background: "#8e44ad", color: "white" }; // Matches Clients Card
-const blueBtn   = { ...standardBtnProps, background: "#3498db", color: "white" }; // Matches Patients Card
-const greyBtn   = { ...standardBtnProps, background: "#95a5a6", color: "white" }; // Matches Deceased Card
-const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }; // Matches Sedations Card
-const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; // Matches Consents Card
+const purpleBtn = { ...standardBtnProps, background: "#8e44ad", color: "white" }; 
+const blueBtn   = { ...standardBtnProps, background: "#5b8fb9", color: "white" }; 
+const greyBtn   = { ...standardBtnProps, background: "#95a5a6", color: "white" }; 
+const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }; 
+const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; 
 const redBtn    = { ...standardBtnProps, background: "#e74c3c", color: "white" };
-const invoiceViewBtn = { ...blueBtn, background: "#5b8fb9", width: "92px", minWidth: "92px", maxWidth: "92px", height: "34px", minHeight: "34px", padding: "7px 9px", fontSize: "12px", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto", whiteSpace: "nowrap" };
+const invoiceViewBtn = { ...blueBtn, width: "92px", minWidth: "92px", maxWidth: "92px", height: "34px", minHeight: "34px", padding: "7px 9px", fontSize: "12px", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto", whiteSpace: "nowrap" };
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview"); 
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   const [totalSales, setTotalSales] = useState(0);
   const [outstandingTotal, setOutstandingTotal] = useState(0);
@@ -53,11 +54,27 @@ export default function AdminDashboard() {
   const [statSearch, setStatSearch] = useState("");
 
   const [alertMessage, setAlertMessage] = useState("");
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const [productToDelete, setProductToDelete] = useState(null);
   const [stockToDelete, setStockToDelete] = useState(null);
   const [stockToArchive, setStockToArchive] = useState(null);
   const [protocolToDelete, setProtocolToDelete] = useState(null);
+
+  // Staff Management State
+  const [profiles, setProfiles] = useState([]);
+  const [showAddStaffInfo, setShowAddStaffInfo] = useState(false);
+
+  // Drug Log Editing & Archiving State
+  const [editingDrugLogId, setEditingDrugLogId] = useState(null);
+  const [editDrugLogResults, setEditDrugLogResults] = useState([]);
+  const [logSearch, setLogSearch] = useState("");
+  const [showArchivedLogs, setShowArchivedLogs] = useState(false);
+  const [logToArchive, setLogToArchive] = useState(null);
+  
+  // Custom Unarchive Modal State
+  const [unarchiveModalLog, setUnarchiveModalLog] = useState(null);
+  const [unarchivePassword, setUnarchivePassword] = useState("");
 
   const [productsList, setProductsList] = useState([]);
   const [isEditingProd, setIsEditingProd] = useState(false);
@@ -99,15 +116,21 @@ export default function AdminDashboard() {
   async function checkAdminAndFetchData() {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
+      setCurrentUserId(session.user.id);
       const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", session.user.id).single();
       if (profile?.is_admin) {
         setIsAdmin(true);
         await Promise.all([
-          fetchReports(), fetchProducts(), fetchStock(), fetchProtocols(), fetchTemplates()
+          fetchReports(), fetchProducts(), fetchStock(), fetchProtocols(), fetchTemplates(), fetchProfiles()
         ]);
       } else navigate("/"); 
     }
     setLoading(false);
+  }
+
+  async function fetchProfiles() {
+    const { data } = await supabase.from("profiles").select("*").order("email");
+    setProfiles(data || []);
   }
 
   async function fetchReports() {
@@ -143,7 +166,10 @@ export default function AdminDashboard() {
     const { data: patientsData } = await supabase.from("patients").select("*, clients(*)").order("name");
     if (patientsData) setAllPatientsList(patientsData);
 
-    const { data: sedationData } = await supabase.from("sedation_records").select("*, patients(name)");
+    const { data: sedationData } = await supabase
+      .from("sedation_records")
+      .select("*, patients(name, species, clients(name, surname))")
+      .order("created_at", { ascending: false });
     if (sedationData) setAllSedationsList(sedationData);
 
     const { data: consentData } = await supabase.from("consent_records").select("*, patients(name)");
@@ -154,6 +180,12 @@ export default function AdminDashboard() {
   async function fetchStock() { const { data } = await supabase.from("stock").select("*"); setStockList(data || []); }
   async function fetchProtocols() { const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)").order("name"); setProtocolsList(data || []); }
   async function fetchTemplates() { const { data } = await supabase.from("email_templates").select("*").order("name", { ascending: true }); setTemplatesList(data || []); }
+
+  function resolveBatchName(batchId) {
+    if (!batchId) return "N/A";
+    const s = stockList.find(x => String(x.id) === String(batchId));
+    return s ? s.batch : batchId;
+  }
 
   function drawReportHeader(doc, subtitle) {
     doc.setFontSize(22);
@@ -172,6 +204,66 @@ export default function AdminDashboard() {
     doc.setTextColor(0, 0, 0);
 
     return 45; 
+  }
+
+  async function generateCDReport() {
+    try {
+      const doc = new jsPDF('landscape'); 
+      let yPos = drawReportHeader(doc, "VMD / RCVS Controlled Drugs Register");
+      
+      const cols = ["Date", "Client", "Patient", "Species", "Weight", "Drug Administrations"];
+      const rows = [];
+      
+      allSedationsList.filter(r => !r.is_archived).forEach(record => {
+        const clientName = record.patients?.clients ? `${record.patients.clients.name} ${record.patients.clients.surname}` : "Deleted Client Record";
+        const patientName = record.patients?.name || "Deleted Patient Record";
+        const species = record.patients?.species || "N/A";
+        const date = new Date(record.created_at).toLocaleDateString('en-GB');
+        
+        const drugs = (record.results || []).map(r => {
+          const bName = r.batchName ? r.batchName : resolveBatchName(r.batchId);
+          return `${r.label || r.drug}: ${r.ml}ml ${r.waste > 0 ? `(+${r.waste}ml waste)` : ''} [Batch: ${bName}]`;
+        }).join('\n');
+
+        rows.push([
+          date,
+          clientName,
+          patientName,
+          species,
+          `${record.weight} kg`,
+          drugs
+        ]);
+      });
+      
+      autoTable(doc, { 
+        head: [cols], 
+        body: rows, 
+        startY: yPos,
+        styles: { fontSize: 9, valign: 'middle' },
+        bodyStyles: { minCellHeight: 15 },
+        columnStyles: { 5: { cellWidth: 80 } }
+      });
+      
+      const fileName = `VMD_Controlled_Drugs_Register_${new Date().toISOString().split('T')[0]}.pdf`;
+
+      if (Capacitor.isNativePlatform()) {
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: fileName,
+          url: savedFile.uri,
+        });
+      } else {
+        doc.save(fileName);
+      }
+    } catch (error) {
+      console.error(error);
+      setAlertMessage("Error generating PDF. Check console for details.");
+    }
   }
 
   async function generateStockReport() {
@@ -351,7 +443,107 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- CRUD ACTIONS ---
+  // --- DRUG LOG ACTIONS ---
+
+  function startEditDrugLog(log) {
+    setEditingDrugLogId(log.id);
+    setEditDrugLogResults((log.results || []).map(r => ({ ...r, waste: r.waste !== undefined ? r.waste : 0.05 })));
+  }
+
+  async function saveEditDrugLog(logId) {
+    const originalLog = allSedationsList.find(s => s.id === logId);
+    if (originalLog) {
+      for (let i = 0; i < editDrugLogResults.length; i++) {
+        const oldR = originalLog.results[i]; 
+        const newR = editDrugLogResults[i];
+        if (oldR && oldR.batchId) {
+          const oldWaste = oldR.waste !== undefined ? parseFloat(oldR.waste) : 0;
+          const newWaste = newR.waste !== "" ? parseFloat(newR.waste) : 0;
+          const diff = ((parseFloat(oldR.ml) || 0) + oldWaste) - ((parseFloat(newR.ml) || 0) + newWaste); 
+          if (diff !== 0) {
+            const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", oldR.batchId).single();
+            if (currentStock) await supabase.from("stock").update({ total_ml: currentStock.total_ml + diff }).eq("id", oldR.batchId);
+          }
+        }
+      }
+    }
+    const finalResults = editDrugLogResults.map(r => ({ ...r, ml: parseFloat(r.ml) || 0, waste: r.waste !== "" ? parseFloat(r.waste) : 0 }));
+    await supabase.from("sedation_records").update({ results: finalResults }).eq("id", logId);
+    setEditingDrugLogId(null); 
+    fetchReports(); 
+    fetchStock();
+  }
+
+  async function confirmArchiveLog() {
+    if (!logToArchive) return;
+    const { error } = await supabase.from("sedation_records").update({ is_archived: true }).eq("id", logToArchive.id);
+    if (error) {
+      setAlertMessage("Failed to archive: " + error.message);
+    } else {
+      setLogToArchive(null);
+      fetchReports();
+    }
+  }
+
+  function startUnarchive(log) {
+    setUnarchiveModalLog(log);
+    setUnarchivePassword("");
+  }
+
+  async function confirmUnarchive() {
+    if (unarchivePassword === "admin123") { // <----- YOU CAN CHANGE YOUR PASSWORD HERE
+      const { error } = await supabase.from("sedation_records").update({ is_archived: false }).eq("id", unarchiveModalLog.id);
+      if (error) {
+        setAlertMessage("Failed to unarchive: " + error.message);
+      } else {
+        fetchReports();
+        setAlertMessage("Record unarchived successfully.");
+      }
+      setUnarchiveModalLog(null);
+    } else {
+      setAlertMessage("Incorrect password. Please try again.");
+      setUnarchivePassword(""); 
+    }
+  }
+
+  function deleteDrugLogRecord(h) {
+    setConfirmModal({
+      title: "Delete Administration Log",
+      message: "Are you sure you want to completely delete this sedation record? The recorded volumes and waste will be refunded back to the inventory stock automatically.",
+      confirmText: "Yes, Delete & Refund",
+      confirmColor: "#e74c3c",
+      onConfirm: async () => {
+        if (h.results) {
+          for (const r of h.results) {
+            const totalToReturn = (parseFloat(r.ml) || 0) + (r.waste !== undefined ? parseFloat(r.waste) : 0);
+            if (r.batchId && totalToReturn > 0) {
+              const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", r.batchId).single();
+              if (currentStock) await supabase.from("stock").update({ total_ml: currentStock.total_ml + totalToReturn }).eq("id", r.batchId);
+            }
+          }
+        }
+        await supabase.from("sedation_records").delete().eq("id", h.id);
+        fetchReports(); 
+        fetchStock();
+        setConfirmModal(null);
+      }
+    });
+  }
+
+  // --- STAFF MANAGEMENT ACTIONS ---
+  async function toggleAdminRole(profileId, currentStatus) {
+    if (profileId === currentUserId) {
+      return setAlertMessage("Safety Prevention: You cannot remove your own admin access.");
+    }
+    const { error } = await supabase.from("profiles").update({ is_admin: !currentStatus }).eq("id", profileId);
+    if (error) {
+      setAlertMessage("Failed to update role: " + error.message);
+    } else {
+      fetchProfiles();
+    }
+  }
+
+  // --- OTHER CRUD ACTIONS ---
 
   async function saveProduct() {
     if (!prodName || !prodPrice) return setAlertMessage("Name and Price are required.");
@@ -376,13 +568,17 @@ export default function AdminDashboard() {
     setStockDrugName(""); setStockBatch(""); setStockQty(""); setStockExp(""); fetchStock();
   }
   function startEditStock(s) { setEditingStockId(s.id); setEditStockData({ ...s }); }
-  async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, background: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
+  async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, batch: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
   
   async function confirmArchiveStock() {
     if (!stockToArchive) return;
-    await supabase.from("stock").update({ is_archived: true }).eq("id", stockToArchive.id);
-    setStockToArchive(null);
-    fetchStock();
+    const { error } = await supabase.from("stock").update({ is_archived: true }).eq("id", stockToArchive.id);
+    if (error) {
+      setAlertMessage("Failed to archive stock: " + error.message);
+    } else {
+      setStockToArchive(null);
+      fetchStock();
+    }
   }
 
   async function confirmDeleteStock() {
@@ -497,10 +693,10 @@ export default function AdminDashboard() {
          { statModalMode === "sedations" && (
            <>
              <div>
-               <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Unknown"}</strong>
+               <strong style={{ color: "#333", fontSize: "15px" }}>Pet: {item.patients?.name || "Deleted/Orphaned"}</strong>
                <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>{new Date(item.created_at).toLocaleDateString('en-GB')}</div>
              </div>
-             <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "dosing" } })} style={greenBtn}>View Record</button>
+             {item.patient_id && <button onClick={() => navigate(`/patient/${item.patient_id}`, { state: { activeTab: "dosing" } })} style={greenBtn}>View File</button>}
            </>
          )}
          { statModalMode === "consents" && (
@@ -516,6 +712,20 @@ export default function AdminDashboard() {
     ));
   }
 
+  // Generate Filtered Logs for VMD Tab
+  const filteredDrugLogs = allSedationsList.filter(h => {
+    const isArchivedStatusMatch = showArchivedLogs ? h.is_archived : !h.is_archived;
+    if (!isArchivedStatusMatch) return false;
+
+    if (!logSearch.trim()) return true;
+    const s = logSearch.toLowerCase();
+    const cName = h.patients?.clients ? `${h.patients.clients.name} ${h.patients.clients.surname}`.toLowerCase() : "";
+    const pName = (h.patients?.name || "").toLowerCase();
+    const drugs = (h.results || []).map(r => (r.label || r.drug || "")).join(" ").toLowerCase();
+    
+    return cName.includes(s) || pName.includes(s) || drugs.includes(s);
+  });
+
   if (loading) {
     return (
       <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
@@ -529,7 +739,9 @@ export default function AdminDashboard() {
 
   const TABS = [
     { id: "overview", label: "Overview" },
+    { id: "staff", label: "Staff Access" }, 
     { id: "reports", label: "Reports" }, 
+    { id: "drug_logs", label: "Drug Logs (VMD)" },
     { id: "products", label: "Products" },
     { id: "stock", label: "Stock" },
     { id: "protocols", label: "Protocols" },
@@ -656,16 +868,58 @@ export default function AdminDashboard() {
         </>
       )}
 
+      {/* ================= TAB 1.2: STAFF MANAGEMENT ================= */}
+      {activeTab === "staff" && (
+        <>
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div>
+              <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Staff Management</h3>
+              <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Manage team access and administrator privileges.</p>
+            </div>
+            <button onClick={() => setShowAddStaffInfo(true)} style={{ ...greenBtn }}>+ Add New Staff</button>
+          </div>
+
+          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
+            {profiles.map(p => (
+              <div key={p.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <div>
+                  <strong style={{ fontSize: "16px", color: "#333", display: "block", marginBottom: "4px" }}>{p.email || "Unknown User"}</strong>
+                  <span style={{ fontSize: "13px", background: p.is_admin ? "#e8daef" : "#f1f2f6", color: p.is_admin ? "#8e44ad" : "#7f8c8d", padding: "4px 8px", borderRadius: "8px", fontWeight: "bold" }}>
+                    {p.is_admin ? "Administrator" : "Standard User"}
+                  </span>
+                </div>
+                <div>
+                  <button 
+                    onClick={() => toggleAdminRole(p.id, p.is_admin)} 
+                    style={p.is_admin ? redBtn : blueBtn}
+                  >
+                    {p.is_admin ? "Remove Admin" : "Make Admin"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* ================= TAB 1.5: REPORTS ================= */}
       {activeTab === "reports" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
+              <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>VMD / RCVS Controlled Drugs Log</h3>
+              <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a compliant PDF with drug amounts, batch numbers, and client details.</p>
+            </div>
+            <button onClick={generateCDReport} style={{ ...blueBtn, background: "#8e44ad" }}>Generate PDF</button>
+          </div>
+          
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
               <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Inventory Stock Report</h3>
               <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a PDF of all active and archived stock.</p>
             </div>
-            <button onClick={generateStockReport} style={{ ...blueBtn, background: "#5b8fb9" }}>Generate PDF</button>
+            <button onClick={generateStockReport} style={{ ...blueBtn }}>Generate PDF</button>
           </div>
 
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -701,7 +955,103 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ================= TAB 2: PRODUCTS ================= */}
+      {/* ================= TAB 2: DRUG LOGS (VMD) ================= */}
+      {activeTab === "drug_logs" && (
+        <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+            <h3 style={{ marginTop: 0, marginBottom: 0 }}>Controlled Drugs Log (VMD)</h3>
+            <button onClick={generateCDReport} style={{ ...blueBtn, background: "#8e44ad" }}>Download VMD Report</button>
+          </div>
+          
+          <p style={{ color: "#7f8c8d", fontSize: "14px", marginBottom: "20px" }}>
+            Search and manage drug administration logs. You can edit amounts, safely archive old logs, or completely delete records (which refunds the stock back to the inventory).
+          </p>
+
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+            <input 
+              placeholder="Search logs by client, patient, or drug..." 
+              value={logSearch} 
+              onChange={(e) => setLogSearch(e.target.value)} 
+              style={{ ...inputStyle, marginBottom: 0, flex: 1 }} 
+            />
+            <button 
+              onClick={() => setShowArchivedLogs(!showArchivedLogs)} 
+              style={{ ...greyBtn, background: showArchivedLogs ? "#5b8fb9" : "#95a5a6", whiteSpace: "nowrap" }}
+            >
+              {showArchivedLogs ? "Show Active Logs" : "View Archived Logs"}
+            </button>
+          </div>
+          
+          {filteredDrugLogs.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No records found.</p>}
+          
+          {filteredDrugLogs.map(h => {
+            const clientName = h.patients?.clients ? `${h.patients.clients.name} ${h.patients.clients.surname}` : "Orphaned/Deleted Client";
+            const patientName = h.patients?.name || "Orphaned/Deleted Patient";
+            
+            return (
+              <div key={h.id} style={{ ...whiteShadowBox, marginBottom: "15px", borderLeft: h.patients ? "1px solid #eee" : "4px solid #e74c3c" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "10px" }}>
+                  <span style={{ fontSize: "14px", color: "#2c3e50", fontWeight: "bold" }}>
+                    {new Date(h.created_at).toLocaleString('en-GB')}
+                  </span>
+                  <span style={{ fontSize: "14px", color: h.patients ? "#3498db" : "#e74c3c", fontWeight: "bold" }}>
+                    {clientName} — Pet: {patientName} ({h.weight} kg)
+                  </span>
+                </div>
+                
+                {editingDrugLogId === h.id ? (
+                  <>
+                    {editDrugLogResults.map((r, i) => (
+                      <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "12px", background: "#fdfdfd", padding: "8px", borderRadius: "8px", border: "1px dashed #bdc3c7" }}>
+                        <strong style={{ color: "#333", fontSize: "14px" }}>{r.label || r.drug}</strong>
+                        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4px" }}>
+                            <span style={{ fontSize: "12px", color: "#64748b", minWidth: "35px" }}>Dose:</span>
+                            <input type="number" step="0.01" style={{ width: "100%", minWidth: "50px", padding: "6px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }} value={r.ml} onChange={e => { const u = [...editDrugLogResults]; u[i].ml = e.target.value; setEditDrugLogResults(u); }} />
+                            <span style={{ fontSize: "12px", color: "#64748b" }}>ml</span>
+                          </div>
+                          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4px" }}>
+                            <span style={{ fontSize: "12px", color: "#64748b", minWidth: "38px" }}>Waste:</span>
+                            <input type="number" step="0.01" style={{ width: "100%", minWidth: "50px", padding: "6px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }} value={r.waste} onChange={e => { const u = [...editDrugLogResults]; u[i].waste = e.target.value; setEditDrugLogResults(u); }} />
+                            <span style={{ fontSize: "12px", color: "#64748b" }}>ml</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                      <button style={{ ...greenBtn, flex: 1 }} onClick={() => saveEditDrugLog(h.id)}>Save Changes</button>
+                      <button style={{ ...yellowBtn, flex: 1 }} onClick={() => setEditingDrugLogId(null)}>Cancel</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {h.results?.map((r, idx) => (
+                      <div key={idx} style={{ fontSize: "14px", color: "#333", marginBottom: "5px" }}>
+                        <strong>{r.label || r.drug}</strong>: {r.ml} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {r.waste} ml waste)</span> : ""} 
+                        <span style={{color: "#95a5a6", fontSize: "12px", marginLeft: "10px"}}>[Batch: {r.batchName ? r.batchName : resolveBatchName(r.batchId)}]</span>
+                      </div>
+                    ))}
+
+                    {showArchivedLogs ? (
+                      <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                        <button onClick={() => startUnarchive(h)} style={{ ...greenBtn, flex: 1 }}>🔓 Unarchive (Requires Password)</button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                        <button onClick={() => startEditDrugLog(h)} style={{ ...blueBtn, flex: 1 }}>Edit</button>
+                        <button onClick={() => setLogToArchive(h)} style={{ ...yellowBtn, flex: 1 }}>Archive</button>
+                        <button onClick={() => deleteDrugLogRecord(h)} style={{ ...redBtn, flex: 1 }}>Delete</button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ================= TAB 3: PRODUCTS ================= */}
       {activeTab === "products" && (
         <>
           <div className="card" style={{ marginBottom: "20px", border: isEditingProd ? "2px solid #f39c12" : "none" }}>
@@ -727,7 +1077,7 @@ export default function AdminDashboard() {
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: "20px", fontWeight: "bold", color: "#27ae60" }}>£{Number(p.price).toFixed(2)}</div>
                   <div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-                    <button onClick={() => startEditProd(p)} style={{ ...blueBtn, background: "#5b8fb9" }}>Edit</button>
+                    <button onClick={() => startEditProd(p)} style={{ ...blueBtn }}>Edit</button>
                     <button onClick={() => setProductToDelete(p)} style={redBtn}>Delete</button>
                   </div>
                 </div>
@@ -737,7 +1087,7 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= TAB 3: STOCK ================= */}
+      {/* ================= TAB 4: STOCK ================= */}
       {activeTab === "stock" && (
         <>
           <div className="card">
@@ -748,7 +1098,7 @@ export default function AdminDashboard() {
               <input type="number" placeholder="Total ml" value={stockQty} onChange={e => setStockQty(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
               <input type="date" value={stockExp} onChange={e => setStockExp(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
             </div>
-            <button onClick={addStock} style={{ ...blueBtn, background: "#5b8fb9" }}>Add Stock</button>
+            <button onClick={addStock} style={{ ...blueBtn }}>Add Stock</button>
           </div>
           
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
@@ -764,7 +1114,7 @@ export default function AdminDashboard() {
                       <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                     </div>
                     <div style={btnRow}>
-                      <button style={{...blueBtn, flex: 1, background: "#5b8fb9"}} onClick={() => saveEditStock(s.id)}>Save</button>
+                      <button style={{...blueBtn, flex: 1}} onClick={() => saveEditStock(s.id)}>Save</button>
                       <button style={{...redBtn, flex: 1}} onClick={() => setEditingStockId(null)}>Cancel</button>
                     </div>
                   </>
@@ -776,7 +1126,7 @@ export default function AdminDashboard() {
                       {s.expiry_date && `Expires: ${new Date(s.expiry_date).toLocaleDateString('en-GB')}`}
                     </div>
                     <div style={{...btnRow, marginTop: "15px"}}>
-                      <button style={{ ...blueBtn, background: "#5b8fb9" }} onClick={() => startEditStock(s)}>Edit</button>
+                      <button style={{ ...blueBtn }} onClick={() => startEditStock(s)}>Edit</button>
                       <button style={yellowBtn} onClick={() => setStockToArchive(s)}>Archive</button>
                       <button style={redBtn} onClick={() => setStockToDelete(s)}>Delete</button>
                     </div>
@@ -789,7 +1139,7 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= TAB 4: PROTOCOLS ================= */}
+      {/* ================= TAB 5: PROTOCOLS ================= */}
       {activeTab === "protocols" && (
         <>
           <div className="card" style={{ border: editingProtoId ? "2px solid #f39c12" : "none" }}>
@@ -806,7 +1156,7 @@ export default function AdminDashboard() {
                   <input placeholder="mg/ml" value={protoMgMl} onChange={e => setProtoMgMl(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                 </div>
               </div>
-              <button style={{ ...blueBtn, background: "#5b8fb9", marginTop: "12px" }} onClick={addProtoDrug}>+ Add Drug</button>
+              <button style={{ ...blueBtn, marginTop: "12px" }} onClick={addProtoDrug}>+ Add Drug</button>
             </div>
 
             {protoDrugs.map((d, i) => (
@@ -840,7 +1190,7 @@ export default function AdminDashboard() {
                 </div>
 
                 <div style={btnRow}>
-                  <button style={{ ...blueBtn, background: "#5b8fb9" }} onClick={() => startEditProtocol(p)}>Edit</button>
+                  <button style={{ ...blueBtn }} onClick={() => startEditProtocol(p)}>Edit</button>
                   <button style={redBtn} onClick={() => setProtocolToDelete(p)}>Delete</button>
                 </div>
               </div>
@@ -850,7 +1200,7 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= TAB 5: EMAIL TEMPLATES ================= */}
+      {/* ================= TAB 6: EMAIL TEMPLATES ================= */}
       {activeTab === "templates" && (
         <>
           <div className="card" style={{ marginBottom: "20px", border: isEditingTemplate ? "2px solid #f39c12" : "none" }}>
@@ -879,7 +1229,7 @@ export default function AdminDashboard() {
                   <div style={{ color: "#7f8c8d", fontSize: "13px", whiteSpace: "pre-wrap", background: "#f0f2f5", padding: "10px", borderRadius: "8px" }}>{t.body}</div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: "none" }}>
-                  <button onClick={() => startEditTemplate(t)} style={{ ...blueBtn, background: "#5b8fb9" }}>Edit</button>
+                  <button onClick={() => startEditTemplate(t)} style={{ ...blueBtn }}>Edit</button>
                   <button onClick={() => setTemplateToDelete(t)} style={redBtn}>Delete</button>
                 </div>
               </div>
@@ -900,6 +1250,25 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ================= STAFF INFO MODAL ================= */}
+      {showAddStaffInfo && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setShowAddStaffInfo(false)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "450px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#3498db", marginTop: 0 }}>Add New Staff</h2>
+            <p style={{ color: "#2c3e50", fontSize: "15px", marginBottom: "15px", lineHeight: "1.5", textAlign: "left" }}>
+              For security reasons, new accounts cannot be created directly inside the app while logged in as an administrator.
+            </p>
+            <ol style={{ textAlign: "left", color: "#444", fontSize: "14px", paddingLeft: "20px", marginBottom: "25px", lineHeight: "1.6" }}>
+              <li>Go to your <strong>Supabase Dashboard</strong>.</li>
+              <li>Navigate to <strong>Authentication &gt; Users</strong>.</li>
+              <li>Click <strong>Add User &gt; Create New User</strong> and enter their email and a temporary password.</li>
+              <li>Once they log into the app for the first time, their profile will appear in this list, and you can grant them Admin access.</li>
+            </ol>
+            <button onClick={() => setShowAddStaffInfo(false)} style={{ ...blueBtn, width: "100%" }}>Understood</button>
+          </div>
+        </div>
+      )}
+
       {/* ================= GENERIC ALERT MODAL ================= */}
       {alertMessage && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
@@ -914,6 +1283,60 @@ export default function AdminDashboard() {
       )}
 
       {/* ================= ACTION CONFIRM MODALS ================= */}
+      {confirmModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setConfirmModal(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: confirmModal.confirmColor || "#e74c3c", marginTop: 0 }}>⚠️ {confirmModal.title}</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {confirmModal.message}
+            </p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+              <button onClick={confirmModal.onConfirm} style={{ ...standardBtnProps, background: confirmModal.confirmColor || "#e74c3c", color: "white", flex: 1 }}>{confirmModal.confirmText || "Confirm"}</button>
+              <button onClick={() => setConfirmModal(null)} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= UNARCHIVE PASSWORD MODAL ================= */}
+      {unarchiveModalLog && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => { setUnarchiveModalLog(null); setUnarchivePassword(""); }}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#27ae60", marginTop: 0 }}>🔓 Admin Authorization</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "15px", lineHeight: "1.5" }}>
+              Enter admin password to unarchive this record:
+            </p>
+            <input 
+              type="password" 
+              value={unarchivePassword} 
+              onChange={(e) => setUnarchivePassword(e.target.value)} 
+              style={{ ...inputStyle, marginBottom: "25px", textAlign: "center", letterSpacing: "2px" }} 
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmUnarchive(); }}
+            />
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmUnarchive} style={{...greenBtn, flex: 1}}>Unlock</button>
+              <button onClick={() => { setUnarchiveModalLog(null); setUnarchivePassword(""); }} style={{...greyBtn, flex: 1}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {logToArchive && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setLogToArchive(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>📦 Confirm Archive</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to archive this drug log? It will be hidden from the active list.
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmArchiveLog} style={{...yellowBtn, flex: 1}}>Yes, Archive</button>
+              <button onClick={() => setLogToArchive(null)} style={{...greyBtn, flex: 1}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {productToDelete && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setProductToDelete(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
@@ -923,7 +1346,7 @@ export default function AdminDashboard() {
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={confirmDeleteProduct} style={{...redBtn, flex: 1}}>Yes, Delete</button>
-              <button onClick={() => setProductToDelete(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
+              <button onClick={() => setProductToDelete(null)} style={{...greyBtn, flex: 1}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -938,7 +1361,7 @@ export default function AdminDashboard() {
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={confirmArchiveStock} style={{...yellowBtn, flex: 1}}>Yes, Archive</button>
-              <button onClick={() => setStockToArchive(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
+              <button onClick={() => setStockToArchive(null)} style={{...greyBtn, flex: 1}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -953,7 +1376,7 @@ export default function AdminDashboard() {
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={confirmDeleteStock} style={{...redBtn, flex: 1}}>Yes, Delete</button>
-              <button onClick={() => setStockToDelete(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
+              <button onClick={() => setStockToDelete(null)} style={{...greyBtn, flex: 1}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -968,7 +1391,7 @@ export default function AdminDashboard() {
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={confirmDeleteProtocol} style={{...redBtn, flex: 1}}>Yes, Delete</button>
-              <button onClick={() => setProtocolToDelete(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
+              <button onClick={() => setProtocolToDelete(null)} style={{...greyBtn, flex: 1}}>Cancel</button>
             </div>
           </div>
         </div>
@@ -983,7 +1406,7 @@ export default function AdminDashboard() {
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={confirmDeleteTemplate} style={{...redBtn, flex: 1}}>Yes, Delete</button>
-              <button onClick={() => setTemplateToDelete(null)} style={{...blueBtn, flex: 1, background: "#95a5a6"}}>Cancel</button>
+              <button onClick={() => setTemplateToDelete(null)} style={{...greyBtn, flex: 1}}>Cancel</button>
             </div>
           </div>
         </div>

@@ -1064,82 +1064,89 @@ export default function PatientDetail() {
        {sedationHistory.length > 0 && (
             <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "15px", marginTop: "30px", border: "1px solid #eee" }}>
               <h3 style={{ marginTop: 0, marginBottom: "15px", color: "#2c3e50" }}>Dosing History</h3>
-              {sedationHistory.map(h => (
-                <div key={h.id} style={{ ...whiteShadowBox, marginBottom: "10px", padding: "15px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "10px" }}>
-                    <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold" }}>
-                      {new Date(h.created_at).toLocaleString('en-GB')}
-                    </span>
-                    <span style={{ fontSize: "13px", color: "#3498db", fontWeight: "bold" }}>
-                      Weight: {h.weight} kg
-                    </span>
-                  </div>
-                  
-                  {editingHistoryId === h.id ? (
-                    <>
-                      {/* FIXED MOBILE RESPONSIVE EDITING LAYOUT */}
-                      {editHistoryResults.map((r, i) => (
-                        <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "12px", background: "#fdfdfd", padding: "8px", borderRadius: "8px", border: "1px dashed #bdc3c7" }}>
-                          <strong style={{ color: "#333", fontSize: "14px" }}>{r.label || r.drug}</strong>
-                          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4px" }}>
-                              <span style={{ fontSize: "12px", color: "#64748b", minWidth: "35px" }}>Dose:</span>
-                              <input type="number" step="0.01" style={{ width: "100%", minWidth: "50px", padding: "6px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }} value={r.ml} onChange={e => { const u = [...editHistoryResults]; u[i].ml = e.target.value; setEditHistoryResults(u); }} />
-                              <span style={{ fontSize: "12px", color: "#64748b" }}>ml</span>
-                            </div>
-                            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4px" }}>
-                              <span style={{ fontSize: "12px", color: "#64748b", minWidth: "38px" }}>Waste:</span>
-                              <input type="number" step="0.01" style={{ width: "100%", minWidth: "50px", padding: "6px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }} value={r.waste} onChange={e => { const u = [...editHistoryResults]; u[i].waste = e.target.value; setEditHistoryResults(u); }} />
-                              <span style={{ fontSize: "12px", color: "#64748b" }}>ml</span>
+              {sedationHistory.map(h => {
+                const isOlderThan48h = (new Date() - new Date(h.created_at)) > (48 * 60 * 60 * 1000);
+                const canEdit = isAdmin || !isOlderThan48h;
+
+                return (
+                  <div key={h.id} style={{ ...whiteShadowBox, marginBottom: "10px", padding: "15px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "10px" }}>
+                      <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold" }}>
+                        {new Date(h.created_at).toLocaleString('en-GB')}
+                      </span>
+                      <span style={{ fontSize: "13px", color: "#3498db", fontWeight: "bold" }}>
+                        Weight: {h.weight} kg
+                      </span>
+                    </div>
+                    
+                    {editingHistoryId === h.id ? (
+                      <>
+                        {/* FIXED MOBILE RESPONSIVE EDITING LAYOUT */}
+                        {editHistoryResults.map((r, i) => (
+                          <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "12px", background: "#fdfdfd", padding: "8px", borderRadius: "8px", border: "1px dashed #bdc3c7" }}>
+                            <strong style={{ color: "#333", fontSize: "14px" }}>{r.label || r.drug}</strong>
+                            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4px" }}>
+                                <span style={{ fontSize: "12px", color: "#64748b", minWidth: "35px" }}>Dose:</span>
+                                <input type="number" step="0.01" style={{ width: "100%", minWidth: "50px", padding: "6px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }} value={r.ml} onChange={e => { const u = [...editHistoryResults]; u[i].ml = e.target.value; setEditHistoryResults(u); }} />
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>ml</span>
+                              </div>
+                              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "4px" }}>
+                                <span style={{ fontSize: "12px", color: "#64748b", minWidth: "38px" }}>Waste:</span>
+                                <input type="number" step="0.01" style={{ width: "100%", minWidth: "50px", padding: "6px", borderRadius: "6px", border: "1px solid #ccc", fontSize: "13px", boxSizing: "border-box" }} value={r.waste} onChange={e => { const u = [...editHistoryResults]; u[i].waste = e.target.value; setEditHistoryResults(u); }} />
+                                <span style={{ fontSize: "12px", color: "#64748b" }}>ml</span>
+                              </div>
                             </div>
                           </div>
+                        ))}
+                        <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                          <button style={{ ...greenBtn, flex: 1 }} onClick={() => saveEditHistory(h.id)}>Save Changes</button>
+                          <button style={{ ...yellowBtn, flex: 1 }} onClick={() => setEditingHistoryId(null)}>Cancel</button>
                         </div>
-                      ))}
-                      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-                        <button style={{ ...greenBtn, flex: 1 }} onClick={() => saveEditHistory(h.id)}>Save Changes</button>
-                        <button style={{ ...yellowBtn, flex: 1 }} onClick={() => setEditingHistoryId(null)}>Cancel</button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {h.results?.map((r, idx) => (
-                        <div key={idx} style={{ fontSize: "14px", color: "#333", marginBottom: "5px" }}>
-                          <strong>{r.label || r.drug}</strong>: {r.ml} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {r.waste} ml waste)</span> : ""}
-                        </div>
-                      ))}
-                      <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-                        <button onClick={() => startEditHistory(h)} style={{ ...blueBtn, flex: 1 }}>Edit Amounts</button>
-                        {isAdmin && (
-                          <button onClick={() => {
-                            setConfirmModal({
-                              title: "Confirm Deletion",
-                              message: "Are you sure you want to delete this dosing calculation? This will return all recorded drug volumes back into stock inventory.",
-                              confirmText: "Yes, Delete",
-                              confirmColor: "#e74c3c",
-                              onConfirm: async () => {
-                                const { data: original } = await supabase.from("sedation_records").select("*").eq("id", h.id).single();
-                                if (original && original.results) {
-                                  for (const r of original.results) {
-                                    const totalToReturn = (parseFloat(r.ml) || 0) + (r.waste !== undefined ? parseFloat(r.waste) : 0);
-                                    if (r.batchId && totalToReturn > 0) {
-                                      const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", r.batchId).single();
-                                      if (currentStock) await supabase.from("stock").update({ total_ml: currentStock.total_ml + totalToReturn }).eq("id", r.batchId);
+                      </>
+                    ) : (
+                      <>
+                        {h.results?.map((r, idx) => (
+                          <div key={idx} style={{ fontSize: "14px", color: "#333", marginBottom: "5px" }}>
+                            <strong>{r.label || r.drug}</strong>: {r.ml} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {r.waste} ml waste)</span> : ""}
+                          </div>
+                        ))}
+                        <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                          {canEdit && (
+                            <button onClick={() => startEditHistory(h)} style={{ ...blueBtn, flex: 1 }}>Edit Amounts</button>
+                          )}
+                          {isAdmin && (
+                            <button onClick={() => {
+                              setConfirmModal({
+                                title: "Confirm Deletion",
+                                message: "Are you sure you want to delete this dosing calculation? This will return all recorded drug volumes back into stock inventory.",
+                                confirmText: "Yes, Delete",
+                                confirmColor: "#e74c3c",
+                                onConfirm: async () => {
+                                  const { data: original } = await supabase.from("sedation_records").select("*").eq("id", h.id).single();
+                                  if (original && original.results) {
+                                    for (const r of original.results) {
+                                      const totalToReturn = (parseFloat(r.ml) || 0) + (r.waste !== undefined ? parseFloat(r.waste) : 0);
+                                      if (r.batchId && totalToReturn > 0) {
+                                        const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", r.batchId).single();
+                                        if (currentStock) await supabase.from("stock").update({ total_ml: currentStock.total_ml + totalToReturn }).eq("id", r.batchId);
+                                      }
                                     }
                                   }
+                                  await supabase.from("sedation_records").delete().eq("id", h.id);
+                                  fetchSedationHistory(); 
+                                  fetchStock();
+                                  setConfirmModal(null);
                                 }
-                                await supabase.from("sedation_records").delete().eq("id", h.id);
-                                fetchSedationHistory(); 
-                                fetchStock();
-                                setConfirmModal(null);
-                              }
-                            });
-                          }} style={{ ...redBtn, flex: 1 }}>Delete Record</button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
+                              });
+                            }} style={{ ...redBtn, flex: 1 }}>Delete Record</button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
