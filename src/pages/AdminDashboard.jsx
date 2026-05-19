@@ -644,7 +644,7 @@ export default function AdminDashboard() {
                     <button onClick={() => {
                         if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
                         navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
-                      }} style={blueBtn}>
+                      }} style={{ ...blueBtn, background: "#5b8fb9" }}>
                       View Invoice
                     </button>
                   </div>
@@ -664,7 +664,7 @@ export default function AdminDashboard() {
               <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Inventory Stock Report</h3>
               <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Generate a PDF of all active and archived stock.</p>
             </div>
-            <button onClick={generateStockReport} style={blueBtn}>Generate PDF</button>
+            <button onClick={generateStockReport} style={{ ...blueBtn, background: "#5b8fb9" }}>Generate PDF</button>
           </div>
 
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -726,7 +726,7 @@ export default function AdminDashboard() {
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: "20px", fontWeight: "bold", color: "#27ae60" }}>£{Number(p.price).toFixed(2)}</div>
                   <div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-                    <button onClick={() => startEditProd(p)} style={blueBtn}>Edit</button>
+                    <button onClick={() => startEditProd(p)} style={{ ...blueBtn, background: "#5b8fb9" }}>Edit</button>
                     <button onClick={() => setProductToDelete(p)} style={redBtn}>Delete</button>
                   </div>
                 </div>
@@ -747,7 +747,7 @@ export default function AdminDashboard() {
               <input type="number" placeholder="Total ml" value={stockQty} onChange={e => setStockQty(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
               <input type="date" value={stockExp} onChange={e => setStockExp(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
             </div>
-            <button onClick={addStock} style={blueBtn}>Add Stock</button>
+            <button onClick={addStock} style={{ ...blueBtn, background: "#5b8fb9" }}>Add Stock</button>
           </div>
           
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
@@ -763,7 +763,7 @@ export default function AdminDashboard() {
                       <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                     </div>
                     <div style={btnRow}>
-                      <button style={{...blueBtn, flex: 1}} onClick={() => saveEditStock(s.id)}>Save</button>
+                      <button style={{...blueBtn, flex: 1, background: "#5b8fb9"}} onClick={() => saveEditStock(s.id)}>Save</button>
                       <button style={{...redBtn, flex: 1}} onClick={() => setEditingStockId(null)}>Cancel</button>
                     </div>
                   </>
@@ -775,7 +775,7 @@ export default function AdminDashboard() {
                       {s.expiry_date && `Expires: ${new Date(s.expiry_date).toLocaleDateString('en-GB')}`}
                     </div>
                     <div style={{...btnRow, marginTop: "15px"}}>
-                      <button style={blueBtn} onClick={() => startEditStock(s)}>Edit</button>
+                      <button style={{ ...blueBtn, background: "#5b8fb9" }} onClick={() => startEditStock(s)}>Edit</button>
                       <button style={yellowBtn} onClick={() => setStockToArchive(s)}>Archive</button>
                       <button style={redBtn} onClick={() => setStockToDelete(s)}>Delete</button>
                     </div>
@@ -805,7 +805,7 @@ export default function AdminDashboard() {
                   <input placeholder="mg/ml" value={protoMgMl} onChange={e => setProtoMgMl(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                 </div>
               </div>
-              <button style={blueBtn} onClick={addProtoDrug}>+ Add Drug</button>
+              <button style={{ ...blueBtn, background: "#5b8fb9" }} onClick={addProtoDrug}>+ Add Drug</button>
             </div>
 
             {protoDrugs.map((d, i) => (
@@ -839,7 +839,7 @@ export default function AdminDashboard() {
                 </div>
 
                 <div style={btnRow}>
-                  <button style={blueBtn} onClick={() => startEditProtocol(p)}>Edit</button>
+                  <button style={{ ...blueBtn, background: "#5b8fb9" }} onClick={() => startEditProtocol(p)}>Edit</button>
                   <button style={redBtn} onClick={() => setProtocolToDelete(p)}>Delete</button>
                 </div>
               </div>
@@ -878,7 +878,7 @@ export default function AdminDashboard() {
                   <div style={{ color: "#7f8c8d", fontSize: "13px", whiteSpace: "pre-wrap", background: "#f0f2f5", padding: "10px", borderRadius: "8px" }}>{t.body}</div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: "none" }}>
-                  <button onClick={() => startEditTemplate(t)} style={blueBtn}>Edit</button>
+                  <button onClick={() => startEditTemplate(t)} style={{ ...blueBtn, background: "#5b8fb9" }}>Edit</button>
                   <button onClick={() => setTemplateToDelete(t)} style={redBtn}>Delete</button>
                 </div>
               </div>
