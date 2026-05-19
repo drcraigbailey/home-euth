@@ -35,6 +35,7 @@ export default function Patients() {
   const [patients, setPatients] = useState([]);
   const [search, setSearch] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
   const navigate = useNavigate();
 
   // Modal State for Deletion
@@ -67,7 +68,7 @@ export default function Patients() {
   }
 
   async function confirmDeletePatient() {
-    if (!isAdmin) return alert("Access Denied: Only administrators can delete patients.");
+    if (!isAdmin) return setAlertMessage("Access Denied: Only administrators can delete patients.");
     if (!patientToDelete) return;
 
     const { error } = await supabase.from("patients").delete().eq("id", patientToDelete.id);
@@ -75,7 +76,7 @@ export default function Patients() {
       setPatientToDelete(null);
       fetchPatients();
     } else {
-      alert("Error: " + error.message);
+      setAlertMessage("Error: " + error.message);
     }
   }
 
@@ -195,6 +196,18 @@ export default function Patients() {
               <button onClick={confirmDeletePatient} style={{ ...redBtn, flex: 1 }}>Yes, Delete</button>
               <button onClick={() => setPatientToDelete(null)} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {alertMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>Notice</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {alertMessage}
+            </p>
+            <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}

@@ -30,6 +30,7 @@ const greyBtn   = { ...standardBtnProps, background: "#95a5a6", color: "white" }
 const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }; // Matches Sedations Card
 const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; // Matches Consents Card
 const redBtn    = { ...standardBtnProps, background: "#e74c3c", color: "white" };
+const invoiceViewBtn = { ...blueBtn, background: "#5b8fb9", width: "92px", minWidth: "92px", maxWidth: "92px", height: "34px", minHeight: "34px", padding: "7px 9px", fontSize: "12px", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto", whiteSpace: "nowrap" };
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -627,7 +628,7 @@ export default function AdminDashboard() {
               <p style={{ color: "#27ae60", textAlign: "center", fontWeight: "bold" }}>All accounts are settled! 🎉</p>
             ) : (
               outstandingInvoices.map(inv => (
-                <div key={inv.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div key={inv.id} className="admin-invoice-row" style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
                     <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
@@ -641,10 +642,10 @@ export default function AdminDashboard() {
                   </div>
                   <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                     {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
-                    <button onClick={() => {
+                    <button className="admin-view-invoice-btn" onClick={() => {
                         if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
                         navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
-                      }} style={{ ...blueBtn, background: "#5b8fb9" }}>
+                      }} style={invoiceViewBtn}>
                       View Invoice
                     </button>
                   </div>

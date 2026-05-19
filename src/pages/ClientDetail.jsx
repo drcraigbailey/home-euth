@@ -32,6 +32,8 @@ const greyBtn   = { background: "#95a5a6", color: "white", ...standardBtnProps }
 
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 
+const GENDER_OPTIONS = ["Male (Entire)", "Male (Neutered)", "Female (Entire)", "Female (Spayed)", "Unknown"];
+
 function isValidWeight(value) {
   if (!value) return false;
   return /^\d+(\.\d+)?$/.test(value);
@@ -45,12 +47,22 @@ export default function ClientDetail() {
   const [client, setClient] = useState(null);
   const [patients, setPatients] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
   
   const [isEditing, setIsEditing] = useState(false);
 
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("");
   const [weight, setWeight] = useState("");
+
+  // Extra Patient Info State
+  const [showMoreInfo, setShowMoreInfo] = useState(false);
+  const [breed, setBreed] = useState("");
+  const [colour, setColour] = useState("");
+  const [gender, setGender] = useState("");
+  const [ageYears, setAgeYears] = useState("");
+  const [ageMonths, setAgeMonths] = useState("");
+  const [microchip, setMicrochip] = useState("");
 
   const [editName, setEditName] = useState("");
   const [editSurname, setEditSurname] = useState("");
@@ -97,14 +109,46 @@ export default function ClientDetail() {
   }
 
   async function addPatient() {
-    if (!name) return;
-    if (!isValidWeight(weight)) return alert("⚠️ Weight must be a number");
-    const { error } = await supabase.from("patients").insert([{ name, species, weight: Number(weight), client_id: id }]);
-    if (!error) { setName(""); setSpecies(""); setWeight(""); fetchPatients(); }
+    if (!name.trim() || !species.trim() || !weight) {
+      setAlertMessage("Please enter all patient details (Name, Species, and Weight) before adding.");
+      return;
+    }
+    if (!isValidWeight(weight)) {
+      setAlertMessage("Weight must be a valid number.");
+      return;
+    }
+
+    const payload = {
+      name: name.trim(),
+      species: species.trim(),
+      weight: Number(weight),
+      client_id: id,
+      breed: breed.trim() || null,
+      colour: colour.trim() || null,
+      gender: gender || null,
+      age_years: ageYears ? Number(ageYears) : null,
+      age_months: ageMonths ? Number(ageMonths) : null,
+      microchip: microchip.trim() || null
+    };
+
+    const { error } = await supabase.from("patients").insert([payload]);
+    
+    if (!error) { 
+      setName(""); setSpecies(""); setWeight(""); 
+      setBreed(""); setColour(""); setGender("");
+      setAgeYears(""); setAgeMonths(""); setMicrochip("");
+      setShowMoreInfo(false);
+      fetchPatients(); 
+    } else {
+      setAlertMessage("Error adding patient: " + error.message);
+    }
   }
 
   async function confirmDeletePatient() {
-    if (!isAdmin) return alert("Access Denied: Only administrators can delete patients.");
+    if (!isAdmin) {
+      setAlertMessage("Access Denied: Only administrators can delete patients.");
+      return;
+    }
     if (!patientToDelete) return;
 
     const { error } = await supabase.from("patients").delete().eq("id", patientToDelete.id);
@@ -112,7 +156,7 @@ export default function ClientDetail() {
       setPatientToDelete(null);
       fetchPatients();
     } else {
-      alert("Error: " + error.message);
+      setAlertMessage("Error: " + error.message);
     }
   }
 
@@ -192,6 +236,30 @@ export default function ClientDetail() {
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
         <input placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} style={inputStyle} />
         <input type="number" step="0.1" placeholder="Weight (kg)" value={weight} onChange={(e) => setWeight(e.target.value)} style={inputStyle} />
+        
+        {/* Toggle Button */}
+        <button type="button" onClick={() => setShowMoreInfo(!showMoreInfo)} style={{ ...blueBtn, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", background: "#f8f9fb", color: "#5b8fb9", border: "1px solid #5b8fb9" }}>
+          <span>{showMoreInfo ? "Hide additional information" : "Add more information"}</span>
+          <span>{showMoreInfo ? "^" : "v"}</span>
+        </button>
+
+        {/* Expanded Info */}
+        {showMoreInfo && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", border: "1px solid #e1e7ec", borderRadius: "10px", background: "#f8f9fb", marginBottom: "10px" }}>
+            <input placeholder="Breed" value={breed} onChange={(e) => setBreed(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
+            <input placeholder="Colour" value={colour} onChange={(e) => setColour(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
+            <select value={gender} onChange={(e) => setGender(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
+              <option value="">Gender</option>
+              {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <input placeholder="Age (years)" type="number" min="0" value={ageYears} onChange={(e) => setAgeYears(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
+              <input placeholder="Age (months)" type="number" min="0" max="11" value={ageMonths} onChange={(e) => setAgeMonths(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
+            </div>
+            <input placeholder="Microchip" value={microchip} onChange={(e) => setMicrochip(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
+          </div>
+        )}
+
         <button onClick={addPatient} style={{ ...blueBtn, width: "100%" }}>Add Patient</button>
       </div>
 
@@ -252,6 +320,18 @@ export default function ClientDetail() {
               <button onClick={confirmDeletePatient} style={{ ...redBtn, flex: 1 }}>Yes, Delete</button>
               <button onClick={() => setPatientToDelete(null)} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {alertMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>Notice</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {alertMessage}
+            </p>
+            <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}

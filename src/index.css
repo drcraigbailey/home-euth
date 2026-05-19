@@ -152,6 +152,22 @@ button:not(.logout-btn-minimal) {
   white-space: normal !important;
 }
 
+.admin-view-invoice-btn {
+  width: 92px !important;
+  min-width: 92px !important;
+  max-width: 92px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 7px 9px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
 /* Mobile Tweaks */
 @media (max-width: 600px) {
   .page {
@@ -159,6 +175,19 @@ button:not(.logout-btn-minimal) {
   }
   .nav-item {
     font-size: 14px;
+  }
+  .admin-invoice-row {
+    gap: 12px;
+  }
+  .admin-view-invoice-btn {
+    width: 88px !important;
+    min-width: 88px !important;
+    max-width: 88px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 6px 8px !important;
+    font-size: 12px !important;
+    align-self: flex-end;
   }
 }
 html {

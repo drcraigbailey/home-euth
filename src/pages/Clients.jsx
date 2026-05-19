@@ -30,6 +30,10 @@ const greenBtn       = { background: "#27ae60", color: "white", ...standardBtnPr
 const yellowBtn      = { background: "#f39c12", color: "white", ...standardBtnProps };
 const greyBtn        = { background: "#95a5a6", color: "white", ...standardBtnProps };
 const blueBtn        = { background: "#3498db", color: "white", ...standardBtnProps };
+const inputStyle = { padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" };
+
+const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
+const GENDER_OPTIONS = ["Male (Entire)", "Male (Neutered)", "Female (Entire)", "Female (Spayed)", "Unknown"];
 
 export default function Clients() {
   const navigate = useNavigate();
@@ -57,6 +61,13 @@ export default function Clients() {
   const [petName, setPetName] = useState("");
   const [petSpecies, setPetSpecies] = useState("");
   const [petWeight, setPetWeight] = useState("");
+  const [petBreed, setPetBreed] = useState("");
+  const [petColour, setPetColour] = useState("");
+  const [petGender, setPetGender] = useState("");
+  const [petAgeYears, setPetAgeYears] = useState("");
+  const [petAgeMonths, setPetAgeMonths] = useState("");
+  const [petMicrochip, setPetMicrochip] = useState("");
+  const [showPetMoreInfo, setShowPetMoreInfo] = useState(false);
 
   useEffect(() => { 
     async function loadData() {
@@ -140,16 +151,40 @@ export default function Clients() {
 
   async function addPet() {
     if (!petName || !newClient) return setAlertMessage("Please provide a pet name.");
+    const patientPayload = {
+      name: petName,
+      species: petSpecies,
+      weight: petWeight ? Number(petWeight) : null,
+      breed: petBreed,
+      colour: petColour,
+      gender: petGender,
+      age_years: petAgeYears ? Number(petAgeYears) : null,
+      age_months: petAgeMonths ? Number(petAgeMonths) : null,
+      microchip: petMicrochip,
+      client_id: newClient.id
+    };
+
     const { error } = await supabase.from("patients").insert([
-      { name: petName, species: petSpecies, weight: Number(petWeight), client_id: newClient.id }
+      patientPayload
     ]);
     if (!error) {
       setAlertMessage("Pet added successfully!");
-      setPetName(""); setPetSpecies(""); setPetWeight("");
-      setNewClient(null); 
+      closePetModal(); 
     } else {
       setAlertMessage(error.message);
     }
+  }
+
+  function resetPetForm() {
+    setPetName(""); setPetSpecies(""); setPetWeight("");
+    setPetBreed(""); setPetColour(""); setPetGender("");
+    setPetAgeYears(""); setPetAgeMonths(""); setPetMicrochip("");
+    setShowPetMoreInfo(false);
+  }
+
+  function closePetModal() {
+    resetPetForm();
+    setNewClient(null);
   }
 
   const filtered = (clients || []).filter(c => {
@@ -229,21 +264,43 @@ export default function Clients() {
 
       {/* POP-UP MODAL FOR ADDING A PET */}
       {newClient && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setNewClient(null)}>
-          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", position: "relative", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setNewClient(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={closePetModal}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "440px", maxHeight: "90vh", overflowY: "auto", position: "relative", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+            <button onClick={closePetModal} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
             
             <h2 style={{ marginTop: 0, color: "#27ae60", paddingRight: "30px" }}>Client Created!</h2>
             <p style={{ color: "#666", marginBottom: "20px", fontSize: "15px" }}>Would you like to register a pet for <strong>{newClient.fullName}</strong> now?</p>
             
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <input placeholder="Pet Name" value={petName} onChange={(e) => setPetName(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
-              <input placeholder="Species" value={petSpecies} onChange={(e) => setPetSpecies(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
-              <input placeholder="Weight (kg)" type="number" step="0.1" value={petWeight} onChange={(e) => setPetWeight(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
+              <input placeholder="Pet Name" value={petName} onChange={(e) => setPetName(e.target.value)} style={inputStyle} />
+              <input list="pet-species-options" placeholder="Species" value={petSpecies} onChange={(e) => setPetSpecies(e.target.value)} style={inputStyle} />
+              <datalist id="pet-species-options">{SPECIES_OPTIONS.map(s => <option key={s} value={s} />)}</datalist>
+              <input placeholder="Weight (kg)" type="number" step="0.1" value={petWeight} onChange={(e) => setPetWeight(e.target.value)} style={inputStyle} />
+
+              <button type="button" onClick={() => setShowPetMoreInfo(!showPetMoreInfo)} style={{ ...primaryBlueBtn, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>{showPetMoreInfo ? "Hide additional information" : "Add more information"}</span>
+                <span>{showPetMoreInfo ? "^" : "v"}</span>
+              </button>
+
+              {showPetMoreInfo && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", border: "1px solid #e1e7ec", borderRadius: "10px", background: "#f8f9fb" }}>
+                  <input placeholder="Breed" value={petBreed} onChange={(e) => setPetBreed(e.target.value)} style={inputStyle} />
+                  <input placeholder="Colour" value={petColour} onChange={(e) => setPetColour(e.target.value)} style={inputStyle} />
+                  <select value={petGender} onChange={(e) => setPetGender(e.target.value)} style={inputStyle}>
+                    <option value="">Gender</option>
+                    {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <input placeholder="Age (years)" type="number" min="0" value={petAgeYears} onChange={(e) => setPetAgeYears(e.target.value)} style={inputStyle} />
+                    <input placeholder="Age (months)" type="number" min="0" max="11" value={petAgeMonths} onChange={(e) => setPetAgeMonths(e.target.value)} style={inputStyle} />
+                  </div>
+                  <input placeholder="Microchip" value={petMicrochip} onChange={(e) => setPetMicrochip(e.target.value)} style={inputStyle} />
+                </div>
+              )}
               
               <div style={{ display: "flex", gap: "10px", marginTop: "10px", justifyContent: "center" }}>
                 <button onClick={addPet} style={greenBtn}>Save Pet</button>
-                <button onClick={() => setNewClient(null)} style={yellowBtn}>Skip for now</button>
+                <button onClick={closePetModal} style={yellowBtn}>Skip for now</button>
               </div>
             </div>
           </div>
