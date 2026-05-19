@@ -15,30 +15,33 @@ import { Share } from '@capacitor/share';
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
 const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px", cursor: "pointer", transition: "transform 0.1s" };
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
-const btnRow = { display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" };
+const btnRow = { display: "flex", gap: "10px", marginTop: "15px", width: "100%" };
 
 // Dedicated pristine style for the main navigation toolbar tabs
 const tabBtnStyle = { padding: "12px 20px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
 
-// Enforced compact layout properties for smaller, uniform action buttons (Mobile Optimized)
+// Bulletproof layout properties for smaller, uniform action buttons
 const standardBtnProps = { 
   borderRadius: "8px", 
   border: "none", 
   cursor: "pointer", 
   fontWeight: "bold", 
-  padding: "10px 16px", 
+  padding: "0 8px", 
   fontSize: "13px", 
   boxSizing: "border-box", 
   display: "inline-flex", 
   alignItems: "center",
   justifyContent: "center",
   textAlign: "center", 
-  flexShrink: 0 
+  height: "40px", 
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  minWidth: "75px"
 };
 
-// Overview-matched color variations for modal action buttons
 const purpleBtn = { ...standardBtnProps, background: "#8e44ad", color: "white" }; 
-const blueBtn   = { ...standardBtnProps, background: "#5b8fb9", color: "white" }; // Updated to theme blue
+const blueBtn   = { ...standardBtnProps, background: "#5b8fb9", color: "white" }; 
 const greyBtn   = { ...standardBtnProps, background: "#95a5a6", color: "white" }; 
 const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }; 
 const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; 
@@ -640,7 +643,7 @@ export default function AdminDashboard() {
               <p style={{ color: "#27ae60", textAlign: "center", fontWeight: "bold" }}>All accounts are settled! 🎉</p>
             ) : (
               outstandingInvoices.map(inv => (
-                <div key={inv.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div key={inv.id} style={{ ...whiteShadowBox, display: "flex", flexDirection: "column", gap: "10px" }}>
                   <div>
                     <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
                     <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
@@ -652,15 +655,19 @@ export default function AdminDashboard() {
                     <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>{inv.items.join(", ")}</div>
                     <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}</div>
                   </div>
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                    {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
+                  
+                  <div style={{ display: "flex", gap: "10px", width: "100%", marginTop: "5px" }}>
+                    {inv.client?.phone && (
+                      <a href={`tel:${inv.client?.phone}`} style={{ ...blueBtn, flex: 1, background: "#3498db", textDecoration: "none" }}>📞 Call</a>
+                    )}
                     <button onClick={() => {
                         if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
                         navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
-                      }} style={blueBtn}>
+                      }} style={{ ...blueBtn, flex: 1 }}>
                       View Invoice
                     </button>
                   </div>
+
                 </div>
               ))
             )}
@@ -760,7 +767,7 @@ export default function AdminDashboard() {
               <input type="number" placeholder="Total ml" value={stockQty} onChange={e => setStockQty(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
               <input type="date" value={stockExp} onChange={e => setStockExp(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
             </div>
-            <button onClick={addStock} style={blueBtn}>Add Stock</button>
+            <button onClick={addStock} style={{ ...blueBtn, width: "100%" }}>Add Stock</button>
           </div>
           
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
@@ -788,9 +795,9 @@ export default function AdminDashboard() {
                       {s.expiry_date && `Expires: ${new Date(s.expiry_date).toLocaleDateString('en-GB')}`}
                     </div>
                     <div style={{...btnRow, marginTop: "15px"}}>
-                      <button style={blueBtn} onClick={() => startEditStock(s)}>Edit</button>
-                      <button style={yellowBtn} onClick={() => setStockToArchive(s)}>Archive</button>
-                      <button style={redBtn} onClick={() => setStockToDelete(s)}>Delete</button>
+                      <button style={{...blueBtn, flex: 1}} onClick={() => startEditStock(s)}>Edit</button>
+                      <button style={{...yellowBtn, flex: 1}} onClick={() => setStockToArchive(s)}>Archive</button>
+                      <button style={{...redBtn, flex: 1}} onClick={() => setStockToDelete(s)}>Delete</button>
                     </div>
                   </>
                 )}
@@ -818,7 +825,7 @@ export default function AdminDashboard() {
                   <input placeholder="mg/ml" value={protoMgMl} onChange={e => setProtoMgMl(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                 </div>
               </div>
-              <button style={blueBtn} onClick={addProtoDrug}>+ Add Drug</button>
+              <button style={{ ...blueBtn, width: "100%", marginTop: "10px" }} onClick={addProtoDrug}>+ Add Drug</button>
             </div>
 
             {protoDrugs.map((d, i) => (
@@ -852,8 +859,8 @@ export default function AdminDashboard() {
                 </div>
 
                 <div style={btnRow}>
-                  <button style={blueBtn} onClick={() => startEditProtocol(p)}>Edit</button>
-                  <button style={redBtn} onClick={() => setProtocolToDelete(p)}>Delete</button>
+                  <button style={{...blueBtn, flex: 1}} onClick={() => startEditProtocol(p)}>Edit</button>
+                  <button style={{...redBtn, flex: 1}} onClick={() => setProtocolToDelete(p)}>Delete</button>
                 </div>
               </div>
             ))}
