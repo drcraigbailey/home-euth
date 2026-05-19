@@ -8,10 +8,21 @@ import tombIcon from '../assets/tomb.png';
 // --- STYLING CONSTANTS ---
 const greyBox = { background: "#f8f9fb", padding: "25px", borderRadius: "20px", marginTop: "20px" };
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
-const btnRow = { display: "flex", gap: "10px", marginTop: "20px", justifyContent: "center" };
+const btnRow = { display: "flex", gap: "10px", marginTop: "20px", width: "100%" };
 
-// Strict uniform button properties copied from Admin Dashboard layout
-const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+// Updated properties to lock text to a single line (whiteSpace: "nowrap")
+const standardBtnProps = { 
+  borderRadius: "8px", 
+  border: "none", 
+  cursor: "pointer", 
+  fontWeight: "bold", 
+  padding: "10px 14px", 
+  fontSize: "13px", 
+  boxSizing: "border-box", 
+  textAlign: "center", 
+  whiteSpace: "nowrap", 
+  minWidth: "100px" 
+};
 
 const blueBtn   = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 const redBtn    = { background: "#e74c3c", color: "white", ...standardBtnProps };
@@ -165,7 +176,7 @@ export default function ClientDetail() {
               <div><label style={{ fontSize: "12px" }}>City</label><input value={editCity} onChange={(e) => setEditCity(e.target.value)} style={inputStyle} /></div>
               <div><label style={{ fontSize: "12px" }}>Postcode</label><input value={editPostcode} onChange={(e) => setEditPostcode(e.target.value)} style={inputStyle} /></div>
             </div>
-            <div style={btnRow}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px", width: "100%" }}>
               <button onClick={updateClient} style={{ ...greenBtn, flex: 1 }}>Save Changes</button>
               <button onClick={() => { setIsEditing(false); fetchClient(); }} style={{ ...redBtn, flex: 1 }}>Cancel</button>
             </div>
@@ -179,7 +190,7 @@ export default function ClientDetail() {
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
         <input placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} style={inputStyle} />
         <input type="number" step="0.1" placeholder="Weight (kg)" value={weight} onChange={(e) => setWeight(e.target.value)} style={inputStyle} />
-        <button onClick={addPatient} style={blueBtn}>Add Patient</button>
+        <button onClick={addPatient} style={{ ...blueBtn, width: "100%" }}>Add Patient</button>
       </div>
 
       {/* --- PATIENT LIST --- */}
@@ -200,14 +211,14 @@ export default function ClientDetail() {
             <div style={btnRow}>
               {p.is_deceased ? (
                 <button 
-                  style={blueBtn} 
+                  style={{ ...blueBtn, flex: 1 }} 
                   onClick={(e) => { e.stopPropagation(); navigate(`/patient/${p.id}`, { state: { activeTab: "details" } }); }}
                 >
                   Details
                 </button>
               ) : (
                 <button 
-                  style={greenBtn} 
+                  style={{ ...greenBtn, flex: 1 }} 
                   onClick={(e) => { e.stopPropagation(); navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } }); }}
                 >
                   Sedate
@@ -215,7 +226,7 @@ export default function ClientDetail() {
               )}
               {isAdmin && (
                 <button 
-                  style={redBtn} 
+                  style={{ ...redBtn, flex: 1 }} 
                   onClick={(e) => { e.stopPropagation(); setPatientToDelete(p); }}
                 >
                   Delete
@@ -236,8 +247,8 @@ export default function ClientDetail() {
               Are you sure you want to permanently delete patient <strong>{patientToDelete.name}</strong>? This action will clear their files permanently.
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-              <button onClick={confirmDeletePatient} style={redBtn}>Yes, Delete</button>
-              <button onClick={() => setPatientToDelete(null)} style={greyBtn}>Cancel</button>
+              <button onClick={confirmDeletePatient} style={{ ...redBtn, flex: 1 }}>Yes, Delete</button>
+              <button onClick={() => setPatientToDelete(null)} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
             </div>
           </div>
         </div>

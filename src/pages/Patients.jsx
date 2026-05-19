@@ -7,10 +7,21 @@ import tombIcon from '../assets/tomb.png';
 
 // --- STYLING CONSTANTS ---
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" };
-const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
+const btnRow = { display: "flex", gap: "10px", marginTop: "15px", width: "100%" };
 
-// Strict uniform button properties copied from Admin Dashboard layout
-const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+// Updated properties to lock text to a single line (whiteSpace: "nowrap")
+const standardBtnProps = { 
+  borderRadius: "8px", 
+  border: "none", 
+  cursor: "pointer", 
+  fontWeight: "bold", 
+  padding: "10px 14px", 
+  fontSize: "13px", 
+  boxSizing: "border-box", 
+  textAlign: "center", 
+  whiteSpace: "nowrap", 
+  minWidth: "100px" 
+};
 
 const greenBtn = { background: "#27ae60", color: "white", ...standardBtnProps };
 const redBtn   = { background: "#e74c3c", color: "white", ...standardBtnProps };
@@ -82,7 +93,7 @@ export default function Patients() {
 
   return (
     <div className="page" style={{ paddingBottom: "100px" }}>
-      <h1>Patients</h1>
+      <h1 style={{ textAlign: "center" }}>Patients</h1>
 
       {/* Search Bar Section */}
       <div className="card">
@@ -138,14 +149,14 @@ export default function Patients() {
             <div style={btnRow}>
               {p.is_deceased ? (
                 <button 
-                  style={blueBtn}
+                  style={{ ...blueBtn, flex: 1 }}
                   onClick={() => navigate(`/patient/${p.id}`, { state: { activeTab: "details" } })}
                 >
                   Details
                 </button>
               ) : (
                 <button 
-                  style={greenBtn}
+                  style={{ ...greenBtn, flex: 1 }}
                   onClick={() => navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } })}
                 >
                   Sedate
@@ -153,7 +164,7 @@ export default function Patients() {
               )}
               {isAdmin && (
                 <button 
-                  style={redBtn}
+                  style={{ ...redBtn, flex: 1 }}
                   onClick={() => setPatientToDelete(p)}
                 >
                   Delete
@@ -179,8 +190,8 @@ export default function Patients() {
               Are you sure you want to permanently delete patient <strong>{patientToDelete.name}</strong>? All records linked to this profile will be cleared.
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-              <button onClick={confirmDeletePatient} style={redBtn}>Yes, Delete</button>
-              <button onClick={() => setPatientToDelete(null)} style={greyBtn}>Cancel</button>
+              <button onClick={confirmDeletePatient} style={{ ...redBtn, flex: 1 }}>Yes, Delete</button>
+              <button onClick={() => setPatientToDelete(null)} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
             </div>
           </div>
         </div>
