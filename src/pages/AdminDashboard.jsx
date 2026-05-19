@@ -805,7 +805,7 @@ export default function AdminDashboard() {
                   <input placeholder="mg/ml" value={protoMgMl} onChange={e => setProtoMgMl(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                 </div>
               </div>
-              <button style={{ ...blueBtn, background: "#5b8fb9" }} onClick={addProtoDrug}>+ Add Drug</button>
+              <button style={{ ...blueBtn, background: "#5b8fb9", marginTop: "12px" }} onClick={addProtoDrug}>+ Add Drug</button>
             </div>
 
             {protoDrugs.map((d, i) => (

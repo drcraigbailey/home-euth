@@ -24,12 +24,14 @@ const standardBtnProps = {
   border: "none", 
   cursor: "pointer", 
   fontWeight: "bold", 
-  padding: "10px 14px", 
-  fontSize: "13px", 
+  padding: "8px 14px", 
+  fontSize: "12px", 
   boxSizing: "border-box", 
+  display: "inline-block",
   textAlign: "center", 
   whiteSpace: "nowrap", 
-  minWidth: "100px" 
+  minWidth: "100px",
+  width: "auto"
 };
 
 const blueBtn   = { background: "#5b8fb9", color: "white", ...standardBtnProps };

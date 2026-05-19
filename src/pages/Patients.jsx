@@ -15,12 +15,14 @@ const standardBtnProps = {
   border: "none", 
   cursor: "pointer", 
   fontWeight: "bold", 
-  padding: "10px 14px", 
-  fontSize: "13px", 
+  padding: "8px 14px", 
+  fontSize: "12px", 
   boxSizing: "border-box", 
+  display: "inline-block",
   textAlign: "center", 
   whiteSpace: "nowrap", 
-  minWidth: "100px" 
+  minWidth: "100px",
+  width: "auto"
 };
 
 const greenBtn = { background: "#27ae60", color: "white", ...standardBtnProps };

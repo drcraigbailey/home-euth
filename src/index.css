@@ -118,6 +118,15 @@ button:not(.logout-btn-minimal) {
   cursor: pointer;
 }
 
+.compact-edit-details-btn {
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+  padding: 8px 10px !important;
+  flex: 0 0 120px !important;
+  align-self: center;
+}
+
 /* Mobile Tweaks */
 @media (max-width: 600px) {
   .page {

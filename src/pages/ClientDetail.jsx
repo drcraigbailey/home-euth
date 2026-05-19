@@ -138,10 +138,12 @@ export default function ClientDetail() {
 
       {/* --- CLIENT INFO CARD --- */}
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "15px" }}>
           <h3 style={{ margin: 0 }}>Client Information</h3>
           {!isEditing && (
-            <button onClick={() => setIsEditing(true)} style={blueBtn}>Edit Details</button>
+            <div style={{ display: "flex", flex: 1, minWidth: "140px", justifyContent: "flex-end" }}>
+              <button className="compact-edit-details-btn" onClick={() => setIsEditing(true)} style={{ ...blueBtn, width: "120px", minWidth: "120px", padding: "8px 10px", flex: "0 0 120px" }}>Edit Details</button>
+            </div>
           )}
         </div>
 
