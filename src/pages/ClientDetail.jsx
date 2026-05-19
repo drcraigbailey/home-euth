@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import Loader from "../Loader";
+import tombIcon from '../assets/tomb.png'; 
 
 // --- STYLING CONSTANTS ---
 const greyBox = { background: "#f8f9fb", padding: "25px", borderRadius: "20px", marginTop: "20px" };
@@ -128,10 +129,8 @@ export default function ClientDetail() {
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <h3 style={{ margin: 0 }}>Client Information</h3>
-          {!isEditing ? (
+          {!isEditing && (
             <button onClick={() => setIsEditing(true)} style={blueBtn}>Edit Details</button>
-          ) : (
-            <button onClick={() => { setIsEditing(false); fetchClient(); }} style={yellowBtn}>Cancel</button>
           )}
         </div>
 
@@ -166,7 +165,10 @@ export default function ClientDetail() {
               <div><label style={{ fontSize: "12px" }}>City</label><input value={editCity} onChange={(e) => setEditCity(e.target.value)} style={inputStyle} /></div>
               <div><label style={{ fontSize: "12px" }}>Postcode</label><input value={editPostcode} onChange={(e) => setEditPostcode(e.target.value)} style={inputStyle} /></div>
             </div>
-            <button onClick={updateClient} style={{ ...greenBtn, width: "100%", padding: "12px", fontSize: "14px" }}>Save Changes</button>
+            <div style={btnRow}>
+              <button onClick={updateClient} style={{ ...greenBtn, flex: 1 }}>Save Changes</button>
+              <button onClick={() => { setIsEditing(false); fetchClient(); }} style={{ ...redBtn, flex: 1 }}>Cancel</button>
+            </div>
           </div>
         )}
       </div>
@@ -186,19 +188,31 @@ export default function ClientDetail() {
         {patients.map((p) => (
           <div key={p.id} style={whiteShadowBox}>
             <div onClick={() => navigate(`/patient/${p.id}`)} style={{ cursor: "pointer" }}>
-              <span style={{ fontSize: "20px", fontWeight: "bold", color: "#333" }}>{p.name} </span>
-              <span style={{ fontSize: "18px", color: "#7f8c8d" }}>({client?.surname || ""})</span>
+              <span style={{ fontSize: "20px", fontWeight: "bold", color: "#333" }}>
+                {p.name}
+                {p.is_deceased && <img src={tombIcon} alt="Deceased" style={{ width: "20px", height: "20px", marginLeft: "8px", verticalAlign: "middle" }} />}
+              </span>
+              <span style={{ fontSize: "18px", color: "#7f8c8d" }}> ({client?.surname || ""})</span>
               <div style={{ color: "#7f8c8d", marginTop: "8px", fontSize: "16px" }}>
                 {p.species} – {p.weight} kg
               </div>
             </div>
             <div style={btnRow}>
-              <button 
-                style={greenBtn} 
-                onClick={(e) => { e.stopPropagation(); navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } }); }}
-              >
-                Sedate
-              </button>
+              {p.is_deceased ? (
+                <button 
+                  style={blueBtn} 
+                  onClick={(e) => { e.stopPropagation(); navigate(`/patient/${p.id}`, { state: { activeTab: "details" } }); }}
+                >
+                  Details
+                </button>
+              ) : (
+                <button 
+                  style={greenBtn} 
+                  onClick={(e) => { e.stopPropagation(); navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } }); }}
+                >
+                  Sedate
+                </button>
+              )}
               {isAdmin && (
                 <button 
                   style={redBtn} 

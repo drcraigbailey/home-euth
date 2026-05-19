@@ -6,6 +6,7 @@ import SignatureCanvas from "react-signature-canvas";
 import Loader from "../Loader"; 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import tombIcon from '../assets/tomb.png'; // Make sure this path points to your image folder
 
 // --- CAPACITOR IMPORTS FOR NATIVE PDF SHARING ---
 import { Capacitor } from '@capacitor/core';
@@ -837,7 +838,12 @@ export default function PatientDetail() {
     <div className="page" style={{ paddingBottom: "100px" }}>
       
       <div style={{ textAlign: "center", marginBottom: "20px" }}>
-        <h1 style={{ margin: "0 0 10px 0" }}>{patient?.name || "Patient"}</h1>
+        <h1 style={{ margin: "0 0 10px 0", display: "flex", justifyContent: "center", alignItems: "center" }}>
+          {patient?.name || "Patient"}
+          {patient?.is_deceased && (
+            <img src={tombIcon} alt="Deceased" style={{ width: "28px", height: "28px", marginLeft: "10px" }} />
+          )}
+        </h1>
         {patient?.is_deceased ? (
           <div style={{ display: "inline-block", background: "#7f8c8d", color: "white", padding: "5px 15px", borderRadius: "15px", fontSize: "14px", fontWeight: "bold" }}>🕊️ Deceased</div>
         ) : (

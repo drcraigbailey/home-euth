@@ -255,7 +255,7 @@ export default function Home() {
                 {entry.time_range && <span style={{ color: "#666", fontSize: "14px" }}>{entry.time_range}</span>}
               </div>
               <strong style={{ fontSize: "18px", color: "#333", display: "flex", alignItems: "center", gap: "5px" }}>
-                {isEuth && "💔👍"} {mainHeader}
+                {isEuth && "💔"} {mainHeader}
               </strong>
               {clientSubHeader && <div style={{ color: "#7f8c8d", fontSize: "14px", fontWeight: "500" }}>{clientSubHeader}</div>}
               {entry.notes && <div style={{ color: "#555", fontSize: "15px", lineHeight: "1.5", whiteSpace: "pre-wrap", marginTop: "5px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{entry.notes}</div>}

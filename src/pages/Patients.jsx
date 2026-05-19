@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 import Loader from "../Loader";
+import tombIcon from '../assets/tomb.png'; 
 
 // --- STYLING CONSTANTS ---
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" };
@@ -120,7 +121,10 @@ export default function Patients() {
               onClick={() => navigate(`/patient/${p.id}`)}
             >
               <div>
-                <strong style={{ fontSize: '18px' }}>{p.name}</strong> 
+                <strong style={{ fontSize: '18px' }}>
+                  {p.name}
+                  {p.is_deceased && <img src={tombIcon} alt="Deceased" style={{ width: "20px", height: "20px", marginLeft: "8px", verticalAlign: "middle" }} />}
+                </strong> 
                 <span style={{ color: '#7f8c8d', marginLeft: '5px' }}>
                   ({p.clients?.surname || "No Client"})
                 </span>
@@ -132,12 +136,21 @@ export default function Patients() {
 
             {/* Bottom Section: Buttons row */}
             <div style={btnRow}>
-              <button 
-                style={greenBtn}
-                onClick={() => navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } })}
-              >
-                Sedate
-              </button>
+              {p.is_deceased ? (
+                <button 
+                  style={blueBtn}
+                  onClick={() => navigate(`/patient/${p.id}`, { state: { activeTab: "details" } })}
+                >
+                  Details
+                </button>
+              ) : (
+                <button 
+                  style={greenBtn}
+                  onClick={() => navigate(`/patient/${p.id}`, { state: { activeTab: "dosing" } })}
+                >
+                  Sedate
+                </button>
+              )}
               {isAdmin && (
                 <button 
                   style={redBtn}

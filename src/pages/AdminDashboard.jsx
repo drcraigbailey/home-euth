@@ -15,20 +15,33 @@ import { Share } from '@capacitor/share';
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee" };
 const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px", cursor: "pointer", transition: "transform 0.1s" };
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
-const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
+const btnRow = { display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" };
 
 // Dedicated pristine style for the main navigation toolbar tabs
 const tabBtnStyle = { padding: "12px 20px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
 
-// Enforced compact layout properties for smaller, uniform action buttons
-const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+// Enforced compact layout properties for smaller, uniform action buttons (Mobile Optimized)
+const standardBtnProps = { 
+  borderRadius: "8px", 
+  border: "none", 
+  cursor: "pointer", 
+  fontWeight: "bold", 
+  padding: "10px 16px", 
+  fontSize: "13px", 
+  boxSizing: "border-box", 
+  display: "inline-flex", 
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center", 
+  flexShrink: 0 
+};
 
 // Overview-matched color variations for modal action buttons
-const purpleBtn = { ...standardBtnProps, background: "#8e44ad", color: "white" }; // Matches Clients Card
-const blueBtn   = { ...standardBtnProps, background: "#3498db", color: "white" }; // Matches Patients Card
-const greyBtn   = { ...standardBtnProps, background: "#95a5a6", color: "white" }; // Matches Deceased Card
-const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }; // Matches Sedations Card
-const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; // Matches Consents Card
+const purpleBtn = { ...standardBtnProps, background: "#8e44ad", color: "white" }; 
+const blueBtn   = { ...standardBtnProps, background: "#5b8fb9", color: "white" }; // Updated to theme blue
+const greyBtn   = { ...standardBtnProps, background: "#95a5a6", color: "white" }; 
+const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }; 
+const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; 
 const redBtn    = { ...standardBtnProps, background: "#e74c3c", color: "white" };
 
 export default function AdminDashboard() {
@@ -375,7 +388,7 @@ export default function AdminDashboard() {
     setStockDrugName(""); setStockBatch(""); setStockQty(""); setStockExp(""); fetchStock();
   }
   function startEditStock(s) { setEditingStockId(s.id); setEditStockData({ ...s }); }
-  async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, background: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
+  async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, batch: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
   
   async function confirmArchiveStock() {
     if (!stockToArchive) return;

@@ -1,8 +1,11 @@
 // App.jsx
-import { BrowserRouter as Router, Routes, Route, NavLink, useLocation, Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { BrowserRouter as Router, Routes, Route, NavLink, useLocation, Navigate, useNavigate } from "react-router-dom";
+import { useEffect, useState, useRef } from "react"; // Added useRef
 import { supabase } from "./supabase";
 import Loader from "./Loader"; 
+
+// --- CAPACITOR HARDWARE APP LINK ---
+import { App as CapacitorApp } from "@capacitor/app";
 
 // pages
 import Login from "./pages/Login";
@@ -16,7 +19,6 @@ import Products from "./pages/Products";
 import AdminDashboard from "./pages/AdminDashboard";
 
 // --- GLOBAL UNIFORM STYLING CONSTANTS ---
-// Kept globally available to ensure seamless framework extension parity
 const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
 const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 
@@ -70,11 +72,9 @@ function Navbar() {
       <nav className="header-nav" style={{ position: "relative", width: "100%" }}>
         <div className="nav-container-inner" style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
           
-          {/* MAIN NAVBAR CONTAINER WITH MIN-WIDTH CORRECTION TO FORCE SCROLLING */}
           <div style={{ display: "flex", alignItems: "center", flex: 1, background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px", minWidth: 0 }}>
             <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none", flexShrink: 0 }}>&lt;</span>
             
-            {/* Scrollable container element */}
             <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center", flex: 1, padding: "10px 0", minWidth: 0 }}>
               <NavLink to="/" end className="nav-item">Home</NavLink>
               <NavLink to="/clients" className="nav-item">Clients</NavLink>
@@ -91,7 +91,6 @@ function Navbar() {
         </div>
       </nav>
 
-      {/* Styles */}
       <style>{`
         .nav-links-group::-webkit-scrollbar {
           display: none;
@@ -105,9 +104,59 @@ function Navbar() {
   );
 }
 
+// FIXED: Native Hardware Back Button Link with Single-Instance Listener Protection
+function BackButtonHandler() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Create a mutable path reference so the listener callback stays updated without duplicate attachments
+  const currentPathRef = useRef(location.pathname);
+  
+  useEffect(() => {
+    currentPathRef.current = location.pathname;
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const setupHardwareLink = async () => {
+      return await CapacitorApp.addListener('backButton', () => {
+        const path = currentPathRef.current;
+        
+        // 1. Core structural exit paths
+        if (path === "/" || path === "/login") {
+          CapacitorApp.exitApp();
+        } 
+        // 2. Structured parent routing: Force patient profiles to return directly to the full records deck
+        else if (path.startsWith("/patient/")) {
+          navigate("/patients");
+        } 
+        // 3. Structured parent routing: Force specific client files to return directly to the general clients list
+        else if (path.startsWith("/client/")) {
+          navigate("/clients");
+        } 
+        // 4. Default safe fallback (Traces chronological path back exactly one step without skipping)
+        else {
+          navigate(-1);
+        }
+      });
+    };
+
+    const initiationPromise = setupHardwareLink();
+
+    // Clean up cleanly on unmount to make sure no duplicate event paths persist
+    return () => {
+      initiationPromise.then(handlerInstance => {
+        if (handlerInstance) handlerInstance.remove();
+      });
+    };
+  }, [navigate]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <Router>
+      <BackButtonHandler />
       <Navbar /> 
       <Routes>
         <Route path="/login" element={<Login />} />
