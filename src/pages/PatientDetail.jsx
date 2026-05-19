@@ -148,6 +148,7 @@ export default function PatientDetail() {
   // Tab 6: Files
   const [patientFiles, setPatientFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [viewingImage, setViewingImage] = useState(null);
 
   // Tab 7: Emails
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -243,7 +244,15 @@ export default function PatientDetail() {
 
   async function viewFile(fileName) {
     const { data } = await supabase.storage.from("patient_documents").getPublicUrl(`${id}/${fileName}`);
-    if (data?.publicUrl) window.open(data.publicUrl, "_blank");
+    if (data?.publicUrl) {
+      const isImage = fileName.match(/\.(jpeg|jpg|gif|png|webp)$/i);
+      
+      if (isImage) {
+        setViewingImage(data.publicUrl);
+      } else {
+        window.open(data.publicUrl, "_blank");
+      }
+    }
   }
 
   function deleteFile(fileName) {
@@ -1534,6 +1543,30 @@ export default function PatientDetail() {
               <button onClick={() => { setShowConsentPrompt(false); setActiveTab("consent"); window.scrollTo(0,0); }} style={{ ...blueBtn, flex: 1 }}>Go to Form</button>
               <button onClick={() => setShowConsentPrompt(false)} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= IMAGE VIEWER MODAL ================= */}
+      {viewingImage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "15px" }} onClick={() => setViewingImage(null)}>
+          <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center" }} onClick={e => e.stopPropagation()}>
+            
+            <button onClick={() => setViewingImage(null)} style={{ position: "absolute", top: "10px", right: "10px", background: "white", color: "#333", border: "none", borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontWeight: "bold", fontSize: "16px", zIndex: 2, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
+              X
+            </button>
+            
+            <img 
+              src={viewingImage} 
+              alt="Patient Document" 
+              style={{ 
+                maxWidth: "100%",
+                maxHeight: "90vh",
+                objectFit: "contain",
+                borderRadius: "8px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
+              }} 
+            />
           </div>
         </div>
       )}
