@@ -3,15 +3,33 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 import Loader from "../Loader";
+import syringeIcon from "../assets/syringe.png";
+import stethoscopeIcon from "../assets/stethoscope.png";
 
 // --- STYLING CONSTANTS ---
 const greyBox = { background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" };
 const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15px", marginBottom: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", display: "flex", flexDirection: "column", gap: "8px", cursor: "pointer" };
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
-const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
+const btnRow = { display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" };
 
-// Strict uniform button properties copied from Admin Dashboard layout
-const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
+// Bulletproof uniform button properties to prevent stretching, squishing, and text wrapping
+const standardBtnProps = { 
+  borderRadius: "8px", 
+  border: "none", 
+  cursor: "pointer", 
+  fontWeight: "bold", 
+  padding: "10px 16px", 
+  fontSize: "13px", 
+  boxSizing: "border-box", 
+  display: "inline-flex", 
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center", 
+  minWidth: "100px", 
+  width: "auto",      // Prevents massive stretching
+  flexShrink: 0, 
+  whiteSpace: "nowrap" // Prevents text breaking onto two lines
+};
 
 const blueBtn  = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 const redBtn   = { background: "#e74c3c", color: "white", ...standardBtnProps };
@@ -225,8 +243,8 @@ export default function Home() {
           <input placeholder="Address Override" value={address} onChange={e => setAddress(e.target.value)} style={inputStyle} />
           
           <div style={btnRow}>
-            <button onClick={saveEntry} style={greenBtn}>{isEditing ? "Update Entry" : "Save to Diary"}</button>
-            {isEditing && <button onClick={resetForm} style={redBtn}>Cancel</button>}
+            <button onClick={saveEntry} style={{ ...greenBtn, flex: 1 }}>{isEditing ? "Update Entry" : "Save to Diary"}</button>
+            {isEditing && <button onClick={resetForm} style={{ ...redBtn, flex: 1 }}>Cancel</button>}
           </div>
         </div>
       )}
@@ -237,7 +255,10 @@ export default function Home() {
 
         {entries.map(entry => {
           const isEuth = entry.entry_type === "Euthanasia";
-          const badgeColor = isEuth ? "#f39c12" : "#95a5a6";
+          const isConsult = entry.entry_type === "Consultation";
+          
+          // Apply orange to Euth, theme blue to Consult, and grey to anything else (Working Status)
+          const badgeColor = isEuth ? "#f39c12" : isConsult ? "#5b8fb9" : "#95a5a6";
           
           let mainHeader = entry.title || "Untitled Entry";
           if (entry.patients) {
@@ -254,8 +275,10 @@ export default function Home() {
                 </span>
                 {entry.time_range && <span style={{ color: "#666", fontSize: "14px" }}>{entry.time_range}</span>}
               </div>
-              <strong style={{ fontSize: "18px", color: "#333", display: "flex", alignItems: "center", gap: "5px" }}>
-                {isEuth && "💔"} {mainHeader}
+              <strong style={{ fontSize: "18px", color: "#333", display: "flex", alignItems: "center", gap: "8px" }}>
+                {mainHeader}
+                {isEuth && <img src={syringeIcon} alt="Euthanasia" style={{ width: "20px", height: "20px" }} />}
+                {isConsult && <img src={stethoscopeIcon} alt="Consultation" style={{ width: "20px", height: "20px" }} />}
               </strong>
               {clientSubHeader && <div style={{ color: "#7f8c8d", fontSize: "14px", fontWeight: "500" }}>{clientSubHeader}</div>}
               {entry.notes && <div style={{ color: "#555", fontSize: "15px", lineHeight: "1.5", whiteSpace: "pre-wrap", marginTop: "5px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{entry.notes}</div>}
@@ -270,7 +293,11 @@ export default function Home() {
           <div style={{ background: "white", padding: "20px", borderRadius: "15px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflowY: "auto", position: "relative" }} onClick={e => e.stopPropagation()}>
             <button onClick={() => setViewEntry(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
             
-            <h2 style={{ marginTop: 0, color: "#2c3e50" }}>{viewEntry.entry_type} Details</h2>
+            <h2 style={{ marginTop: 0, color: "#2c3e50", display: "flex", alignItems: "center", gap: "10px" }}>
+              {viewEntry.entry_type} Details
+              {viewEntry.entry_type === "Euthanasia" && <img src={syringeIcon} alt="Euthanasia" style={{ width: "24px", height: "24px" }} />}
+              {viewEntry.entry_type === "Consultation" && <img src={stethoscopeIcon} alt="Consultation" style={{ width: "24px", height: "24px" }} />}
+            </h2>
             <div style={{ fontSize: "14px", color: "#666", marginBottom: "15px" }}>{selectedDate} | {viewEntry.time_range}</div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "#f8f9fb", padding: "15px", borderRadius: "10px" }}>
@@ -321,14 +348,14 @@ export default function Home() {
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px", flexDirection: "column" }}>
               {viewEntry.client_id && (
-                <button onClick={() => navigate(`/client/${viewEntry.client_id}`)} style={{ ...darkBtn, minWidth: "100%", padding: "10px" }}>
+                <button onClick={() => navigate(`/client/${viewEntry.client_id}`)} style={{ ...darkBtn, width: "100%", padding: "12px" }}>
                   📂 Go to Client File
                 </button>
               )}
               {isAdmin && (
-                <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-                  <button onClick={() => startEdit(viewEntry)} style={blueBtn}>Edit</button>
-                  <button onClick={() => setEntryToDelete(viewEntry)} style={redBtn}>Delete</button>
+                <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+                  <button onClick={() => startEdit(viewEntry)} style={{ ...blueBtn, flex: 1 }}>Edit</button>
+                  <button onClick={() => setEntryToDelete(viewEntry)} style={{ ...redBtn, flex: 1 }}>Delete</button>
                 </div>
               )}
             </div>
