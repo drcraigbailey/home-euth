@@ -27,8 +27,11 @@ const standardBtnProps = {
   padding: "8px 14px", 
   fontSize: "12px", 
   boxSizing: "border-box", 
-  display: "inline-block",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
   textAlign: "center", 
+  lineHeight: 1.2,
   whiteSpace: "nowrap", 
   minWidth: "100px",
   width: "auto"
@@ -910,11 +913,11 @@ export default function PatientDetail() {
             {!editMode ? (
               <div style={{ display: "flex", gap: "10px", flex: 1, minWidth: "200px", justifyContent: "flex-end" }}>
                 {(!patient?.is_deceased || isAdmin) && (
-                  <button onClick={toggleDeceased} style={{ ...(patient?.is_deceased ? greyBtn : redBtn), flex: 1 }}>
+                  <button className="patient-long-action-btn" onClick={toggleDeceased} style={{ ...(patient?.is_deceased ? greyBtn : redBtn), flex: 1, minWidth: 0, padding: "8px 8px" }}>
                     {patient?.is_deceased ? "Unmark Deceased" : "Mark Deceased"}
                   </button>
                 )}
-                <button onClick={() => setEditMode(true)} style={{ ...blueBtn, flex: 1 }}>
+                <button className="patient-action-btn" onClick={() => setEditMode(true)} style={{ ...blueBtn, flex: 1 }}>
                   Edit
                 </button>
               </div>
@@ -1295,9 +1298,9 @@ export default function PatientDetail() {
               <SignatureCanvas penColor="black" canvasProps={{ width: 300, height: 150, className: "sigCanvas" }} ref={sigPadRef} />
             </div>
             <div style={{ display: "flex", gap: "10px", marginTop: "15px", justifyContent: "center" }}>
-              <button onClick={() => sigPadRef.current.clear()} style={{ ...greyBtn, flex: 1 }}>Clear</button>
-              <button onClick={() => saveConsent(false)} style={{ ...blueBtn, flex: 1 }}>Save</button>
-              <button onClick={() => saveConsent(true)} style={{ ...greenBtn, flex: 1 }}>Save & Sedate</button>
+              <button className="consent-action-btn" onClick={() => sigPadRef.current.clear()} style={{ ...greyBtn, flex: 1, minWidth: 0 }}>Clear</button>
+              <button className="consent-action-btn" onClick={() => saveConsent(false)} style={{ ...blueBtn, flex: 1, minWidth: 0 }}>Save</button>
+              <button className="consent-action-btn consent-long-action-btn" onClick={() => saveConsent(true)} style={{ ...greenBtn, flex: 1, minWidth: 0, padding: "8px 8px" }}>Save & Sedate</button>
             </div>
           </div>
           {consentHistory.length > 0 && (
