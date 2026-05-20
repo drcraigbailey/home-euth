@@ -1231,7 +1231,7 @@ async function generatePatientReport() {
         </div>
       )}
 
-      {/* ================= TAB 2: DRUG LOGS (VMD) ================= */}
+     {/* ================= TAB 2: DRUG LOGS (VMD) ================= */}
       {activeTab === "drug_logs" && (
         <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
@@ -1387,7 +1387,7 @@ async function generatePatientReport() {
                       <input type="number" value={editStockData.total_ml} onChange={e => setEditStockData({ ...editStockData, total_ml: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                       <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
                     </div>
-                    <div style={btnRow}>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
                       <button style={{...blueBtn, flex: 1}} onClick={() => saveEditStock(s.id)}>Save</button>
                       <button style={{...redBtn, flex: 1}} onClick={() => setEditingStockId(null)}>Cancel</button>
                     </div>
@@ -1399,10 +1399,10 @@ async function generatePatientReport() {
                       Batch: {s.batch} | <strong>{s.total_ml} ml remaining</strong><br/>
                       {s.expiry_date && `Expires: ${new Date(s.expiry_date).toLocaleDateString('en-GB')}`}
                     </div>
-                    <div style={{...btnRow, marginTop: "15px"}}>
-                      <button style={{ ...blueBtn }} onClick={() => startEditStock(s)}>Edit</button>
-                      <button style={yellowBtn} onClick={() => setStockToArchive(s)}>Archive</button>
-                      <button style={redBtn} onClick={() => setStockToDelete(s)}>Delete</button>
+                    <div style={{ display: "flex", gap: "10px", marginTop: "12px", flexWrap: "wrap" }}>
+                      <button style={{ ...blueBtn, flex: 1, minWidth: "80px" }} onClick={() => startEditStock(s)}>Edit</button>
+                      <button style={{ ...yellowBtn, flex: 1, minWidth: "80px" }} onClick={() => setStockToArchive(s)}>Archive</button>
+                      <button style={{ ...redBtn, flex: 1, minWidth: "80px" }} onClick={() => setStockToDelete(s)}>Delete</button>
                     </div>
                   </>
                 )}
@@ -1412,7 +1412,6 @@ async function generatePatientReport() {
           </div>
         </>
       )}
-
       {/* ================= TAB 5: PROTOCOLS ================= */}
       {activeTab === "protocols" && (
         <>
