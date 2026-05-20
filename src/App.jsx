@@ -7,9 +7,6 @@ import Loader from "./Loader";
 // --- CAPACITOR HARDWARE APP LINK ---
 import { App as CapacitorApp } from "@capacitor/app";
 
-// --- IMPORT YOUR LOGO HERE ---
-import logoImage from "./assets/logo.png"; 
-
 // pages
 import Login from "./pages/Login";
 import Home from "./pages/Home"; 
@@ -30,6 +27,7 @@ function ScrollToTop() {
   const { pathname } = useLocation();
   
   useEffect(() => {
+    // Instantly snaps the page to the top
     window.scrollTo(0, 0);
   }, [pathname]);
   
@@ -59,7 +57,6 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// 📌 GLOBAL NAVBAR WITH PERSISTENT BRANDING
 function Navbar() {
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -80,30 +77,14 @@ function Navbar() {
     window.location.href = "/login";
   }
 
-  // Hide the global navbar entirely on the login screen
   if (location.pathname === "/login") return null;
 
   return (
-    <div className="app-header" style={{ position: "relative", background: "white", paddingBottom: "10px" }}>
-      
-      {/* --- PERSISTENT BRANDING HEADER --- */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", padding: "15px 10px" }}>
-        <img src={logoImage} alt="SP Home Euthanasia Logo" style={{ height: "35px", objectFit: "contain" }} />
-       <h2 style={{ 
-  margin: 0, 
-  fontSize: "18px", 
-  color: "#2c3e50", 
-  fontFamily: "Helvetica, Arial, sans-serif", // Standard, web-safe font stack
-  fontWeight: "600" 
-}}>
-  SP Home Euthanasia
-</h2>
-      </div>
-
-      <nav className="header-nav" style={{ position: "relative", width: "100%", padding: "0 10px" }}>
+    <div className="app-header" style={{ position: "relative" }}>
+      <nav className="header-nav" style={{ position: "relative", width: "100%" }}>
         <div className="nav-container-inner" style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
           
-          <div style={{ display: "flex", alignItems: "center", flex: 1, background: "#f8f9fb", borderRadius: "15px", border: "1px solid #eee", padding: "0 10px", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", flex: 1, background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px", minWidth: 0 }}>
             <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none", flexShrink: 0 }}>&lt;</span>
             
             <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center", flex: 1, padding: "10px 0", minWidth: 0 }}>
@@ -135,11 +116,12 @@ function Navbar() {
   );
 }
 
-// NATIVE HARDWARE BACK BUTTON LINK
+// FIXED: Native Hardware Back Button Link with Single-Instance Listener Protection
 function BackButtonHandler() {
   const navigate = useNavigate();
   const location = useLocation();
   
+  // Create a mutable path reference so the listener callback stays updated without duplicate attachments
   const currentPathRef = useRef(location.pathname);
   
   useEffect(() => {
@@ -151,13 +133,20 @@ function BackButtonHandler() {
       return await CapacitorApp.addListener('backButton', () => {
         const path = currentPathRef.current;
         
+        // 1. Core structural exit paths
         if (path === "/" || path === "/login") {
           CapacitorApp.exitApp();
-        } else if (path.startsWith("/patient/")) {
+        } 
+        // 2. Structured parent routing: Force patient profiles to return directly to the full records deck
+        else if (path.startsWith("/patient/")) {
           navigate("/patients");
-        } else if (path.startsWith("/client/")) {
+        } 
+        // 3. Structured parent routing: Force specific client files to return directly to the general clients list
+        else if (path.startsWith("/client/")) {
           navigate("/clients");
-        } else {
+        } 
+        // 4. Default safe fallback (Traces chronological path back exactly one step without skipping)
+        else {
           navigate(-1);
         }
       });
@@ -165,6 +154,7 @@ function BackButtonHandler() {
 
     const initiationPromise = setupHardwareLink();
 
+    // Clean up cleanly on unmount to make sure no duplicate event paths persist
     return () => {
       initiationPromise.then(handlerInstance => {
         if (handlerInstance) handlerInstance.remove();
@@ -178,7 +168,7 @@ function BackButtonHandler() {
 export default function App() {
   return (
     <Router>
-      <ScrollToTop />
+      <ScrollToTop /> {/* <--- FORCES SCROLL TO TOP ON PAGE CHANGE */}
       <BackButtonHandler />
       <Navbar /> 
       <Routes>
