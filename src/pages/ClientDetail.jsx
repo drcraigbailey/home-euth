@@ -29,6 +29,7 @@ const redBtn    = { background: "#e74c3c", color: "white", ...standardBtnProps }
 const greenBtn  = { background: "#27ae60", color: "white", ...standardBtnProps };
 const yellowBtn = { background: "#f39c12", color: "white", ...standardBtnProps };
 const greyBtn   = { background: "#95a5a6", color: "white", ...standardBtnProps };
+const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
 
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 
@@ -75,6 +76,10 @@ export default function ClientDetail() {
   // Modal State for Patient Deletion
   const [patientToDelete, setPatientToDelete] = useState(null);
 
+  // Search & Expand States
+  const [patientSearch, setPatientSearch] = useState("");
+  const [expandPatients, setExpandPatients] = useState(false);
+
   useEffect(() => {
     async function loadData() {
       setIsLoading(true);
@@ -104,7 +109,7 @@ export default function ClientDetail() {
   }
 
   async function fetchPatients() {
-    const { data } = await supabase.from("patients").select("*").eq("client_id", id);
+    const { data } = await supabase.from("patients").select("*").eq("client_id", id).order("created_at", { ascending: false });
     setPatients(data || []);
   }
 
@@ -174,6 +179,10 @@ export default function ClientDetail() {
   }
 
   const googleMapsUrl = client?.address ? `https://maps.google.com/?q=$${encodeURIComponent(`${client.address}, ${client.city || ""} ${client.postcode || ""}`)}` : null;
+
+  // Search and limit derivation
+  const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(patientSearch.toLowerCase()));
+  const dispPatients = (expandPatients || patientSearch.trim()) ? filteredPatients : filteredPatients.slice(0, 10);
 
   if (isLoading) {
     return (
@@ -273,8 +282,18 @@ export default function ClientDetail() {
 
       {/* --- PATIENT LIST --- */}
       <div style={greyBox}>
-        <h3 style={{ marginBottom: "20px", marginTop: 0 }}>Patient List</h3>
-        {patients.map((p) => (
+        <h3 style={{ marginBottom: "15px", marginTop: 0 }}>Patient List</h3>
+        
+        {patients.length > 0 && (
+          <input 
+            placeholder="Search this client's patients..." 
+            value={patientSearch} 
+            onChange={(e) => setPatientSearch(e.target.value)} 
+            style={inputStyle} 
+          />
+        )}
+
+        {dispPatients.map((p) => (
           <div key={p.id} style={whiteShadowBox}>
             <div onClick={() => navigate(`/patient/${p.id}`)} style={{ cursor: "pointer" }}>
               <span style={{ fontSize: "20px", fontWeight: "bold", color: "#333" }}>
@@ -313,7 +332,15 @@ export default function ClientDetail() {
             </div>
           </div>
         ))}
+        
         {patients.length === 0 && <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>No patients found.</p>}
+        {patients.length > 0 && filteredPatients.length === 0 && <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>No patients match your search.</p>}
+
+        {patients.length > 10 && !patientSearch.trim() && (
+          <button onClick={() => setExpandPatients(!expandPatients)} style={expandBtnStyle}>
+            {expandPatients ? "Show Less" : `Show All (${patients.length})`}
+          </button>
+        )}
       </div>
 
       {/* POP-UP MODAL FOR PATIENT DELETION */}

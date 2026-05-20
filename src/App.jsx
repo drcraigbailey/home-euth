@@ -1,6 +1,6 @@
 // App.jsx
 import { BrowserRouter as Router, Routes, Route, NavLink, useLocation, Navigate, useNavigate } from "react-router-dom";
-import { useEffect, useState, useRef } from "react"; // Added useRef
+import { useEffect, useState, useRef } from "react"; 
 import { supabase } from "./supabase";
 import Loader from "./Loader"; 
 
@@ -21,6 +21,18 @@ import AdminDashboard from "./pages/AdminDashboard";
 // --- GLOBAL UNIFORM STYLING CONSTANTS ---
 const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
 const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
+
+// --- HELPER: SCROLL TO TOP ON NAVIGATION ---
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  
+  useEffect(() => {
+    // Instantly snaps the page to the top
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  
+  return null;
+}
 
 // 🔒 Protected route component
 function ProtectedRoute({ children }) {
@@ -156,6 +168,7 @@ function BackButtonHandler() {
 export default function App() {
   return (
     <Router>
+      <ScrollToTop /> {/* <--- FORCES SCROLL TO TOP ON PAGE CHANGE */}
       <BackButtonHandler />
       <Navbar /> 
       <Routes>

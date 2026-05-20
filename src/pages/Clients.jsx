@@ -30,6 +30,8 @@ const greenBtn       = { background: "#27ae60", color: "white", ...standardBtnPr
 const yellowBtn      = { background: "#f39c12", color: "white", ...standardBtnProps };
 const greyBtn        = { background: "#95a5a6", color: "white", ...standardBtnProps };
 const blueBtn        = { background: "#3498db", color: "white", ...standardBtnProps };
+const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
+
 const inputStyle = { padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" };
 
 const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
@@ -68,6 +70,9 @@ export default function Clients() {
   const [petAgeMonths, setPetAgeMonths] = useState("");
   const [petMicrochip, setPetMicrochip] = useState("");
   const [showPetMoreInfo, setShowPetMoreInfo] = useState(false);
+
+  // Expand State
+  const [expandClients, setExpandClients] = useState(false);
 
   useEffect(() => { 
     async function loadData() {
@@ -192,6 +197,8 @@ export default function Clients() {
     return fullName.includes(search.toLowerCase());
   });
 
+  const dispClients = (expandClients || search.trim()) ? filtered : filtered.slice(0, 10);
+
   if (isLoading) {
     return (
       <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
@@ -229,7 +236,8 @@ export default function Clients() {
 
       <div style={{ marginTop: "20px", background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
         <h3 style={{ marginBottom: "20px" }}>Active Clients</h3>
-        {filtered.map(c => (
+        
+        {dispClients.map(c => (
           <div 
             key={c.id} 
             style={whiteShadowBox} 
@@ -259,7 +267,14 @@ export default function Clients() {
             )}
           </div>
         ))}
+        
         {filtered.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No clients found.</p>}
+
+        {clients.length > 10 && !search.trim() && (
+          <button onClick={() => setExpandClients(!expandClients)} style={expandBtnStyle}>
+            {expandClients ? "Show Less" : `Show All (${clients.length})`}
+          </button>
+        )}
       </div>
 
       {/* POP-UP MODAL FOR ADDING A PET */}

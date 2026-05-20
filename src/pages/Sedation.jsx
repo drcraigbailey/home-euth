@@ -14,6 +14,7 @@ const blueBtn  = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 const greenBtn = { background: "#27ae60", color: "white", ...standardBtnProps };
 const redBtn   = { background: "#e74c3c", color: "white", ...standardBtnProps };
 const greyBtn  = { background: "#95a5a6", color: "white", ...standardBtnProps };
+const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
 
 const DRUG_MAP = {
   ketamine: ["ket", "ketamine"],
@@ -44,6 +45,8 @@ export default function Sedation() {
 
   // Temporary 24hr History
   const [localHistory, setLocalHistory] = useState([]);
+  const [searchHistory, setSearchHistory] = useState("");
+  const [expandHistory, setExpandHistory] = useState(false);
   
   // Custom Modal States
   const [alertMessage, setAlertMessage] = useState("");
@@ -139,6 +142,13 @@ export default function Sedation() {
     });
   }
 
+  // Filter and limit derivation
+  const filteredHistory = localHistory.filter(h => 
+    (h.protocolName || "").toLowerCase().includes(searchHistory.toLowerCase()) || 
+    String(h.weight).includes(searchHistory)
+  );
+  const dispHistory = (expandHistory || searchHistory.trim()) ? filteredHistory : filteredHistory.slice(0, 10);
+
   if (isLoading) {
     return (
       <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
@@ -195,12 +205,21 @@ export default function Sedation() {
 
       {localHistory.length > 0 && (
         <div style={{ marginTop: "30px", background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
             <h3 style={{ margin: 0 }}>Recent Calculations (24h)</h3>
             <button onClick={clearHistory} style={redBtn}>Clear All</button>
           </div>
           
-          {localHistory.map(h => (
+          <input 
+            placeholder="Search calculations..." 
+            value={searchHistory} 
+            onChange={(e) => setSearchHistory(e.target.value)} 
+            style={{ ...inputStyle, marginBottom: "15px" }}
+          />
+          
+          {filteredHistory.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No records match your search.</p>}
+
+          {dispHistory.map(h => (
             <div key={h.id} style={{ background: "white", padding: "15px", borderRadius: "12px", marginBottom: "15px", border: "1px solid #eee", boxShadow: "0 2px 5px rgba(0,0,0,0.02)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
                 <strong>{h.protocolName}</strong>
@@ -218,6 +237,12 @@ export default function Sedation() {
               ))}
             </div>
           ))}
+
+          {localHistory.length > 10 && !searchHistory.trim() && (
+            <button onClick={() => setExpandHistory(!expandHistory)} style={expandBtnStyle}>
+              {expandHistory ? "Show Less" : `Show All (${localHistory.length})`}
+            </button>
+          )}
         </div>
       )}
 

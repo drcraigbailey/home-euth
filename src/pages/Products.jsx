@@ -10,11 +10,15 @@ const inputStyle = { width: "100%", padding: "12px", borderRadius: "8px", border
 // Strict uniform button properties copied from Admin Dashboard layout
 const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
 const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
+const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
 
 export default function Products() {
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
+  
+  // Expand State
+  const [expandProducts, setExpandProducts] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -32,8 +36,11 @@ export default function Products() {
 
   const filtered = products.filter(p => 
     p.name.toLowerCase().includes(search.toLowerCase()) || 
-    (p.description && p.description.toLowerCase().includes(search.toLowerCase()))
+    (p.description || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  // Derivation for displaying max 10 unless expanded or searching
+  const dispProducts = (expandProducts || search.trim()) ? filtered : filtered.slice(0, 10);
 
   if (isLoading) {
     return (
@@ -58,17 +65,23 @@ export default function Products() {
         
         {filtered.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No products found.</p>}
         
-        {filtered.map(p => (
+        {dispProducts.map(p => (
           <div key={p.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <strong style={{ fontSize: "18px", display: "block", color: "#333" }}>{p.name}</strong>
               <div style={{ color: "#7f8c8d", fontSize: "14px", marginTop: "5px" }}>{p.description}</div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "20px", fontWeight: "bold", color: "#27ae60" }}>£{Number(p.price).toFixed(2)}</div>
+            <div style={{ fontSize: "20px", fontWeight: "bold", color: "#27ae60", paddingLeft: "15px" }}>
+              £{Number(p.price).toFixed(2)}
             </div>
           </div>
         ))}
+
+        {products.length > 10 && !search.trim() && (
+          <button onClick={() => setExpandProducts(!expandProducts)} style={expandBtnStyle}>
+            {expandProducts ? "Show Less" : `Show All (${products.length})`}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ const greenBtn = { background: "#27ae60", color: "white", ...standardBtnProps };
 const redBtn   = { background: "#e74c3c", color: "white", ...standardBtnProps };
 const greyBtn  = { background: "#95a5a6", color: "white", ...standardBtnProps };
 const blueBtn  = { background: "#5b8fb9", color: "white", ...standardBtnProps };
+const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
 
 export default function Patients() {
   const [isLoading, setIsLoading] = useState(true);
@@ -40,6 +41,9 @@ export default function Patients() {
 
   // Modal State for Deletion
   const [patientToDelete, setPatientToDelete] = useState(null);
+
+  // Expand State
+  const [expandPatients, setExpandPatients] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -63,7 +67,7 @@ export default function Patients() {
     const { data } = await supabase
       .from("patients")
       .select(`*, clients(surname)`)
-      .order("name");
+      .order("created_at", { ascending: false }); // Ordered by newest first to ensure the top 10 are the most recent
     setPatients(data || []);
   }
 
@@ -92,6 +96,8 @@ export default function Patients() {
     (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (p.species || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const dispPatients = (expandPatients || search.trim()) ? filtered : filtered.slice(0, 10);
 
   if (isLoading) {
     return (
@@ -126,7 +132,7 @@ export default function Patients() {
       }}>
         <h3 style={{ marginBottom: "20px", marginTop: 0 }}>Patient List</h3>
 
-        {filtered.map((p) => (
+        {dispPatients.map((p) => (
           /* Individual White Shadow-Box Cards */
           <div key={p.id} style={{ 
             background: "white",
@@ -189,6 +195,12 @@ export default function Patients() {
           <p style={{ textAlign: "center", color: "#666", padding: "20px" }}>
             No patients found.
           </p>
+        )}
+
+        {patients.length > 10 && !search.trim() && (
+          <button onClick={() => setExpandPatients(!expandPatients)} style={expandBtnStyle}>
+            {expandPatients ? "Show Less" : `Show All (${patients.length})`}
+          </button>
         )}
       </div>
 

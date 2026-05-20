@@ -42,6 +42,7 @@ const redBtn    = { background: "#e74c3c", color: "white", ...standardBtnProps }
 const greenBtn  = { background: "#27ae60", color: "white", ...standardBtnProps };
 const yellowBtn = { background: "#f39c12", color: "white", ...standardBtnProps };
 const greyBtn   = { background: "#95a5a6", color: "white", ...standardBtnProps };
+const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
 
 const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
 const BREED_MAP = {
@@ -103,6 +104,8 @@ export default function PatientDetail() {
   const [newNoteText, setNewNoteText] = useState("");
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editNoteText, setEditNoteText] = useState("");
+  const [searchNotes, setSearchNotes] = useState("");
+  const [expandNotes, setExpandNotes] = useState(false);
 
   // Tab 2: Dosing Calc
   const [protocols, setProtocols] = useState([]);
@@ -112,6 +115,8 @@ export default function PatientDetail() {
   const [sedationHistory, setSedationHistory] = useState([]);
   const [editingHistoryId, setEditingHistoryId] = useState(null);
   const [editHistoryResults, setEditHistoryResults] = useState([]);
+  const [searchSedations, setSearchSedations] = useState("");
+  const [expandSedations, setExpandSedations] = useState(false);
 
   // Tab 3: Procedures & Invoices
   const [allProducts, setAllProducts] = useState([]);
@@ -126,11 +131,15 @@ export default function PatientDetail() {
   const [inlineProdId, setInlineProdId] = useState("");
   const [inlinePrice, setInlinePrice] = useState("");
   const [inlineNotes, setInlineNotes] = useState("");
+  const [searchInvoices, setSearchInvoices] = useState("");
+  const [expandInvoices, setExpandInvoices] = useState(false);
 
   // Tab 4: Consent
   const [consentHistory, setConsentHistory] = useState([]);
   const [consentName, setConsentName] = useState("");
   const sigPadRef = useRef(null);
+  const [searchConsents, setSearchConsents] = useState("");
+  const [expandConsents, setExpandConsents] = useState(false);
 
   // Tab 5: Appointments
   const [profiles, setProfiles] = useState([]);
@@ -144,11 +153,15 @@ export default function PatientDetail() {
   const [aptType, setAptType] = useState("Consultation");
   const [aptTitle, setAptTitle] = useState("");
   const [aptNotes, setAptNotes] = useState("");
+  const [searchAppointments, setSearchAppointments] = useState("");
+  const [expandAppointments, setExpandAppointments] = useState(false);
 
   // Tab 6: Files
   const [patientFiles, setPatientFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [viewingImage, setViewingImage] = useState(null);
+  const [searchFiles, setSearchFiles] = useState("");
+  const [expandFiles, setExpandFiles] = useState(false);
 
   // Tab 7: Emails
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -849,6 +862,36 @@ export default function PatientDetail() {
   });
   const invoiceList = Object.values(invoices).sort((a,b) => new Date(b.date) - new Date(a.date));
 
+  // --- FILTER & LIMIT DERIVATIONS ---
+  const filteredNotes = notesList.filter(n => n.text.toLowerCase().includes(searchNotes.toLowerCase()));
+  const dispNotes = (expandNotes || searchNotes.trim()) ? filteredNotes : filteredNotes.slice(0, 10);
+
+  const filteredSedations = sedationHistory.filter(h => 
+    (h.results || []).some(r => (r.label || r.drug || "").toLowerCase().includes(searchSedations.toLowerCase())) ||
+    new Date(h.created_at).toLocaleDateString('en-GB').includes(searchSedations)
+  );
+  const dispSedations = (expandSedations || searchSedations.trim()) ? filteredSedations : filteredSedations.slice(0, 10);
+
+  const filteredInvoices = invoiceList.filter(inv => 
+    new Date(inv.date).toLocaleDateString('en-GB').includes(searchInvoices) ||
+    inv.procedures.some(p => (p.product_name || "").toLowerCase().includes(searchInvoices.toLowerCase()))
+  );
+  const dispInvoices = (expandInvoices || searchInvoices.trim()) ? filteredInvoices : filteredInvoices.slice(0, 10);
+
+  const filteredConsents = consentHistory.filter(c => (c.name || "").toLowerCase().includes(searchConsents.toLowerCase()));
+  const dispConsents = (expandConsents || searchConsents.trim()) ? filteredConsents : filteredConsents.slice(0, 10);
+
+  const filteredAppointments = appointments.filter(a => 
+    (a.title || "").toLowerCase().includes(searchAppointments.toLowerCase()) ||
+    (a.entry_type || "").toLowerCase().includes(searchAppointments.toLowerCase()) ||
+    new Date(a.date).toLocaleDateString('en-GB').includes(searchAppointments)
+  );
+  const dispAppointments = (expandAppointments || searchAppointments.trim()) ? filteredAppointments : filteredAppointments.slice(0, 10);
+
+  const filteredFiles = patientFiles.filter(f => (f.name || "").toLowerCase().includes(searchFiles.toLowerCase()));
+  const dispFiles = (expandFiles || searchFiles.trim()) ? filteredFiles : filteredFiles.slice(0, 10);
+
+
   if (isLoading) {
     return (
       <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
@@ -988,7 +1031,16 @@ export default function PatientDetail() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {notesList.map(note => (
+              {notesList.length > 0 && (
+                <input 
+                  placeholder="Search clinical notes..." 
+                  value={searchNotes} 
+                  onChange={(e) => setSearchNotes(e.target.value)} 
+                  style={{ ...inputStyle, marginBottom: "10px" }} 
+                />
+              )}
+
+              {dispNotes.map(note => (
                 <div key={note.id} style={{ background: "white", padding: "15px", borderRadius: "10px", border: "1px solid #eee", boxShadow: "0 2px 5px rgba(0,0,0,0.02)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", borderBottom: "1px solid #f1f1f1", paddingBottom: "8px" }}>
                     <span style={{ fontSize: "13px", color: "#7f8c8d", fontWeight: "bold" }}>
@@ -1017,7 +1069,14 @@ export default function PatientDetail() {
                   )}
                 </div>
               ))}
+              
               {notesList.length === 0 && <p style={{ color: "#666", textAlign: "center", fontSize: "14px", marginTop: "10px" }}>No clinical notes recorded yet.</p>}
+              
+              {notesList.length > 10 && !searchNotes.trim() && (
+                <button onClick={() => setExpandNotes(!expandNotes)} style={expandBtnStyle}>
+                  {expandNotes ? "Show Less" : `Show All (${notesList.length})`}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1061,10 +1120,18 @@ export default function PatientDetail() {
             Record Doses & Deduct from Stock
           </button>
           
-       {sedationHistory.length > 0 && (
+          {sedationHistory.length > 0 && (
             <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "15px", marginTop: "30px", border: "1px solid #eee" }}>
               <h3 style={{ marginTop: 0, marginBottom: "15px", color: "#2c3e50" }}>Dosing History</h3>
-              {sedationHistory.map(h => {
+              
+              <input 
+                placeholder="Search history..." 
+                value={searchSedations} 
+                onChange={(e) => setSearchSedations(e.target.value)} 
+                style={{ ...inputStyle, marginBottom: "15px" }} 
+              />
+
+              {dispSedations.map(h => {
                 const isOlderThan48h = (new Date() - new Date(h.created_at)) > (48 * 60 * 60 * 1000);
                 const canEdit = isAdmin || !isOlderThan48h;
 
@@ -1081,7 +1148,6 @@ export default function PatientDetail() {
                     
                     {editingHistoryId === h.id ? (
                       <>
-                        {/* FIXED MOBILE RESPONSIVE EDITING LAYOUT */}
                         {editHistoryResults.map((r, i) => (
                           <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "12px", background: "#fdfdfd", padding: "8px", borderRadius: "8px", border: "1px dashed #bdc3c7" }}>
                             <strong style={{ color: "#333", fontSize: "14px" }}>{r.label || r.drug}</strong>
@@ -1147,6 +1213,12 @@ export default function PatientDetail() {
                   </div>
                 );
               })}
+
+              {sedationHistory.length > 10 && !searchSedations.trim() && (
+                <button onClick={() => setExpandSedations(!expandSedations)} style={expandBtnStyle}>
+                  {expandSedations ? "Show Less" : `Show All (${sedationHistory.length})`}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1173,9 +1245,17 @@ export default function PatientDetail() {
           </div>
 
           <div style={{ marginTop: "20px" }}>
+            {invoiceList.length > 0 && (
+              <input 
+                placeholder="Search invoices..." 
+                value={searchInvoices} 
+                onChange={(e) => setSearchInvoices(e.target.value)} 
+                style={{ ...inputStyle, marginBottom: "15px" }} 
+              />
+            )}
             {invoiceList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No invoices yet.</p>}
             
-            {invoiceList.map(inv => (
+            {dispInvoices.map(inv => (
               <div 
                 key={inv.id} 
                 id={`invoice-${inv.id}`} 
@@ -1296,6 +1376,12 @@ export default function PatientDetail() {
 
               </div>
             ))}
+
+            {invoiceList.length > 10 && !searchInvoices.trim() && (
+              <button onClick={() => setExpandInvoices(!expandInvoices)} style={expandBtnStyle}>
+                {expandInvoices ? "Show Less" : `Show All (${invoiceList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1322,19 +1408,33 @@ export default function PatientDetail() {
               <button className="consent-action-btn consent-long-action-btn" onClick={() => saveConsent(true)} style={{ ...greenBtn, flex: 1, minWidth: 0, padding: "8px 8px" }}>Save & Sedate</button>
             </div>
           </div>
+
           {consentHistory.length > 0 && (
             <div className="card" style={{ marginTop: "20px" }}>
               <h3>Consent History</h3>
-              {consentHistory.map(c => (
+              
+              <input 
+                placeholder="Search consent forms..." 
+                value={searchConsents} 
+                onChange={(e) => setSearchConsents(e.target.value)} 
+                style={{ ...inputStyle, marginBottom: "15px" }} 
+              />
+
+              {dispConsents.map(c => (
                 <div key={c.id} style={{ marginBottom: "15px", padding: "15px", background: "#f8f9fb", borderRadius: "10px", border: "1px solid #eee" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    boxSizing: "border-box"
                     <strong>{c.name}</strong><span style={{ fontSize: "12px", color: "#666" }}>{new Date(c.created_at).toLocaleString()}</span>
                   </div>
                   <img src={c.signature} alt="signature" style={{ marginTop: "15px", border: "1px solid #ccc", background: "white", borderRadius: "5px", width: "100%", maxWidth: "300px" }} />
                   <button style={{ ...redBtn, marginTop: "15px", width: "100%" }} onClick={() => deleteConsent(c.id)}>Delete</button>
                 </div>
               ))}
+
+              {consentHistory.length > 10 && !searchConsents.trim() && (
+                <button onClick={() => setExpandConsents(!expandConsents)} style={expandBtnStyle}>
+                  {expandConsents ? "Show Less" : `Show All (${consentHistory.length})`}
+                </button>
+              )}
             </div>
           )}
         </>
@@ -1378,8 +1478,19 @@ export default function PatientDetail() {
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Appointment History</h3>
+            
+            {appointments.length > 0 && (
+              <input 
+                placeholder="Search appointments..." 
+                value={searchAppointments} 
+                onChange={(e) => setSearchAppointments(e.target.value)} 
+                style={{ ...inputStyle, marginBottom: "15px" }} 
+              />
+            )}
+
             {appointments.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No appointments found.</p>}
-            {appointments.map(apt => {
+            
+            {dispAppointments.map(apt => {
               const isEuth = apt.entry_type === "Euthanasia";
               const badgeColor = isEuth ? "#f39c12" : "#95a5a6";
               return (
@@ -1403,6 +1514,12 @@ export default function PatientDetail() {
                 </div>
               );
             })}
+
+            {appointments.length > 10 && !searchAppointments.trim() && (
+              <button onClick={() => setExpandAppointments(!expandAppointments)} style={expandBtnStyle}>
+                {expandAppointments ? "Show Less" : `Show All (${appointments.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1442,9 +1559,19 @@ export default function PatientDetail() {
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Attached Files</h3>
+            
+            {patientFiles.length > 0 && (
+              <input 
+                placeholder="Search files..." 
+                value={searchFiles} 
+                onChange={(e) => setSearchFiles(e.target.value)} 
+                style={{ ...inputStyle, marginBottom: "15px" }} 
+              />
+            )}
+
             {patientFiles.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No files uploaded yet.</p>}
             
-            {patientFiles.map(file => {
+            {dispFiles.map(file => {
               const displayName = file.name.split('_').slice(1).join('_') || file.name; 
               
               return (
@@ -1464,6 +1591,12 @@ export default function PatientDetail() {
                 </div>
               );
             })}
+
+            {patientFiles.length > 10 && !searchFiles.trim() && (
+              <button onClick={() => setExpandFiles(!expandFiles)} style={expandBtnStyle}>
+                {expandFiles ? "Show Less" : `Show All (${patientFiles.length})`}
+              </button>
+            )}
           </div>
         </>
       )}

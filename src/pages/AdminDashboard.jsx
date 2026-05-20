@@ -31,6 +31,7 @@ const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }
 const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; 
 const redBtn    = { ...standardBtnProps, background: "#e74c3c", color: "white" };
 const invoiceViewBtn = { ...blueBtn, width: "92px", minWidth: "92px", maxWidth: "92px", height: "34px", minHeight: "34px", padding: "7px 9px", fontSize: "12px", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto", whiteSpace: "nowrap" };
+const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -60,6 +61,16 @@ export default function AdminDashboard() {
   const [stockToDelete, setStockToDelete] = useState(null);
   const [stockToArchive, setStockToArchive] = useState(null);
   const [protocolToDelete, setProtocolToDelete] = useState(null);
+
+  // Expand States for List Limits
+  const [expandInvoices, setExpandInvoices] = useState(false);
+  const [expandExpenses, setExpandExpenses] = useState(false);
+  const [expandStaff, setExpandStaff] = useState(false);
+  const [expandLogs, setExpandLogs] = useState(false);
+  const [expandProducts, setExpandProducts] = useState(false);
+  const [expandStock, setExpandStock] = useState(false);
+  const [expandProtocols, setExpandProtocols] = useState(false);
+  const [expandTemplates, setExpandTemplates] = useState(false);
 
   // Staff Management State
   const [profiles, setProfiles] = useState([]);
@@ -529,7 +540,7 @@ async function generatePatientReport() {
       const headers = ["Date", "Description", "Category", "Amount (£)", "Receipt URL"];
       const rows = expensesList.map(e => [
         new Date(e.date).toLocaleDateString('en-GB'),
-        `"${e.description.replace(/"/g, '""')}"`, // Escape quotes for CSV
+        `"${e.description.replace(/"/g, '""')}"`, 
         `"${e.category}"`,
         e.amount,
         e.receipt_url ? `"${e.receipt_url}"` : "None"
@@ -611,7 +622,7 @@ async function generatePatientReport() {
   }
 
   async function confirmUnarchive() {
-    if (unarchivePassword === "admin123") { // <----- YOU CAN CHANGE YOUR PASSWORD HERE
+    if (unarchivePassword === "admin123") { 
       const { error } = await supabase.from("sedation_records").update({ is_archived: false }).eq("id", unarchiveModalLog.id);
       if (error) {
         setAlertMessage("Failed to unarchive: " + error.message);
@@ -893,6 +904,21 @@ async function generatePatientReport() {
     return cName.includes(s) || pName.includes(s) || drugs.includes(s);
   });
 
+  // Expand logic derivations
+  const dispInvoices = expandInvoices ? outstandingInvoices : outstandingInvoices.slice(0, 10);
+  const dispExpenses = expandExpenses ? expensesList : expensesList.slice(0, 10);
+  const dispStaff = expandStaff ? profiles : profiles.slice(0, 10);
+  const dispLogs = (expandLogs || logSearch.trim()) ? filteredDrugLogs : filteredDrugLogs.slice(0, 10);
+  const dispProducts = expandProducts ? productsList : productsList.slice(0, 10);
+  
+  const activeStockList = stockList.filter(s => !s.is_archived);
+  const dispStock = expandStock ? activeStockList : activeStockList.slice(0, 10);
+  
+  const activeProtocolsList = protocolsList.filter(p => p.name.toLowerCase().includes(protoSearch.toLowerCase()));
+  const dispProtocols = (expandProtocols || protoSearch.trim()) ? activeProtocolsList : activeProtocolsList.slice(0, 10);
+  
+  const dispTemplates = expandTemplates ? templatesList : templatesList.slice(0, 10);
+
   if (loading) {
     return (
       <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
@@ -920,7 +946,6 @@ async function generatePatientReport() {
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1 style={{ textAlign: "center" }}>Admin Control</h1>
 
-      {/* ================= SUB-NAVIGATION TABS WITH DIRECTIONAL ARROWS WITHIN FRAME ================= */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: "30px", background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px" }}>
         <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none" }}>&lt;</span>
         <div className="admin-tabs-scrollbox" style={{ 
@@ -952,7 +977,6 @@ async function generatePatientReport() {
         <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingLeft: "5px", userSelect: "none" }}>&gt;</span>
       </div>
 
-      {/* ADMIN SCROLLBAR CSS HIDDEN */}
       <style>{`
         .admin-tabs-scrollbox::-webkit-scrollbar {
           display: none;
@@ -1007,30 +1031,37 @@ async function generatePatientReport() {
             {outstandingInvoices.length === 0 ? (
               <p style={{ color: "#27ae60", textAlign: "center", fontWeight: "bold" }}>All accounts are settled! 🎉</p>
             ) : (
-              outstandingInvoices.map(inv => (
-                <div key={inv.id} className="admin-invoice-row" style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
-                    <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
-                      {inv.client?.name} {inv.client?.surname} 
-                      <span onClick={() => { if(inv.patientId) navigate(`/patient/${inv.patientId}`); }} style={{ color: "#3498db", fontWeight: "bold", cursor: "pointer", marginLeft: "5px", textDecoration: "underline" }}>
-                        (Pet: {inv.patientName})
-                      </span>
+              <>
+                {dispInvoices.map(inv => (
+                  <div key={inv.id} className="admin-invoice-row" style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
+                      <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
+                        {inv.client?.name} {inv.client?.surname} 
+                        <span onClick={() => { if(inv.patientId) navigate(`/patient/${inv.patientId}`); }} style={{ color: "#3498db", fontWeight: "bold", cursor: "pointer", marginLeft: "5px", textDecoration: "underline" }}>
+                          (Pet: {inv.patientName})
+                        </span>
+                      </div>
+                      <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>{inv.items.join(", ")}</div>
+                      <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}</div>
                     </div>
-                    <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>{inv.items.join(", ")}</div>
-                    <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}</div>
+                    <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                      {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
+                      <button className="admin-view-invoice-btn" onClick={() => {
+                          if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
+                          navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
+                        }} style={invoiceViewBtn}>
+                        View Invoice
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                    {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
-                    <button className="admin-view-invoice-btn" onClick={() => {
-                        if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
-                        navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
-                      }} style={invoiceViewBtn}>
-                      View Invoice
-                    </button>
-                  </div>
-                </div>
-              ))
+                ))}
+                {outstandingInvoices.length > 10 && (
+                  <button onClick={() => setExpandInvoices(!expandInvoices)} style={expandBtnStyle}>
+                    {expandInvoices ? "Show Less" : `Show All (${outstandingInvoices.length})`}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </>
@@ -1048,6 +1079,7 @@ async function generatePatientReport() {
           </div>
           
           <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
+            {/* stats omit... */}
             <div style={{...statCard, cursor: "default"}}>
               <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Billed Revenue</div>
               <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>£{totalSales.toFixed(2)}</div>
@@ -1067,6 +1099,7 @@ async function generatePatientReport() {
           </div>
 
           <div className="card" style={{ marginBottom: "30px" }}>
+            {/* expense form omit... */}
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Record an Expense</h3>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
               <input placeholder="Description (e.g. Needle Restock, Fuel, VDS Fees)" value={expDesc} onChange={e => setExpDesc(e.target.value)} style={{ ...inputStyle, flex: 2, minWidth: "200px", marginBottom: 0 }} />
@@ -1083,8 +1116,6 @@ async function generatePatientReport() {
               </select>
               <input type="date" value={expDate} onChange={e => setExpDate(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
             </div>
-
-            {/* ALIGNMENT FIX APPLIED HERE: Flex container perfectly centers standard text */}
             <label 
               htmlFor="receipt-upload" 
               style={{ 
@@ -1102,16 +1133,7 @@ async function generatePatientReport() {
             >
               {isUploadingReceipt ? "Uploading..." : expReceiptFile ? expReceiptFile.name : "Click to Select Receipt File/Image"}
             </label>
-
-            <input 
-              id="receipt-upload"
-              type="file"
-              accept="image/*,.pdf" 
-              onChange={(e) => setExpReceiptFile(e.target.files[0])} 
-              disabled={isUploadingReceipt}
-              style={{ display: "none" }} 
-            />
-
+            <input id="receipt-upload" type="file" accept="image/*,.pdf" onChange={(e) => setExpReceiptFile(e.target.files[0])} disabled={isUploadingReceipt} style={{ display: "none" }} />
             <button onClick={saveExpense} disabled={isUploadingReceipt} style={{ ...greenBtn, width: "100%", opacity: isUploadingReceipt ? 0.7 : 1 }}>
               {isUploadingReceipt ? "Uploading & Saving..." : "Record Expense"}
             </button>
@@ -1121,7 +1143,7 @@ async function generatePatientReport() {
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Expense Records</h3>
             {expensesList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No expenses recorded.</p>}
             
-            {expensesList.map(exp => (
+            {dispExpenses.map(exp => (
               <div key={exp.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: "5px solid #e74c3c" }}>
                 <div>
                   <strong style={{ fontSize: "16px", color: "#333", display: "block" }}>{exp.description}</strong>
@@ -1140,6 +1162,12 @@ async function generatePatientReport() {
                 </div>
               </div>
             ))}
+
+            {expensesList.length > 10 && (
+              <button onClick={() => setExpandExpenses(!expandExpenses)} style={expandBtnStyle}>
+                {expandExpenses ? "Show Less" : `Show All (${expensesList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1156,7 +1184,7 @@ async function generatePatientReport() {
           </div>
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
-            {profiles.map(p => (
+            {dispStaff.map(p => (
               <div key={p.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <div>
                   <strong style={{ fontSize: "16px", color: "#333", display: "block", marginBottom: "4px" }}>{p.email || "Unknown User"}</strong>
@@ -1174,6 +1202,11 @@ async function generatePatientReport() {
                 </div>
               </div>
             ))}
+            {profiles.length > 10 && (
+              <button onClick={() => setExpandStaff(!expandStaff)} style={expandBtnStyle}>
+                {expandStaff ? "Show Less" : `Show All (${profiles.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1260,7 +1293,7 @@ async function generatePatientReport() {
           
           {filteredDrugLogs.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No records found.</p>}
           
-          {filteredDrugLogs.map(h => {
+          {dispLogs.map(h => {
             const clientName = h.patients?.clients ? `${h.patients.clients.name} ${h.patients.clients.surname}` : "Orphaned/Deleted Client";
             const patientName = h.patients?.name || "Orphaned/Deleted Patient";
             
@@ -1324,6 +1357,12 @@ async function generatePatientReport() {
               </div>
             );
           })}
+          
+          {filteredDrugLogs.length > 10 && !logSearch.trim() && (
+            <button onClick={() => setExpandLogs(!expandLogs)} style={expandBtnStyle}>
+              {expandLogs ? "Show Less" : `Show All (${filteredDrugLogs.length})`}
+            </button>
+          )}
         </div>
       )}
 
@@ -1344,7 +1383,7 @@ async function generatePatientReport() {
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Product Library</h3>
             {productsList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No products available.</p>}
-            {productsList.map(p => (
+            {dispProducts.map(p => (
               <div key={p.id} style={whiteShadowBox}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <strong style={{ fontSize: "18px", color: "#333" }}>{p.name}</strong>
@@ -1357,6 +1396,12 @@ async function generatePatientReport() {
                 </div>
               </div>
             ))}
+
+            {productsList.length > 10 && (
+              <button onClick={() => setExpandProducts(!expandProducts)} style={expandBtnStyle}>
+                {expandProducts ? "Show Less" : `Show All (${productsList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1377,7 +1422,7 @@ async function generatePatientReport() {
           
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Current Inventory</h3>
-            {stockList.filter(s => !s.is_archived).map(s => (
+            {dispStock.map(s => (
               <div key={s.id} style={whiteShadowBox}>
                 {editingStockId === s.id ? (
                   <>
@@ -1408,7 +1453,13 @@ async function generatePatientReport() {
                 )}
               </div>
             ))}
-            {stockList.filter(s => !s.is_archived).length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No stock available.</p>}
+            {activeStockList.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No stock available.</p>}
+            
+            {activeStockList.length > 10 && (
+              <button onClick={() => setExpandStock(!expandStock)} style={expandBtnStyle}>
+                {expandStock ? "Show Less" : `Show All (${activeStockList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1449,7 +1500,7 @@ async function generatePatientReport() {
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Protocol Library</h3>
             <input placeholder="Search protocols..." value={protoSearch} onChange={e => setProtoSearch(e.target.value)} style={inputStyle} />
 
-            {protocolsList.filter(p => p.name.toLowerCase().includes(protoSearch.toLowerCase())).map(p => (
+            {dispProtocols.map(p => (
               <div key={p.id} style={whiteShadowBox}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: "center"}}>
                   <strong style={{ fontSize: "18px", color: "#333" }}>{p.name}</strong>
@@ -1468,7 +1519,14 @@ async function generatePatientReport() {
                 </div>
               </div>
             ))}
-            {protocolsList.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No protocols found.</p>}
+            
+            {activeProtocolsList.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No protocols found.</p>}
+            
+            {activeProtocolsList.length > 10 && !protoSearch.trim() && (
+              <button onClick={() => setExpandProtocols(!expandProtocols)} style={expandBtnStyle}>
+                {expandProtocols ? "Show Less" : `Show All (${activeProtocolsList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1494,7 +1552,8 @@ async function generatePatientReport() {
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Template Library</h3>
             {templatesList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No templates available.</p>}
-            {templatesList.map(t => (
+            
+            {dispTemplates.map(t => (
               <div key={t.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1, paddingRight: "15px" }}>
                   <strong style={{ fontSize: "18px", display: "block", color: "#333", marginBottom: "5px" }}>{t.name}</strong>
@@ -1507,6 +1566,12 @@ async function generatePatientReport() {
                 </div>
               </div>
             ))}
+            
+            {templatesList.length > 10 && (
+              <button onClick={() => setExpandTemplates(!expandTemplates)} style={expandBtnStyle}>
+                {expandTemplates ? "Show Less" : `Show All (${templatesList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
