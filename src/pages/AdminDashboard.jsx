@@ -523,6 +523,46 @@ async function generatePatientReport() {
     }
   }
 
+  // --- CSV ACCOUNTANT EXPORT ---
+  async function exportExpensesCSV() {
+    try {
+      const headers = ["Date", "Description", "Category", "Amount (£)", "Receipt URL"];
+      const rows = expensesList.map(e => [
+        new Date(e.date).toLocaleDateString('en-GB'),
+        `"${e.description.replace(/"/g, '""')}"`, // Escape quotes for CSV
+        `"${e.category}"`,
+        e.amount,
+        e.receipt_url ? `"${e.receipt_url}"` : "None"
+      ]);
+      const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      const fileName = `Bookkeeping_Export_${new Date().toISOString().split('T')[0]}.csv`;
+
+      if (Capacitor.isNativePlatform()) {
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: csvContent,
+          directory: Directory.Cache,
+          encoding: "utf8"
+        });
+        await Share.share({
+          title: fileName,
+          url: savedFile.uri,
+        });
+      } else {
+        const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error) {
+      console.error(error);
+      setAlertMessage("Error exporting CSV data.");
+    }
+  }
+
   // --- DRUG LOG ACTIONS ---
 
   function startEditDrugLog(log) {
@@ -999,9 +1039,12 @@ async function generatePatientReport() {
       {/* ================= TAB 1.1: BOOKKEEPING & EXPENSES ================= */}
       {activeTab === "bookkeeping" && (
         <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
             <h3 style={{ color: "#2c3e50", margin: 0 }}>Profit & Loss</h3>
-            <button onClick={generateBookkeepingReport} style={{ ...blueBtn, background: "#8e44ad" }}>Download P&L Report</button>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={exportExpensesCSV} style={{ ...greenBtn }}>Download CSV</button>
+              <button onClick={generateBookkeepingReport} style={{ ...blueBtn, background: "#8e44ad" }}>Download PDF</button>
+            </div>
           </div>
           
           <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
@@ -1041,13 +1084,18 @@ async function generatePatientReport() {
               <input type="date" value={expDate} onChange={e => setExpDate(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
             </div>
 
+            {/* ALIGNMENT FIX APPLIED HERE: Flex container perfectly centers standard text */}
             <label 
               htmlFor="receipt-upload" 
               style={{ 
                 ...blueBtn, 
-                display: "inline-block", 
-                textAlign: "center",
+                display: "flex",            
+                alignItems: "center",       
+                justifyContent: "center",   
                 width: "100%", 
+                boxSizing: "border-box",    
+                whiteSpace: "normal",       
+                minHeight: "44px",          
                 marginBottom: isUploadingReceipt ? "10px" : "15px",
                 opacity: isUploadingReceipt ? 0.7 : 1
               }}
