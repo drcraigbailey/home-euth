@@ -76,6 +76,7 @@ export default function AdminDashboard() {
   const [unarchiveModalLog, setUnarchiveModalLog] = useState(null);
   const [unarchivePassword, setUnarchivePassword] = useState("");
 
+  // Products
   const [productsList, setProductsList] = useState([]);
   const [isEditingProd, setIsEditingProd] = useState(false);
   const [editProdId, setEditProdId] = useState(null);
@@ -83,6 +84,7 @@ export default function AdminDashboard() {
   const [prodDesc, setProdDesc] = useState("");
   const [prodPrice, setProdPrice] = useState("");
 
+  // Stock
   const [stockList, setStockList] = useState([]);
   const [stockDrugName, setStockDrugName] = useState("");
   const [stockBatch, setStockBatch] = useState("");
@@ -91,6 +93,7 @@ export default function AdminDashboard() {
   const [editingStockId, setEditingStockId] = useState(null);
   const [editStockData, setEditStockData] = useState({});
 
+  // Protocols
   const [protocolsList, setProtocolsList] = useState([]);
   const [protoSearch, setProtoSearch] = useState("");
   const [protoName, setProtoName] = useState("");
@@ -101,6 +104,7 @@ export default function AdminDashboard() {
   const [protoMgKg, setProtoMgKg] = useState("");
   const [protoMgMl, setProtoMgMl] = useState("");
 
+  // Templates
   const [templatesList, setTemplatesList] = useState([]);
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [editTemplateId, setEditTemplateId] = useState(null);
@@ -108,6 +112,16 @@ export default function AdminDashboard() {
   const [templateSubject, setTemplateSubject] = useState("");
   const [templateBody, setTemplateBody] = useState("");
   const [templateToDelete, setTemplateToDelete] = useState(null);
+
+  // Bookkeeping & Expenses State
+  const [expensesList, setExpensesList] = useState([]);
+  const [expDesc, setExpDesc] = useState("");
+  const [expAmount, setExpAmount] = useState("");
+  const [expCategory, setExpCategory] = useState("Stock / Inventory");
+  const [expDate, setExpDate] = useState(new Date().toISOString().split("T")[0]);
+  const [expReceiptFile, setExpReceiptFile] = useState(null);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [expenseToDelete, setExpenseToDelete] = useState(null);
 
   useEffect(() => {
     checkAdminAndFetchData();
@@ -121,7 +135,7 @@ export default function AdminDashboard() {
       if (profile?.is_admin) {
         setIsAdmin(true);
         await Promise.all([
-          fetchReports(), fetchProducts(), fetchStock(), fetchProtocols(), fetchTemplates(), fetchProfiles()
+          fetchReports(), fetchProducts(), fetchStock(), fetchProtocols(), fetchTemplates(), fetchProfiles(), fetchExpenses()
         ]);
       } else navigate("/"); 
     }
@@ -131,6 +145,11 @@ export default function AdminDashboard() {
   async function fetchProfiles() {
     const { data } = await supabase.from("profiles").select("*").order("email");
     setProfiles(data || []);
+  }
+
+  async function fetchExpenses() {
+    const { data } = await supabase.from("expenses").select("*").order("date", { ascending: false });
+    setExpensesList(data || []);
   }
 
   async function fetchReports() {
@@ -351,7 +370,7 @@ export default function AdminDashboard() {
     }
   }
 
-  async function generatePatientReport() {
+async function generatePatientReport() {
     try {
       if (!selectedPatientForReport) return setAlertMessage("Please select a patient from the dropdown first.");
       const patient = allPatientsList.find(p => String(p.id) === String(selectedPatientForReport));
@@ -437,6 +456,67 @@ export default function AdminDashboard() {
         doc.save(fileName);
       }
 
+    } catch (error) {
+      console.error(error);
+      setAlertMessage("Error generating PDF. Check console for details.");
+    }
+  }
+
+  // --- NEW BOOKKEEPING REPORT ---
+  async function generateBookkeepingReport() {
+    try {
+      const doc = new jsPDF();
+      const startY = drawReportHeader(doc, "Financial & Bookkeeping Report");
+      
+      doc.setFontSize(14);
+      doc.setTextColor(44, 62, 80);
+      doc.setFont("helvetica", "bold");
+      doc.text("Profit & Loss Summary", 14, startY);
+
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(0, 0, 0);
+      
+      const totalExp = expensesList.reduce((acc, curr) => acc + Number(curr.amount), 0);
+      const netProfit = totalSales - totalExp;
+
+      doc.text(`Total Billed Revenue: £${totalSales.toFixed(2)}`, 14, startY + 8);
+      doc.text(`Total Outgoing Expenses: £${totalExp.toFixed(2)}`, 14, startY + 14);
+      
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(netProfit >= 0 ? 39 : 231, netProfit >= 0 ? 174 : 76, netProfit >= 0 ? 96 : 60); 
+      doc.text(`Estimated Net Profit: £${netProfit.toFixed(2)}`, 14, startY + 22);
+
+      doc.setFontSize(14);
+      doc.setTextColor(44, 62, 80);
+      doc.text("Expense Records", 14, startY + 35);
+
+      const cols = ["Date", "Description", "Category", "Amount"];
+      const rows = expensesList.map(e => [
+        new Date(e.date).toLocaleDateString('en-GB'),
+        e.description,
+        e.category,
+        `£${Number(e.amount).toFixed(2)}`
+      ]);
+
+      autoTable(doc, { head: [cols], body: rows, startY: startY + 40 });
+
+      const fileName = `Bookkeeping_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+      if (Capacitor.isNativePlatform()) {
+        const pdfBase64 = doc.output('datauristring').split(',')[1];
+        const savedFile = await Filesystem.writeFile({
+          path: fileName,
+          data: pdfBase64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: fileName,
+          url: savedFile.uri,
+        });
+      } else {
+        doc.save(fileName);
+      }
     } catch (error) {
       console.error(error);
       setAlertMessage("Error generating PDF. Check console for details.");
@@ -542,6 +622,53 @@ export default function AdminDashboard() {
       fetchProfiles();
     }
   }
+
+  // --- BOOKKEEPING / EXPENSE ACTIONS ---
+  async function saveExpense() {
+    if (!expDesc.trim() || !expAmount) return setAlertMessage("Please provide a description and amount.");
+    
+    setIsUploadingReceipt(true);
+    let receiptUrl = null;
+
+    if (expReceiptFile) {
+      const fileName = `${Date.now()}_${expReceiptFile.name}`;
+      const { data: fileData, error: fileError } = await supabase.storage.from("receipts").upload(fileName, expReceiptFile);
+      
+      if (!fileError) {
+        const { data: publicUrlData } = supabase.storage.from("receipts").getPublicUrl(fileName);
+        receiptUrl = publicUrlData.publicUrl;
+      } else {
+        setAlertMessage("Receipt upload failed, but saving expense anyway. Error: " + fileError.message);
+      }
+    }
+
+    const { error } = await supabase.from("expenses").insert([{
+      description: expDesc.trim(),
+      amount: Number(expAmount),
+      category: expCategory,
+      date: expDate,
+      receipt_url: receiptUrl
+    }]);
+
+    setIsUploadingReceipt(false);
+
+    if (!error) {
+      setExpDesc(""); setExpAmount(""); setExpReceiptFile(null); 
+      document.getElementById('receipt-upload').value = "";
+      fetchExpenses();
+      setAlertMessage("Expense recorded successfully.");
+    } else {
+      setAlertMessage("Failed to save expense: " + error.message);
+    }
+  }
+
+  async function confirmDeleteExpense() {
+    if (!expenseToDelete) return;
+    await supabase.from("expenses").delete().eq("id", expenseToDelete.id);
+    setExpenseToDelete(null);
+    fetchExpenses();
+  }
+
 
   // --- OTHER CRUD ACTIONS ---
 
@@ -739,6 +866,7 @@ export default function AdminDashboard() {
 
   const TABS = [
     { id: "overview", label: "Overview" },
+    { id: "bookkeeping", label: "Bookkeeping" }, 
     { id: "staff", label: "Staff Access" }, 
     { id: "reports", label: "Reports" }, 
     { id: "drug_logs", label: "Drug Logs (VMD)" },
@@ -868,6 +996,106 @@ export default function AdminDashboard() {
         </>
       )}
 
+      {/* ================= TAB 1.1: BOOKKEEPING & EXPENSES ================= */}
+      {activeTab === "bookkeeping" && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+            <h3 style={{ color: "#2c3e50", margin: 0 }}>Profit & Loss</h3>
+            <button onClick={generateBookkeepingReport} style={{ ...blueBtn, background: "#8e44ad" }}>Download P&L Report</button>
+          </div>
+          
+          <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
+            <div style={{...statCard, cursor: "default"}}>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Billed Revenue</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>£{totalSales.toFixed(2)}</div>
+            </div>
+            <div style={{...statCard, cursor: "default"}}>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Outgoing Expenses</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#e74c3c" }}>
+                £{expensesList.reduce((acc, curr) => acc + Number(curr.amount), 0).toFixed(2)}
+              </div>
+            </div>
+            <div style={{...statCard, cursor: "default", border: "2px solid #27ae60"}}>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Estimated Net Profit</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#27ae60" }}>
+                £{(totalSales - expensesList.reduce((acc, curr) => acc + Number(curr.amount), 0)).toFixed(2)}
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: "30px" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Record an Expense</h3>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+              <input placeholder="Description (e.g. Needle Restock, Fuel, VDS Fees)" value={expDesc} onChange={e => setExpDesc(e.target.value)} style={{ ...inputStyle, flex: 2, minWidth: "200px", marginBottom: 0 }} />
+              <input type="number" step="0.01" placeholder="Amount (£)" value={expAmount} onChange={e => setExpAmount(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: "120px", marginBottom: 0 }} />
+            </div>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "20px" }}>
+              <select value={expCategory} onChange={e => setExpCategory(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }}>
+                <option value="Stock / Inventory">Stock / Inventory</option>
+                <option value="Equipment">Equipment / Tools</option>
+                <option value="Vehicle / Travel">Vehicle / Travel</option>
+                <option value="Fees / Insurance">RCVS / VDS / Insurance</option>
+                <option value="Software / Subscriptions">Software / Subscriptions</option>
+                <option value="Other">Other</option>
+              </select>
+              <input type="date" value={expDate} onChange={e => setExpDate(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
+            </div>
+
+            <label 
+              htmlFor="receipt-upload" 
+              style={{ 
+                ...blueBtn, 
+                display: "inline-block", 
+                textAlign: "center",
+                width: "100%", 
+                marginBottom: isUploadingReceipt ? "10px" : "15px",
+                opacity: isUploadingReceipt ? 0.7 : 1
+              }}
+            >
+              {isUploadingReceipt ? "Uploading..." : expReceiptFile ? expReceiptFile.name : "Click to Select Receipt File/Image"}
+            </label>
+
+            <input 
+              id="receipt-upload"
+              type="file"
+              accept="image/*,.pdf" 
+              onChange={(e) => setExpReceiptFile(e.target.files[0])} 
+              disabled={isUploadingReceipt}
+              style={{ display: "none" }} 
+            />
+
+            <button onClick={saveExpense} disabled={isUploadingReceipt} style={{ ...greenBtn, width: "100%", opacity: isUploadingReceipt ? 0.7 : 1 }}>
+              {isUploadingReceipt ? "Uploading & Saving..." : "Record Expense"}
+            </button>
+          </div>
+
+          <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
+            <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Expense Records</h3>
+            {expensesList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No expenses recorded.</p>}
+            
+            {expensesList.map(exp => (
+              <div key={exp.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: "5px solid #e74c3c" }}>
+                <div>
+                  <strong style={{ fontSize: "16px", color: "#333", display: "block" }}>{exp.description}</strong>
+                  <div style={{ fontSize: "13px", color: "#7f8c8d", marginTop: "4px" }}>
+                    <span style={{ fontWeight: "bold", color: "#5b8fb9" }}>{exp.category}</span> • {new Date(exp.date).toLocaleDateString('en-GB')}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
+                  <div style={{ fontSize: "18px", fontWeight: "bold", color: "#e74c3c" }}>£{Number(exp.amount).toFixed(2)}</div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {exp.receipt_url && (
+                      <button onClick={() => window.open(exp.receipt_url, "_blank")} style={{ ...blueBtn, padding: "6px 10px" }}>Receipt</button>
+                    )}
+                    <button onClick={() => setExpenseToDelete(exp)} style={{ ...redBtn, padding: "6px 10px" }}>Delete</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* ================= TAB 1.2: STAFF MANAGEMENT ================= */}
       {activeTab === "staff" && (
         <>
@@ -876,7 +1104,7 @@ export default function AdminDashboard() {
               <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Staff Management</h3>
               <p style={{ margin: 0, color: "#7f8c8d", fontSize: "14px" }}>Manage team access and administrator privileges.</p>
             </div>
-            <button onClick={() => setShowAddStaffInfo(true)} style={{ ...greenBtn }}>+ Add New Staff</button>
+            <button onClick={() => setShowAddStaffInfo(true)} style={{ ...greenBtn, width: "140px", flexShrink: 0 }}>+ Add New Staff</button>
           </div>
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
@@ -888,10 +1116,10 @@ export default function AdminDashboard() {
                     {p.is_admin ? "Administrator" : "Standard User"}
                   </span>
                 </div>
-                <div>
+                <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
                   <button 
                     onClick={() => toggleAdminRole(p.id, p.is_admin)} 
-                    style={p.is_admin ? redBtn : blueBtn}
+                    style={p.is_admin ? { ...redBtn, width: "140px" } : { ...blueBtn, width: "140px" }}
                   >
                     {p.is_admin ? "Remove Admin" : "Make Admin"}
                   </button>
@@ -1033,14 +1261,14 @@ export default function AdminDashboard() {
                     ))}
 
                     {showArchivedLogs ? (
-                      <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-                        <button onClick={() => startUnarchive(h)} style={{ ...greenBtn, flex: 1 }}>🔓 Unarchive (Requires Password)</button>
+                      <div style={{ display: "flex", gap: "10px", marginTop: "12px", flexWrap: "wrap" }}>
+                        <button onClick={() => startUnarchive(h)} style={{ ...greenBtn, flex: 1, minWidth: "120px" }}>🔓 Unarchive (Requires Password)</button>
                       </div>
                     ) : (
-                      <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-                        <button onClick={() => startEditDrugLog(h)} style={{ ...blueBtn, flex: 1 }}>Edit</button>
-                        <button onClick={() => setLogToArchive(h)} style={{ ...yellowBtn, flex: 1 }}>Archive</button>
-                        <button onClick={() => deleteDrugLogRecord(h)} style={{ ...redBtn, flex: 1 }}>Delete</button>
+                      <div style={{ display: "flex", gap: "10px", marginTop: "12px", flexWrap: "wrap" }}>
+                        <button onClick={() => startEditDrugLog(h)} style={{ ...blueBtn, flex: 1, minWidth: "80px" }}>Edit</button>
+                        <button onClick={() => setLogToArchive(h)} style={{ ...yellowBtn, flex: 1, minWidth: "80px" }}>Archive</button>
+                        <button onClick={() => deleteDrugLogRecord(h)} style={{ ...redBtn, flex: 1, minWidth: "80px" }}>Delete</button>
                       </div>
                     )}
                   </>
@@ -1069,17 +1297,15 @@ export default function AdminDashboard() {
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Product Library</h3>
             {productsList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No products available.</p>}
             {productsList.map(p => (
-              <div key={p.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <strong style={{ fontSize: "18px", display: "block", color: "#333" }}>{p.name}</strong>
-                  <div style={{ color: "#7f8c8d", fontSize: "14px", marginTop: "5px" }}>{p.description}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
+              <div key={p.id} style={whiteShadowBox}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong style={{ fontSize: "18px", color: "#333" }}>{p.name}</strong>
                   <div style={{ fontSize: "20px", fontWeight: "bold", color: "#27ae60" }}>£{Number(p.price).toFixed(2)}</div>
-                  <div style={{ display: "flex", gap: "5px", marginTop: "10px" }}>
-                    <button onClick={() => startEditProd(p)} style={{ ...blueBtn }}>Edit</button>
-                    <button onClick={() => setProductToDelete(p)} style={redBtn}>Delete</button>
-                  </div>
+                </div>
+                <div style={{ color: "#7f8c8d", fontSize: "14px", marginTop: "5px" }}>{p.description}</div>
+                <div style={btnRow}>
+                  <button onClick={() => startEditProd(p)} style={blueBtn}>Edit</button>
+                  <button onClick={() => setProductToDelete(p)} style={redBtn}>Delete</button>
                 </div>
               </div>
             ))}
@@ -1407,6 +1633,21 @@ export default function AdminDashboard() {
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={confirmDeleteTemplate} style={{...redBtn, flex: 1}}>Yes, Delete</button>
               <button onClick={() => setTemplateToDelete(null)} style={{...greyBtn, flex: 1}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expenseToDelete && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setExpenseToDelete(null)}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Confirm Deletion</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              Are you sure you want to permanently delete the expense record for <strong>{expenseToDelete.description}</strong>?
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={confirmDeleteExpense} style={{...redBtn, flex: 1}}>Yes, Delete</button>
+              <button onClick={() => setExpenseToDelete(null)} style={{...greyBtn, flex: 1}}>Cancel</button>
             </div>
           </div>
         </div>
