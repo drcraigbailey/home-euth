@@ -32,69 +32,25 @@ import AdminDashboard from "./pages/AdminDashboard";
 // ---------- Scroll to top ----------
 function ScrollToTop() {
   const { pathname } = useLocation();
-
-  useEffect(() => {
-    window.scrollTo(0,0);
-  }, [pathname]);
-
+  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return null;
 }
 
-
 // ---------- Protected Route ----------
 function ProtectedRoute({children}) {
-  const [session,setSession]=useState(undefined);
-
+  const [session, setSession] = useState(undefined);
   useEffect(()=>{
-    supabase.auth.getSession()
-    .then(({data})=>{
-      setSession(data.session)
-    });
-
-    const {data:listener} = supabase.auth.onAuthStateChange(
-      (_event,session)=>{
-        setSession(session)
-      }
-    );
-
+    supabase.auth.getSession().then(({data})=>{ setSession(data.session) });
+    const {data:listener} = supabase.auth.onAuthStateChange((_event,session)=>{ setSession(session) });
     return ()=>listener.subscription.unsubscribe();
   },[]);
 
-  if(session===undefined){
-    return(
-      <div
-      style={{
-        display:"flex",
-        flexDirection:"column",
-        alignItems:"center",
-        justifyContent:"center",
-        minHeight:"100vh",
-        background:"#f8f9fb"
-      }}
-      >
-        <Loader/>
-        <p
-        style={{
-          marginTop:"15px",
-          color:"#5b8fb9",
-          fontWeight:"bold"
-        }}
-        >
-          Authenticating...
-        </p>
-      </div>
-    )
-  }
-
-  if(!session){
-    return <Navigate to="/login" replace/>
-  }
-
+  if(session === undefined) return <div style={{display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#f8f9fb"}}><Loader/><p style={{marginTop:"15px", color:"#5b8fb9", fontWeight:"bold"}}>Authenticating...</p></div>;
+  if(!session) return <Navigate to="/login" replace/>;
   return children;
 }
 
-
-// ---------- Navbar ----------
+// ---------- Navbar (Center Aligned & Mobile Responsive) ----------
 function Navbar(){
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -104,12 +60,7 @@ function Navbar(){
     async function checkAdmin(){
       const { data:{session} }=await supabase.auth.getSession();
       if(session?.user){
-        const {data}=await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id",session.user.id)
-        .single();
-
+        const {data}=await supabase.from("profiles").select("is_admin").eq("id",session.user.id).single();
         setIsAdmin(!!data?.is_admin);
       }
     }
@@ -121,9 +72,7 @@ function Navbar(){
     window.location.href="/login";
   }
 
-  if(location.pathname === "/login"){
-    return null;
-  }
+  if(location.pathname === "/login") return null;
 
   return(
     <div style={{
@@ -132,28 +81,28 @@ function Navbar(){
       background: "white",
       zIndex: 1000,
       borderBottom: "1px solid #eee",
-      width: "100%"
+      width: "100%",
+      display: "flex",
+      justifyContent: "center", // This centers the entire menu cluster
+      padding: "10px 0"
     }}>
-      {/* Container that handles the centering and overflow */}
+      {/* Navigation Cluster */}
       <div style={{
         display: "flex",
-        justifyContent: "center",
         alignItems: "center",
-        padding: "10px 0",
-        overflowX: "auto", // Allows scrolling on small screens
-        whiteSpace: "nowrap",
+        gap: "10px", // Reduced gap for mobile
+        padding: "0 10px",
+        overflowX: "auto", // Allows smooth swipe if screen is very narrow
         WebkitOverflowScrolling: "touch"
       }}>
-        <div style={{ display: "flex", gap: "15px", alignItems: "center", padding: "0 10px" }}>
-          <NavLink to="/" end style={navStyle}><HomeIcon size={18}/><span>Home</span></NavLink>
-          <NavLink to="/clients" style={navStyle}><Users size={18}/><span>Clients</span></NavLink>
-          <NavLink to="/patients" style={navStyle}><PawPrint size={18}/><span>Patients</span></NavLink>
-          <NavLink to="/sedation" style={navStyle}><Syringe size={18}/><span>Sedation</span></NavLink>
-          
-          <button onClick={()=>setShowMenu(!showMenu)} style={menuButtonStyle}>
-            <Menu size={20}/>
-          </button>
-        </div>
+        <NavLink to="/" end style={navStyle}><HomeIcon size={18}/><span>Home</span></NavLink>
+        <NavLink to="/clients" style={navStyle}><Users size={18}/><span>Clients</span></NavLink>
+        <NavLink to="/patients" style={navStyle}><PawPrint size={18}/><span>Patients</span></NavLink>
+        <NavLink to="/sedation" style={navStyle}><Syringe size={18}/><span>Sedation</span></NavLink>
+        
+        <button onClick={()=>setShowMenu(!showMenu)} style={menuButtonStyle}>
+          <Menu size={20}/>
+        </button>
       </div>
 
       {/* Dropdown Menu */}
@@ -161,7 +110,7 @@ function Navbar(){
         <div style={{
           position: "absolute",
           right: "10px",
-          top: "50px",
+          top: "55px",
           background: "white",
           borderRadius: "12px",
           padding: "10px",
@@ -192,7 +141,7 @@ const navStyle = ({isActive}) => ({
   padding: "6px 8px",
   color: isActive ? "#2c3e50" : "#5b8fb9",
   fontWeight: isActive ? "bold" : "normal",
-  gap: "6px",
+  gap: "4px",
   whiteSpace: "nowrap"
 });
 
@@ -220,8 +169,8 @@ const menuItemStyle = {
 
 // ---------- Hardware Back Button ----------
 function BackButtonHandler(){
-  const navigate=useNavigate();
-  const location=useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const currentPathRef = useRef(location.pathname);
 
   useEffect(() => { currentPathRef.current = location.pathname; }, [location.pathname]);
@@ -246,10 +195,11 @@ function BackButtonHandler(){
 export default function App(){
   return (
     <Router>
-      <ScrollToTop />
-      <BackButtonHandler />
-      <Navbar />
-      <div style={{ paddingTop: "20px", paddingBottom: "20px" }}>
+      <ScrollToTop/>
+      <BackButtonHandler/>
+      <Navbar/>
+      {/* Adjusted paddingTop to account for the sticky header height */}
+      <div style={{ paddingTop: "20px", paddingBottom: "30px" }}>
         <Routes>
           <Route path="/login" element={<Login/>}/>
           <Route path="/" element={<ProtectedRoute><Home/></ProtectedRoute>}/>
