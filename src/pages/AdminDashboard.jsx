@@ -6,6 +6,9 @@ import Loader from "../Loader";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// --- IMPORT YOUR LOGO HERE ---
+import logoImage from "../assets/logo.png";
+
 // --- CAPACITOR IMPORTS FOR NATIVE PDF SHARING ---
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -16,14 +19,9 @@ const whiteShadowBox = { background: "white", padding: "20px", borderRadius: "15
 const statCard = { flex: 1, background: "white", padding: "20px", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", border: "1px solid #eee", textAlign: "center", minWidth: "140px", cursor: "pointer", transition: "transform 0.1s" };
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 const btnRow = { display: "flex", gap: "10px", marginTop: "10px" };
-
-// Dedicated pristine style for the main navigation toolbar tabs
 const tabBtnStyle = { padding: "12px 20px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14px" };
-
-// Enforced compact layout properties for smaller, uniform action buttons
 const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
 
-// Overview-matched color variations for modal action buttons
 const purpleBtn = { ...standardBtnProps, background: "#8e44ad", color: "white" }; 
 const blueBtn   = { ...standardBtnProps, background: "#5b8fb9", color: "white" }; 
 const greyBtn   = { ...standardBtnProps, background: "#95a5a6", color: "white" }; 
@@ -31,6 +29,14 @@ const greenBtn  = { ...standardBtnProps, background: "#27ae60", color: "white" }
 const yellowBtn = { ...standardBtnProps, background: "#f39c12", color: "white" }; 
 const redBtn    = { ...standardBtnProps, background: "#e74c3c", color: "white" };
 const invoiceViewBtn = { ...blueBtn, width: "92px", minWidth: "92px", maxWidth: "92px", height: "34px", minHeight: "34px", padding: "7px 9px", fontSize: "12px", lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "0 0 auto", whiteSpace: "nowrap" };
+const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
+
+const getLocalYMD = (date) => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -43,16 +49,15 @@ export default function AdminDashboard() {
   const [outstandingTotal, setOutstandingTotal] = useState(0);
   const [outstandingInvoices, setOutstandingInvoices] = useState([]); 
   
+  const [allProceduresList, setAllProceduresList] = useState([]);
   const [allClientsList, setAllClientsList] = useState([]);
   const [allPatientsList, setAllPatientsList] = useState([]);
   const [allSedationsList, setAllSedationsList] = useState([]);
   const [allConsentsList, setAllConsentsList] = useState([]);
   
   const [selectedPatientForReport, setSelectedPatientForReport] = useState("");
-
   const [statModalMode, setStatModalMode] = useState(null); 
   const [statSearch, setStatSearch] = useState("");
-
   const [alertMessage, setAlertMessage] = useState("");
   const [confirmModal, setConfirmModal] = useState(null);
 
@@ -61,30 +66,32 @@ export default function AdminDashboard() {
   const [stockToArchive, setStockToArchive] = useState(null);
   const [protocolToDelete, setProtocolToDelete] = useState(null);
 
-  // Staff Management State
   const [profiles, setProfiles] = useState([]);
   const [showAddStaffInfo, setShowAddStaffInfo] = useState(false);
+  const [searchStaff, setSearchStaff] = useState("");
+  const [expandStaff, setExpandStaff] = useState(false);
 
-  // Drug Log Editing & Archiving State
+  const [searchOutstanding, setSearchOutstanding] = useState("");
+  const [expandOutstanding, setExpandOutstanding] = useState(false);
+
   const [editingDrugLogId, setEditingDrugLogId] = useState(null);
   const [editDrugLogResults, setEditDrugLogResults] = useState([]);
   const [logSearch, setLogSearch] = useState("");
   const [showArchivedLogs, setShowArchivedLogs] = useState(false);
+  const [expandLogs, setExpandLogs] = useState(false);
   const [logToArchive, setLogToArchive] = useState(null);
-  
-  // Custom Unarchive Modal State
   const [unarchiveModalLog, setUnarchiveModalLog] = useState(null);
   const [unarchivePassword, setUnarchivePassword] = useState("");
 
-  // Products
   const [productsList, setProductsList] = useState([]);
   const [isEditingProd, setIsEditingProd] = useState(false);
   const [editProdId, setEditProdId] = useState(null);
   const [prodName, setProdName] = useState("");
   const [prodDesc, setProdDesc] = useState("");
   const [prodPrice, setProdPrice] = useState("");
+  const [searchProducts, setSearchProducts] = useState("");
+  const [expandProducts, setExpandProducts] = useState(false);
 
-  // Stock
   const [stockList, setStockList] = useState([]);
   const [stockDrugName, setStockDrugName] = useState("");
   const [stockBatch, setStockBatch] = useState("");
@@ -92,8 +99,9 @@ export default function AdminDashboard() {
   const [stockExp, setStockExp] = useState("");
   const [editingStockId, setEditingStockId] = useState(null);
   const [editStockData, setEditStockData] = useState({});
+  const [searchStock, setSearchStock] = useState("");
+  const [expandStock, setExpandStock] = useState(false);
 
-  // Protocols
   const [protocolsList, setProtocolsList] = useState([]);
   const [protoSearch, setProtoSearch] = useState("");
   const [protoName, setProtoName] = useState("");
@@ -103,8 +111,8 @@ export default function AdminDashboard() {
   const [protoDrugName, setProtoDrugName] = useState("");
   const [protoMgKg, setProtoMgKg] = useState("");
   const [protoMgMl, setProtoMgMl] = useState("");
+  const [expandProtocols, setExpandProtocols] = useState(false);
 
-  // Templates
   const [templatesList, setTemplatesList] = useState([]);
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [editTemplateId, setEditTemplateId] = useState(null);
@@ -112,20 +120,27 @@ export default function AdminDashboard() {
   const [templateSubject, setTemplateSubject] = useState("");
   const [templateBody, setTemplateBody] = useState("");
   const [templateToDelete, setTemplateToDelete] = useState(null);
+  const [searchTemplates, setSearchTemplates] = useState("");
+  const [expandTemplates, setExpandTemplates] = useState(false);
 
-  // Bookkeeping & Expenses State
   const [expensesList, setExpensesList] = useState([]);
   const [expDesc, setExpDesc] = useState("");
   const [expAmount, setExpAmount] = useState("");
   const [expCategory, setExpCategory] = useState("Stock / Inventory");
-  const [expDate, setExpDate] = useState(new Date().toISOString().split("T")[0]);
+  const [expDate, setExpDate] = useState(getLocalYMD(new Date()));
   const [expReceiptFile, setExpReceiptFile] = useState(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState(null);
+  const [searchExpenses, setSearchExpenses] = useState("");
+  const [expandExpenses, setExpandExpenses] = useState(false);
 
-  useEffect(() => {
-    checkAdminAndFetchData();
-  }, []);
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [reportEndDate, setReportEndDate] = useState(getLocalYMD(new Date()));
+
+  useEffect(() => { checkAdminAndFetchData(); }, []);
 
   async function checkAdminAndFetchData() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -142,19 +157,13 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
-  async function fetchProfiles() {
-    const { data } = await supabase.from("profiles").select("*").order("email");
-    setProfiles(data || []);
-  }
-
-  async function fetchExpenses() {
-    const { data } = await supabase.from("expenses").select("*").order("date", { ascending: false });
-    setExpensesList(data || []);
-  }
+  async function fetchProfiles() { const { data } = await supabase.from("profiles").select("*").order("email"); setProfiles(data || []); }
+  async function fetchExpenses() { const { data } = await supabase.from("expenses").select("*").order("date", { ascending: false }); setExpensesList(data || []); }
 
   async function fetchReports() {
     const { data: procedures } = await supabase.from("patient_procedures").select("*, patients(name, clients(id, name, surname, phone))");
     if (procedures) {
+      setAllProceduresList(procedures);
       let sales = 0; let outstanding = 0; const groupedInvoices = {};
       procedures.forEach(proc => {
         sales += Number(proc.price);
@@ -163,13 +172,8 @@ export default function AdminDashboard() {
             const invId = proc.invoice_id || proc.id; 
             if (!groupedInvoices[invId]) {
               groupedInvoices[invId] = {
-                id: invId,
-                patientId: proc.patient_id,
-                patientName: proc.patients?.name,
-                client: proc.patients?.clients,
-                date: proc.created_at,
-                total: 0,
-                items: []
+                id: invId, patientId: proc.patient_id, patientName: proc.patients?.name,
+                client: proc.patients?.clients, date: proc.created_at, total: 0, items: []
               };
             }
             groupedInvoices[invId].total += Number(proc.price);
@@ -178,21 +182,10 @@ export default function AdminDashboard() {
       });
       setTotalSales(sales); setOutstandingTotal(outstanding); setOutstandingInvoices(Object.values(groupedInvoices).sort((a,b) => new Date(b.date) - new Date(a.date)));
     }
-
-    const { data: clientsData } = await supabase.from("clients").select("*");
-    if (clientsData) setAllClientsList(clientsData);
-
-    const { data: patientsData } = await supabase.from("patients").select("*, clients(*)").order("name");
-    if (patientsData) setAllPatientsList(patientsData);
-
-    const { data: sedationData } = await supabase
-      .from("sedation_records")
-      .select("*, patients(name, species, clients(name, surname))")
-      .order("created_at", { ascending: false });
-    if (sedationData) setAllSedationsList(sedationData);
-
-    const { data: consentData } = await supabase.from("consent_records").select("*, patients(name)");
-    if (consentData) setAllConsentsList(consentData);
+    const { data: clientsData } = await supabase.from("clients").select("*"); if (clientsData) setAllClientsList(clientsData);
+    const { data: patientsData } = await supabase.from("patients").select("*, clients(*)").order("name"); if (patientsData) setAllPatientsList(patientsData);
+    const { data: sedationData } = await supabase.from("sedation_records").select("*, patients(name, species, clients(name, surname))").order("created_at", { ascending: false }); if (sedationData) setAllSedationsList(sedationData);
+    const { data: consentData } = await supabase.from("consent_records").select("*, patients(name)"); if (consentData) setAllConsentsList(consentData);
   }
 
   async function fetchProducts() { const { data } = await supabase.from("products").select("*").order("name", { ascending: true }); setProductsList(data || []); }
@@ -206,29 +199,110 @@ export default function AdminDashboard() {
     return s ? s.batch : batchId;
   }
 
-  function drawReportHeader(doc, subtitle) {
-    doc.setFontSize(22);
-    doc.setTextColor(44, 62, 80); 
-    doc.setFont("helvetica", "bold");
-    doc.text("SP Home Euthanasia", 14, 22);
+  // --- PDF BRANDING ENGINE ---
 
-    doc.setFontSize(14);
-    doc.setTextColor(127, 140, 141); 
+  // 1. Helper to fetch logo and convert to base64 required by jsPDF
+  async function getBase64ImageFromUrl(imageUrl) {
+    try {
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject("Error converting image");
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      console.warn("Failed to load logo", err);
+      return null;
+    }
+  }
+
+  // 2. The unified Header engine
+  async function drawReportHeader(doc, subtitle) {
+    const base64Logo = await getBase64ImageFromUrl(logoImage);
+    
+    // Position the logo
+    if (base64Logo) {
+      doc.addImage(base64Logo, 'PNG', 14, 10, 20, 20); 
+    }
+
+    // Company & Professional Name Setup
+    doc.setFontSize(22);
+    doc.setTextColor(44, 62, 80); // #2c3e50 (Slate)
+    doc.setFont("helvetica", "bold");
+    doc.text("SP Home Euthanasia", 38, 20);
+
+    doc.setFontSize(12);
+    doc.setTextColor(91, 143, 185); // #5b8fb9 (Primary Brand Blue)
     doc.setFont("helvetica", "normal");
-    doc.text(subtitle, 14, 30);
+    doc.text("Craig Bailey", 38, 26);
+
+    doc.setFontSize(12);
+    doc.setTextColor(127, 140, 141); // #7f8c8d (Grey)
+    doc.text(subtitle, 38, 32);
     
     doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 36);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 38, 38);
 
-    doc.setTextColor(0, 0, 0);
-
-    return 45; 
+    doc.setTextColor(0, 0, 0); // Reset for standard text
+    return 50; // New Y-position for tables to start below the header
   }
+
+  // 3. Unified AutoTable Theme
+  const tableBrandTheme = {
+    headStyles: { fillColor: [91, 143, 185], textColor: [255, 255, 255], fontStyle: 'bold' },
+    styles: { textColor: [44, 62, 80] },
+    alternateRowStyles: { fillColor: [248, 249, 251] }
+  };
+
+  function isDateInReportRange(dateString) {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const start = reportStartDate ? new Date(reportStartDate) : new Date("2000-01-01");
+    const end = reportEndDate ? new Date(reportEndDate) : new Date("2100-01-01");
+    end.setHours(23, 59, 59, 999); 
+    return date >= start && date <= end;
+  }
+
+  const filteredDateExpenses = expensesList.filter(exp => isDateInReportRange(exp.date));
+  const filteredExpensesTotal = filteredDateExpenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
+  const filteredProcs = allProceduresList.filter(p => isDateInReportRange(p.created_at));
+  const filteredSalesTotal = filteredProcs.reduce((sum, p) => sum + Number(p.price), 0);
+  const filteredNetProfit = filteredSalesTotal - filteredExpensesTotal;
+
+  const searchedExpenses = filteredDateExpenses.filter(exp => (exp.description || "").toLowerCase().includes(searchExpenses.toLowerCase()) || (exp.category || "").toLowerCase().includes(searchExpenses.toLowerCase()));
+  const dispExpenses = (expandExpenses || searchExpenses.trim()) ? searchedExpenses : searchedExpenses.slice(0, 10);
+  const filteredOutstanding = outstandingInvoices.filter(inv => (inv.client?.name || "").toLowerCase().includes(searchOutstanding.toLowerCase()) || (inv.client?.surname || "").toLowerCase().includes(searchOutstanding.toLowerCase()) || (inv.patientName || "").toLowerCase().includes(searchOutstanding.toLowerCase()));
+  const dispOutstanding = (expandOutstanding || searchOutstanding.trim()) ? filteredOutstanding : filteredOutstanding.slice(0, 10);
+  const filteredStaff = profiles.filter(p => (p.email || "").toLowerCase().includes(searchStaff.toLowerCase()));
+  const dispStaff = (expandStaff || searchStaff.trim()) ? filteredStaff : filteredStaff.slice(0, 10);
+  const baseDrugLogs = allSedationsList.filter(h => showArchivedLogs ? h.is_archived : !h.is_archived);
+  const filteredDrugLogs = baseDrugLogs.filter(h => {
+    if (!logSearch.trim()) return true;
+    const s = logSearch.toLowerCase();
+    const cName = h.patients?.clients ? `${h.patients.clients.name} ${h.patients.clients.surname}`.toLowerCase() : "";
+    const pName = (h.patients?.name || "").toLowerCase();
+    const drugs = (h.results || []).map(r => (r.label || r.drug || "")).join(" ").toLowerCase();
+    return cName.includes(s) || pName.includes(s) || drugs.includes(s);
+  });
+  const dispDrugLogs = (expandLogs || logSearch.trim()) ? filteredDrugLogs : filteredDrugLogs.slice(0, 10);
+  const filteredProducts = productsList.filter(p => (p.name || "").toLowerCase().includes(searchProducts.toLowerCase()) || (p.description || "").toLowerCase().includes(searchProducts.toLowerCase()));
+  const dispProducts = (expandProducts || searchProducts.trim()) ? filteredProducts : filteredProducts.slice(0, 10);
+  const activeStock = stockList.filter(s => !s.is_archived);
+  const filteredStock = activeStock.filter(s => (s.drug || "").toLowerCase().includes(searchStock.toLowerCase()) || (s.batch || "").toLowerCase().includes(searchStock.toLowerCase()));
+  const dispStock = (expandStock || searchStock.trim()) ? filteredStock : filteredStock.slice(0, 10);
+  const filteredProtocols = protocolsList.filter(p => p.name.toLowerCase().includes(protoSearch.toLowerCase()));
+  const dispProtocols = (expandProtocols || protoSearch.trim()) ? filteredProtocols : filteredProtocols.slice(0, 10);
+  const filteredTemplates = templatesList.filter(t => (t.name || "").toLowerCase().includes(searchTemplates.toLowerCase()) || (t.subject || "").toLowerCase().includes(searchTemplates.toLowerCase()));
+  const dispTemplates = (expandTemplates || searchTemplates.trim()) ? filteredTemplates : filteredTemplates.slice(0, 10);
+
+  // --- REPORT GENERATION (NOW ASYNC FOR LOGO LOADING) ---
 
   async function generateCDReport() {
     try {
       const doc = new jsPDF('landscape'); 
-      let yPos = drawReportHeader(doc, "VMD / RCVS Controlled Drugs Register");
+      let yPos = await drawReportHeader(doc, "VMD / RCVS Controlled Drugs Register");
       
       const cols = ["Date", "Client", "Patient", "Species", "Weight", "Drug Administrations"];
       const rows = [];
@@ -244,310 +318,148 @@ export default function AdminDashboard() {
           return `${r.label || r.drug}: ${r.ml}ml ${r.waste > 0 ? `(+${r.waste}ml waste)` : ''} [Batch: ${bName}]`;
         }).join('\n');
 
-        rows.push([
-          date,
-          clientName,
-          patientName,
-          species,
-          `${record.weight} kg`,
-          drugs
-        ]);
+        rows.push([date, clientName, patientName, species, `${record.weight} kg`, drugs]);
       });
       
       autoTable(doc, { 
-        head: [cols], 
-        body: rows, 
-        startY: yPos,
-        styles: { fontSize: 9, valign: 'middle' },
+        ...tableBrandTheme,
+        head: [cols], body: rows, startY: yPos,
+        styles: { ...tableBrandTheme.styles, fontSize: 9, valign: 'middle' },
         bodyStyles: { minCellHeight: 15 },
         columnStyles: { 5: { cellWidth: 80 } }
       });
       
       const fileName = `VMD_Controlled_Drugs_Register_${new Date().toISOString().split('T')[0]}.pdf`;
-
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: pdfBase64,
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: fileName,
-          url: savedFile.uri,
-        });
-      } else {
-        doc.save(fileName);
-      }
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("Error generating PDF. Check console for details.");
-    }
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: Directory.Cache });
+        await Share.share({ title: fileName, url: savedFile.uri });
+      } else doc.save(fileName);
+    } catch (error) { setAlertMessage("Error generating PDF."); }
   }
 
   async function generateStockReport() {
     try {
       const doc = new jsPDF();
-      const startY = drawReportHeader(doc, "Master Inventory Stock Report");
-      
+      let startY = await drawReportHeader(doc, "Master Inventory Stock Report");
       const tableColumn = ["Drug Name", "Batch Number", "Remaining (ml)", "Expiry Date", "Status"];
       const tableRows = [];
-      
       stockList.forEach(s => {
-        tableRows.push([
-          s.drug, 
-          s.batch, 
-          `${s.total_ml} ml`, 
-          s.expiry_date ? new Date(s.expiry_date).toLocaleDateString('en-GB') : "N/A", 
-          s.is_archived ? "Archived" : "Active"
-        ]);
+        tableRows.push([s.drug, s.batch, `${s.total_ml} ml`, s.expiry_date ? new Date(s.expiry_date).toLocaleDateString('en-GB') : "N/A", s.is_archived ? "Archived" : "Active"]);
       });
-      
-      autoTable(doc, { head: [tableColumn], body: tableRows, startY: startY });
-      
+      autoTable(doc, { ...tableBrandTheme, head: [tableColumn], body: tableRows, startY: startY });
       const fileName = `Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: pdfBase64,
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: fileName,
-          url: savedFile.uri,
-        });
-      } else {
-        doc.save(fileName);
-      }
-
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("Error generating PDF. Check console for details.");
-    }
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: Directory.Cache });
+        await Share.share({ title: fileName, url: savedFile.uri });
+      } else doc.save(fileName);
+    } catch (error) { setAlertMessage("Error generating PDF."); }
   }
 
   async function generateInvoiceReport() {
     try {
       const { data: procs } = await supabase.from("patient_procedures").select("*, patients(name, clients(name, surname))").order("created_at", { ascending: false });
-      
       const doc = new jsPDF();
-      const startY = drawReportHeader(doc, "Financial & Invoice Report");
-      
+      let startY = await drawReportHeader(doc, "Financial & Invoice Report");
       const cols = ["Date", "Client", "Patient", "Procedure/Item", "Price", "Status"];
       const rows = (procs || []).map(p => [
         new Date(p.created_at).toLocaleDateString('en-GB'),
         p.patients?.clients ? `${p.patients.clients.name} ${p.patients.clients.surname}` : "Unknown",
         p.patients?.name || "Unknown",
-        p.product_name,
-        `£${Number(p.price).toFixed(2)}`,
-        p.is_paid ? "Paid" : "Unpaid"
+        p.product_name, `£${Number(p.price).toFixed(2)}`, p.is_paid ? "Paid" : "Unpaid"
       ]);
-      
-      autoTable(doc, { head: [cols], body: rows, startY: startY });
-      
+      autoTable(doc, { ...tableBrandTheme, head: [cols], body: rows, startY: startY });
       const fileName = `Financial_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: pdfBase64,
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: fileName,
-          url: savedFile.uri,
-        });
-      } else {
-        doc.save(fileName);
-      }
-
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("Error generating PDF. Check console for details.");
-    }
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: Directory.Cache });
+        await Share.share({ title: fileName, url: savedFile.uri });
+      } else doc.save(fileName);
+    } catch (error) { setAlertMessage("Error generating PDF."); }
   }
 
-async function generatePatientReport() {
+  async function generatePatientReport() {
     try {
       if (!selectedPatientForReport) return setAlertMessage("Please select a patient from the dropdown first.");
       const patient = allPatientsList.find(p => String(p.id) === String(selectedPatientForReport));
       if (!patient) return;
-
       const { data: procs } = await supabase.from("patient_procedures").select("*").eq("patient_id", patient.id).order("created_at");
       const { data: seds } = await supabase.from("sedation_records").select("*").eq("patient_id", patient.id).order("created_at");
-
       const doc = new jsPDF();
-      let yPos = drawReportHeader(doc, `Patient History: ${patient.name}`);
-
-      doc.setFontSize(12);
-      doc.setTextColor(44, 62, 80);
-      doc.setFont("helvetica", "bold");
-      doc.text("Client Details", 14, yPos); yPos += 6;
+      let yPos = await drawReportHeader(doc, `Patient History: ${patient.name}`);
       
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.setTextColor(0, 0, 0); 
+      doc.setFontSize(12); doc.setTextColor(44, 62, 80); doc.setFont("helvetica", "bold"); doc.text("Client Details", 14, yPos); yPos += 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(0, 0, 0); 
       const client = patient.clients || {};
       doc.text(`Name: ${client.name || ""} ${client.surname || "Unknown"}`, 14, yPos); yPos += 5;
       doc.text(`Phone: ${client.phone || "N/A"}`, 14, yPos); yPos += 5;
       doc.text(`Email: ${client.email || "N/A"}`, 14, yPos); yPos += 5;
       const addr = [client.address, client.city, client.postcode].filter(Boolean).join(", ");
       doc.text(`Address: ${addr || "N/A"}`, 14, yPos); yPos += 10;
-
-      doc.setFontSize(12);
-      doc.setTextColor(44, 62, 80);
-      doc.setFont("helvetica", "bold");
-      doc.text("Patient Details", 14, yPos); yPos += 6;
-      
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(12); doc.setTextColor(44, 62, 80); doc.setFont("helvetica", "bold"); doc.text("Patient Details", 14, yPos); yPos += 6;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(0, 0, 0);
       doc.text(`Name: ${patient.name}`, 14, yPos); yPos += 5;
       doc.text(`Species: ${patient.species || "N/A"}   |   Breed: ${patient.breed || "N/A"}`, 14, yPos); yPos += 5;
       doc.text(`Weight: ${patient.weight ? patient.weight + ' kg' : "N/A"}   |   Age: ${patient.age_years || 0}y ${patient.age_months || 0}m`, 14, yPos); yPos += 5;
       doc.text(`Status: ${patient.is_deceased ? "Deceased" : "Alive"}`, 14, yPos); yPos += 12;
-
-      doc.setFontSize(14);
-      doc.setTextColor(44, 62, 80);
-      doc.setFont("helvetica", "bold");
-      doc.text("Clinical Procedures & Invoicing", 14, yPos);
-      yPos += 5;
-      const procCols = ["Date", "Item / Procedure", "Notes", "Price", "Status"];
-      const procRows = (procs || []).map(p => [
-        new Date(p.created_at).toLocaleDateString('en-GB'), 
-        p.product_name, 
-        p.notes || "", 
-        `£${Number(p.price).toFixed(2)}`, 
-        p.is_paid ? "Paid" : "Unpaid"
-      ]);
+      doc.setFontSize(14); doc.setTextColor(44, 62, 80); doc.setFont("helvetica", "bold"); doc.text("Clinical Procedures & Invoicing", 14, yPos); yPos += 5;
       
-      autoTable(doc, { head: [procCols], body: procRows, startY: yPos });
+      const procCols = ["Date", "Item / Procedure", "Notes", "Price", "Status"];
+      const procRows = (procs || []).map(p => [new Date(p.created_at).toLocaleDateString('en-GB'), p.product_name, p.notes || "", `£${Number(p.price).toFixed(2)}`, p.is_paid ? "Paid" : "Unpaid"]);
+      autoTable(doc, { ...tableBrandTheme, head: [procCols], body: procRows, startY: yPos });
       
       yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPos + 30;
-
-      doc.setFontSize(14);
-      doc.text("Sedation & Dosing History", 14, yPos);
-      yPos += 5;
+      doc.setFontSize(14); doc.setTextColor(44, 62, 80); doc.setFont("helvetica", "bold"); doc.text("Sedation & Dosing History", 14, yPos); yPos += 5;
       const sedCols = ["Date", "Weight at time", "Drugs Administered"];
-      const sedRows = (seds || []).map(s => {
-         const drugs = (s.results || []).map(r => `${r.label}: ${r.ml}ml`).join(", ");
-         return [new Date(s.created_at).toLocaleDateString('en-GB'), `${s.weight} kg`, drugs];
-      });
-      
-      autoTable(doc, { head: [sedCols], body: sedRows, startY: yPos });
+      const sedRows = (seds || []).map(s => { const drugs = (s.results || []).map(r => `${r.label}: ${r.ml}ml`).join(", "); return [new Date(s.created_at).toLocaleDateString('en-GB'), `${s.weight} kg`, drugs]; });
+      autoTable(doc, { ...tableBrandTheme, head: [sedCols], body: sedRows, startY: yPos });
       
       const fileName = `Patient_History_${patient.name.replace(/\s+/g, '_')}.pdf`;
-
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: pdfBase64,
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: fileName,
-          url: savedFile.uri,
-        });
-      } else {
-        doc.save(fileName);
-      }
-
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("Error generating PDF. Check console for details.");
-    }
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: Directory.Cache });
+        await Share.share({ title: fileName, url: savedFile.uri });
+      } else doc.save(fileName);
+    } catch (error) { setAlertMessage("Error generating PDF."); }
   }
 
-  // --- NEW BOOKKEEPING REPORT ---
   async function generateBookkeepingReport() {
     try {
       const doc = new jsPDF();
-      const startY = drawReportHeader(doc, "Financial & Bookkeeping Report");
+      let startY = await drawReportHeader(doc, `Bookkeeping Report (${new Date(reportStartDate).toLocaleDateString('en-GB')} to ${new Date(reportEndDate).toLocaleDateString('en-GB')})`);
       
-      doc.setFontSize(14);
-      doc.setTextColor(44, 62, 80);
-      doc.setFont("helvetica", "bold");
-      doc.text("Profit & Loss Summary", 14, startY);
-
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(14); doc.setTextColor(44, 62, 80); doc.setFont("helvetica", "bold"); doc.text("Profit & Loss Summary", 14, startY);
+      doc.setFontSize(11); doc.setFont("helvetica", "normal"); doc.setTextColor(0, 0, 0);
+      doc.text(`Total Billed Revenue (Selected Dates): £${filteredSalesTotal.toFixed(2)}`, 14, startY + 8);
+      doc.text(`Total Outgoing Expenses (Selected Dates): £${filteredExpensesTotal.toFixed(2)}`, 14, startY + 14);
+      doc.setFont("helvetica", "bold"); doc.setTextColor(filteredNetProfit >= 0 ? 39 : 231, filteredNetProfit >= 0 ? 174 : 76, filteredNetProfit >= 0 ? 96 : 60); 
+      doc.text(`Estimated Net Profit (Selected Dates): £${filteredNetProfit.toFixed(2)}`, 14, startY + 22);
+      doc.setFontSize(14); doc.setTextColor(44, 62, 80); doc.text("Expense Records", 14, startY + 35);
       
-      const totalExp = expensesList.reduce((acc, curr) => acc + Number(curr.amount), 0);
-      const netProfit = totalSales - totalExp;
-
-      doc.text(`Total Billed Revenue: £${totalSales.toFixed(2)}`, 14, startY + 8);
-      doc.text(`Total Outgoing Expenses: £${totalExp.toFixed(2)}`, 14, startY + 14);
-      
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(netProfit >= 0 ? 39 : 231, netProfit >= 0 ? 174 : 76, netProfit >= 0 ? 96 : 60); 
-      doc.text(`Estimated Net Profit: £${netProfit.toFixed(2)}`, 14, startY + 22);
-
-      doc.setFontSize(14);
-      doc.setTextColor(44, 62, 80);
-      doc.text("Expense Records", 14, startY + 35);
-
       const cols = ["Date", "Description", "Category", "Amount"];
-      const rows = expensesList.map(e => [
-        new Date(e.date).toLocaleDateString('en-GB'),
-        e.description,
-        e.category,
-        `£${Number(e.amount).toFixed(2)}`
-      ]);
-
-      autoTable(doc, { head: [cols], body: rows, startY: startY + 40 });
-
-      const fileName = `Bookkeeping_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-
+      const rows = filteredDateExpenses.map(e => [new Date(e.date).toLocaleDateString('en-GB'), e.description, e.category, `£${Number(e.amount).toFixed(2)}`]);
+      autoTable(doc, { ...tableBrandTheme, head: [cols], body: rows, startY: startY + 40 });
+      
+      const fileName = `Bookkeeping_Report_${reportStartDate}_to_${reportEndDate}.pdf`;
       if (Capacitor.isNativePlatform()) {
         const pdfBase64 = doc.output('datauristring').split(',')[1];
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: pdfBase64,
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: fileName,
-          url: savedFile.uri,
-        });
-      } else {
-        doc.save(fileName);
-      }
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("Error generating PDF. Check console for details.");
-    }
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: Directory.Cache });
+        await Share.share({ title: fileName, url: savedFile.uri });
+      } else doc.save(fileName);
+    } catch (error) { setAlertMessage("Error generating PDF."); }
   }
 
-  // --- CSV ACCOUNTANT EXPORT ---
   async function exportExpensesCSV() {
     try {
+      if (filteredDateExpenses.length === 0) return setAlertMessage("No expenses found in this date range to export.");
       const headers = ["Date", "Description", "Category", "Amount (£)", "Receipt URL"];
-      const rows = expensesList.map(e => [
-        new Date(e.date).toLocaleDateString('en-GB'),
-        `"${e.description.replace(/"/g, '""')}"`, // Escape quotes for CSV
-        `"${e.category}"`,
-        e.amount,
-        e.receipt_url ? `"${e.receipt_url}"` : "None"
-      ]);
+      const rows = filteredDateExpenses.map(e => [new Date(e.date).toLocaleDateString('en-GB'), `"${e.description.replace(/"/g, '""')}"`, `"${e.category}"`, e.amount, e.receipt_url ? `"${e.receipt_url}"` : "None"]);
       const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-      const fileName = `Bookkeeping_Export_${new Date().toISOString().split('T')[0]}.csv`;
-
+      const fileName = `Bookkeeping_Export_${reportStartDate}_to_${reportEndDate}.csv`;
       if (Capacitor.isNativePlatform()) {
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: csvContent,
-          directory: Directory.Cache,
-          encoding: "utf8"
-        });
-        await Share.share({
-          title: fileName,
-          url: savedFile.uri,
-        });
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: csvContent, directory: Directory.Cache, encoding: "utf8" });
+        await Share.share({ title: fileName, url: savedFile.uri });
       } else {
         const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
         const link = document.createElement("a");
@@ -557,13 +469,10 @@ async function generatePatientReport() {
         link.click();
         document.body.removeChild(link);
       }
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("Error exporting CSV data.");
-    }
+    } catch (error) { setAlertMessage("Error exporting CSV."); }
   }
 
-  // --- DRUG LOG ACTIONS ---
+  // --- ACTIONS (DRUG LOGS, STOCK, EXPENSES, ETC) ---
 
   function startEditDrugLog(log) {
     setEditingDrugLogId(log.id);
@@ -597,28 +506,15 @@ async function generatePatientReport() {
   async function confirmArchiveLog() {
     if (!logToArchive) return;
     const { error } = await supabase.from("sedation_records").update({ is_archived: true }).eq("id", logToArchive.id);
-    if (error) {
-      setAlertMessage("Failed to archive: " + error.message);
-    } else {
-      setLogToArchive(null);
-      fetchReports();
-    }
+    if (!error) { setLogToArchive(null); fetchReports(); } else setAlertMessage("Failed to archive: " + error.message);
   }
 
-  function startUnarchive(log) {
-    setUnarchiveModalLog(log);
-    setUnarchivePassword("");
-  }
+  function startUnarchive(log) { setUnarchiveModalLog(log); setUnarchivePassword(""); }
 
   async function confirmUnarchive() {
-    if (unarchivePassword === "admin123") { // <----- YOU CAN CHANGE YOUR PASSWORD HERE
+    if (unarchivePassword === "admin123") {
       const { error } = await supabase.from("sedation_records").update({ is_archived: false }).eq("id", unarchiveModalLog.id);
-      if (error) {
-        setAlertMessage("Failed to unarchive: " + error.message);
-      } else {
-        fetchReports();
-        setAlertMessage("Record unarchived successfully.");
-      }
+      if (!error) { fetchReports(); setAlertMessage("Record unarchived successfully."); } else setAlertMessage("Failed to unarchive: " + error.message);
       setUnarchiveModalLog(null);
     } else {
       setAlertMessage("Incorrect password. Please try again.");
@@ -643,37 +539,24 @@ async function generatePatientReport() {
           }
         }
         await supabase.from("sedation_records").delete().eq("id", h.id);
-        fetchReports(); 
-        fetchStock();
-        setConfirmModal(null);
+        fetchReports(); fetchStock(); setConfirmModal(null);
       }
     });
   }
 
-  // --- STAFF MANAGEMENT ACTIONS ---
   async function toggleAdminRole(profileId, currentStatus) {
-    if (profileId === currentUserId) {
-      return setAlertMessage("Safety Prevention: You cannot remove your own admin access.");
-    }
+    if (profileId === currentUserId) return setAlertMessage("Safety Prevention: You cannot remove your own admin access.");
     const { error } = await supabase.from("profiles").update({ is_admin: !currentStatus }).eq("id", profileId);
-    if (error) {
-      setAlertMessage("Failed to update role: " + error.message);
-    } else {
-      fetchProfiles();
-    }
+    if (!error) fetchProfiles(); else setAlertMessage("Failed to update role: " + error.message);
   }
 
-  // --- BOOKKEEPING / EXPENSE ACTIONS ---
   async function saveExpense() {
     if (!expDesc.trim() || !expAmount) return setAlertMessage("Please provide a description and amount.");
-    
     setIsUploadingReceipt(true);
     let receiptUrl = null;
-
     if (expReceiptFile) {
       const fileName = `${Date.now()}_${expReceiptFile.name}`;
       const { data: fileData, error: fileError } = await supabase.storage.from("receipts").upload(fileName, expReceiptFile);
-      
       if (!fileError) {
         const { data: publicUrlData } = supabase.storage.from("receipts").getPublicUrl(fileName);
         receiptUrl = publicUrlData.publicUrl;
@@ -681,36 +564,20 @@ async function generatePatientReport() {
         setAlertMessage("Receipt upload failed, but saving expense anyway. Error: " + fileError.message);
       }
     }
-
-    const { error } = await supabase.from("expenses").insert([{
-      description: expDesc.trim(),
-      amount: Number(expAmount),
-      category: expCategory,
-      date: expDate,
-      receipt_url: receiptUrl
-    }]);
-
+    const { error } = await supabase.from("expenses").insert([{ description: expDesc.trim(), amount: Number(expAmount), category: expCategory, date: expDate, receipt_url: receiptUrl }]);
     setIsUploadingReceipt(false);
-
     if (!error) {
       setExpDesc(""); setExpAmount(""); setExpReceiptFile(null); 
       document.getElementById('receipt-upload').value = "";
-      fetchExpenses();
-      setAlertMessage("Expense recorded successfully.");
-    } else {
-      setAlertMessage("Failed to save expense: " + error.message);
-    }
+      fetchExpenses(); setAlertMessage("Expense recorded successfully.");
+    } else setAlertMessage("Failed to save expense: " + error.message);
   }
 
   async function confirmDeleteExpense() {
     if (!expenseToDelete) return;
     await supabase.from("expenses").delete().eq("id", expenseToDelete.id);
-    setExpenseToDelete(null);
-    fetchExpenses();
+    setExpenseToDelete(null); fetchExpenses();
   }
-
-
-  // --- OTHER CRUD ACTIONS ---
 
   async function saveProduct() {
     if (!prodName || !prodPrice) return setAlertMessage("Name and Price are required.");
@@ -723,8 +590,7 @@ async function generatePatientReport() {
   async function confirmDeleteProduct() {
     if (!productToDelete) return;
     await supabase.from("products").delete().eq("id", productToDelete.id);
-    setProductToDelete(null);
-    fetchProducts();
+    setProductToDelete(null); fetchProducts();
   }
 
   function startEditProd(p) { setIsEditingProd(true); setEditProdId(p.id); setProdName(p.name); setProdDesc(p.description || ""); setProdPrice(p.price); window.scrollTo({ top: 0, behavior: "smooth" }); }
@@ -740,19 +606,13 @@ async function generatePatientReport() {
   async function confirmArchiveStock() {
     if (!stockToArchive) return;
     const { error } = await supabase.from("stock").update({ is_archived: true }).eq("id", stockToArchive.id);
-    if (error) {
-      setAlertMessage("Failed to archive stock: " + error.message);
-    } else {
-      setStockToArchive(null);
-      fetchStock();
-    }
+    if (!error) { setStockToArchive(null); fetchStock(); } else setAlertMessage("Failed to archive stock: " + error.message);
   }
 
   async function confirmDeleteStock() {
     if (!stockToDelete) return;
     await supabase.from("stock").delete().eq("id", stockToDelete.id);
-    setStockToDelete(null);
-    fetchStock();
+    setStockToDelete(null); fetchStock();
   }
 
   function addProtoDrug() {
@@ -764,13 +624,12 @@ async function generatePatientReport() {
   async function saveProtocolObj() {
     if (!protoName.trim() || protoDrugs.length === 0) return setAlertMessage("Please enter a name and at least one drug.");
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       let pId = editingProtoId;
       if (editingProtoId) {
-        await supabase.from("protocols").update({ name: protoName, species: protoSpecies, user_id: session?.user?.id }).eq("id", editingProtoId);
+        await supabase.from("protocols").update({ name: protoName, species: protoSpecies, user_id: currentUserId }).eq("id", editingProtoId);
         await supabase.from("protocol_drugs").delete().eq("protocol_id", editingProtoId);
       } else {
-        const { data } = await supabase.from("protocols").insert([{ name: protoName, species: protoSpecies, user_id: session?.user?.id }]).select().single();
+        const { data } = await supabase.from("protocols").insert([{ name: protoName, species: protoSpecies, user_id: currentUserId }]).select().single();
         pId = data.id;
       }
       await supabase.from("protocol_drugs").insert(protoDrugs.map(d => ({ protocol_id: pId, ...d })));
@@ -784,20 +643,14 @@ async function generatePatientReport() {
     if (!protocolToDelete) return;
     await supabase.from("protocol_drugs").delete().eq("protocol_id", protocolToDelete.id); 
     await supabase.from("protocols").delete().eq("id", protocolToDelete.id);
-    setProtocolToDelete(null);
-    fetchProtocols();
+    setProtocolToDelete(null); fetchProtocols();
   }
 
   async function saveTemplate() {
     if (!templateName || !templateSubject || !templateBody) return setAlertMessage("Name, Subject, and Body are required.");
     const payload = { name: templateName, subject: templateSubject, body: templateBody };
-    
-    if (isEditingTemplate) {
-      await supabase.from("email_templates").update(payload).eq("id", editTemplateId);
-    } else {
-      await supabase.from("email_templates").insert([payload]);
-    }
-    
+    if (isEditingTemplate) await supabase.from("email_templates").update(payload).eq("id", editTemplateId);
+    else await supabase.from("email_templates").insert([payload]);
     setIsEditingTemplate(false); setEditTemplateId(null); setTemplateName(""); setTemplateSubject(""); setTemplateBody(""); fetchTemplates();
   }
 
@@ -809,8 +662,7 @@ async function generatePatientReport() {
   async function confirmDeleteTemplate() {
     if (!templateToDelete) return;
     await supabase.from("email_templates").delete().eq("id", templateToDelete.id);
-    setTemplateToDelete(null);
-    fetchTemplates();
+    setTemplateToDelete(null); fetchTemplates();
   }
 
   function renderStatModalList() {
@@ -823,15 +675,9 @@ async function generatePatientReport() {
 
     const filtered = list.filter(item => {
       const searchLower = statSearch.toLowerCase();
-      if (statModalMode === "clients") {
-        return (`${item.name || ""} ${item.surname || ""}`).toLowerCase().includes(searchLower);
-      }
-      if (statModalMode === "patients" || statModalMode === "deceased") {
-        return (item.name || "").toLowerCase().includes(searchLower) || (item.clients?.surname || "").toLowerCase().includes(searchLower);
-      }
-      if (statModalMode === "sedations" || statModalMode === "consents") {
-        return (item.patients?.name || "").toLowerCase().includes(searchLower);
-      }
+      if (statModalMode === "clients") return (`${item.name || ""} ${item.surname || ""}`).toLowerCase().includes(searchLower);
+      if (statModalMode === "patients" || statModalMode === "deceased") return (item.name || "").toLowerCase().includes(searchLower) || (item.clients?.surname || "").toLowerCase().includes(searchLower);
+      if (statModalMode === "sedations" || statModalMode === "consents") return (item.patients?.name || "").toLowerCase().includes(searchLower);
       return true;
     });
 
@@ -879,20 +725,6 @@ async function generatePatientReport() {
     ));
   }
 
-  // Generate Filtered Logs for VMD Tab
-  const filteredDrugLogs = allSedationsList.filter(h => {
-    const isArchivedStatusMatch = showArchivedLogs ? h.is_archived : !h.is_archived;
-    if (!isArchivedStatusMatch) return false;
-
-    if (!logSearch.trim()) return true;
-    const s = logSearch.toLowerCase();
-    const cName = h.patients?.clients ? `${h.patients.clients.name} ${h.patients.clients.surname}`.toLowerCase() : "";
-    const pName = (h.patients?.name || "").toLowerCase();
-    const drugs = (h.results || []).map(r => (r.label || r.drug || "")).join(" ").toLowerCase();
-    
-    return cName.includes(s) || pName.includes(s) || drugs.includes(s);
-  });
-
   if (loading) {
     return (
       <div className="page" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
@@ -920,28 +752,20 @@ async function generatePatientReport() {
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1 style={{ textAlign: "center" }}>Admin Control</h1>
 
-      {/* ================= SUB-NAVIGATION TABS WITH DIRECTIONAL ARROWS WITHIN FRAME ================= */}
+      {/* ================= SUB-NAVIGATION TABS ================= */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: "30px", background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px" }}>
         <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none" }}>&lt;</span>
         <div className="admin-tabs-scrollbox" style={{ 
-          display: "flex", 
-          gap: "10px", 
-          flex: 1,
-          padding: "10px 0", 
-          overflowX: "auto", 
-          whiteSpace: "nowrap" 
+          display: "flex", gap: "10px", flex: 1, padding: "10px 0", overflowX: "auto", whiteSpace: "nowrap" 
         }}>
           {TABS.map(tab => (
             <button 
               key={tab.id} 
               style={{ 
-                ...tabBtnStyle,
-                padding: "12px 20px",
-                background: 'transparent', 
+                ...tabBtnStyle, padding: "12px 20px", background: 'transparent', 
                 color: activeTab === tab.id ? '#5b8fb9' : '#7f8c8d',
                 borderBottom: activeTab === tab.id ? '3px solid #5b8fb9' : '3px solid transparent',
-                borderRadius: "0",
-                transition: "all 0.2s ease"
+                borderRadius: "0", transition: "all 0.2s ease"
               }} 
               onClick={() => setActiveTab(tab.id)}
             >
@@ -952,16 +776,7 @@ async function generatePatientReport() {
         <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingLeft: "5px", userSelect: "none" }}>&gt;</span>
       </div>
 
-      {/* ADMIN SCROLLBAR CSS HIDDEN */}
-      <style>{`
-        .admin-tabs-scrollbox::-webkit-scrollbar {
-          display: none;
-        }
-        .admin-tabs-scrollbox {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+      <style>{`.admin-tabs-scrollbox::-webkit-scrollbar { display: none; } .admin-tabs-scrollbox { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
 
       {/* ================= TAB 1: OVERVIEW ================= */}
       {activeTab === "overview" && (
@@ -1007,30 +822,46 @@ async function generatePatientReport() {
             {outstandingInvoices.length === 0 ? (
               <p style={{ color: "#27ae60", textAlign: "center", fontWeight: "bold" }}>All accounts are settled! 🎉</p>
             ) : (
-              outstandingInvoices.map(inv => (
-                <div key={inv.id} className="admin-invoice-row" style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
-                    <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
-                      {inv.client?.name} {inv.client?.surname} 
-                      <span onClick={() => { if(inv.patientId) navigate(`/patient/${inv.patientId}`); }} style={{ color: "#3498db", fontWeight: "bold", cursor: "pointer", marginLeft: "5px", textDecoration: "underline" }}>
-                        (Pet: {inv.patientName})
-                      </span>
+              <>
+                <input
+                  placeholder="Search unpaid invoices..."
+                  value={searchOutstanding}
+                  onChange={(e) => setSearchOutstanding(e.target.value)}
+                  style={{ ...inputStyle, marginBottom: "15px" }}
+                />
+                {dispOutstanding.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No matches found.</p>}
+                
+                {dispOutstanding.map(inv => (
+                  <div key={inv.id} className="admin-invoice-row" style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <strong style={{ fontSize: "16px", color: "#e74c3c" }}>£{inv.total.toFixed(2)} Due</strong>
+                      <div style={{ color: "#333", fontSize: "15px", marginTop: "5px", fontWeight: "bold" }}>
+                        {inv.client?.name} {inv.client?.surname} 
+                        <span onClick={() => { if(inv.patientId) navigate(`/patient/${inv.patientId}`); }} style={{ color: "#3498db", fontWeight: "bold", cursor: "pointer", marginLeft: "5px", textDecoration: "underline" }}>
+                          (Pet: {inv.patientName})
+                        </span>
+                      </div>
+                      <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>{inv.items.join(", ")}</div>
+                      <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}</div>
                     </div>
-                    <div style={{ color: "#666", fontSize: "13px", marginTop: "4px" }}>{inv.items.join(", ")}</div>
-                    <div style={{ color: "#95a5a6", fontSize: "12px", marginTop: "4px" }}>Invoice Date: {new Date(inv.date).toLocaleDateString('en-GB')}</div>
+                    <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                      {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
+                      <button className="admin-view-invoice-btn" onClick={() => {
+                          if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
+                          navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
+                        }} style={invoiceViewBtn}>
+                        View Invoice
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                    {inv.client?.phone && <a href={`tel:${inv.client?.phone}`} style={{ display: "block", marginBottom: "8px", color: "#3498db", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>📞 Call</a>}
-                    <button className="admin-view-invoice-btn" onClick={() => {
-                        if (!inv.patientId) return setAlertMessage("Error: Missing Patient Link. This invoice may be orphaned in the database.");
-                        navigate(`/patient/${inv.patientId}`, { state: { activeTab: "procedures", targetInvoiceId: inv.id }});
-                      }} style={invoiceViewBtn}>
-                      View Invoice
-                    </button>
-                  </div>
-                </div>
-              ))
+                ))}
+
+                {outstandingInvoices.length > 10 && !searchOutstanding.trim() && (
+                  <button onClick={() => setExpandOutstanding(!expandOutstanding)} style={expandBtnStyle}>
+                    {expandOutstanding ? "Show Less" : `Show All (${outstandingInvoices.length})`}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </>
@@ -1046,23 +877,33 @@ async function generatePatientReport() {
               <button onClick={generateBookkeepingReport} style={{ ...blueBtn, background: "#8e44ad" }}>Download PDF</button>
             </div>
           </div>
+
+          <div className="card" style={{ marginBottom: "20px" }}>
+            <h4 style={{ marginTop: 0, marginBottom: "10px" }}>Filter by Date Range</h4>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: "12px", color: "#666" }}>From</label>
+                <input type="date" value={reportStartDate} onChange={e => setReportStartDate(e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: "12px", color: "#666" }}>To</label>
+                <input type="date" value={reportEndDate} onChange={e => setReportEndDate(e.target.value)} style={inputStyle} />
+              </div>
+            </div>
+          </div>
           
           <div style={{ display: "flex", gap: "15px", marginBottom: "30px", flexWrap: "wrap" }}>
             <div style={{...statCard, cursor: "default"}}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Billed Revenue</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>£{totalSales.toFixed(2)}</div>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Revenue (Selected Dates)</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#3498db" }}>£{filteredSalesTotal.toFixed(2)}</div>
             </div>
             <div style={{...statCard, cursor: "default"}}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Total Outgoing Expenses</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#e74c3c" }}>
-                £{expensesList.reduce((acc, curr) => acc + Number(curr.amount), 0).toFixed(2)}
-              </div>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Expenses (Selected Dates)</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#e74c3c" }}>£{filteredExpensesTotal.toFixed(2)}</div>
             </div>
             <div style={{...statCard, cursor: "default", border: "2px solid #27ae60"}}>
-              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Estimated Net Profit</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#27ae60" }}>
-                £{(totalSales - expensesList.reduce((acc, curr) => acc + Number(curr.amount), 0)).toFixed(2)}
-              </div>
+              <div style={{ fontSize: "14px", color: "#7f8c8d", marginBottom: "5px" }}>Net Profit (Selected Dates)</div>
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#27ae60" }}>£{filteredNetProfit.toFixed(2)}</div>
             </div>
           </div>
 
@@ -1084,34 +925,14 @@ async function generatePatientReport() {
               <input type="date" value={expDate} onChange={e => setExpDate(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
             </div>
 
-            {/* ALIGNMENT FIX APPLIED HERE: Flex container perfectly centers standard text */}
             <label 
               htmlFor="receipt-upload" 
-              style={{ 
-                ...blueBtn, 
-                display: "flex",            
-                alignItems: "center",       
-                justifyContent: "center",   
-                width: "100%", 
-                boxSizing: "border-box",    
-                whiteSpace: "normal",       
-                minHeight: "44px",          
-                marginBottom: isUploadingReceipt ? "10px" : "15px",
-                opacity: isUploadingReceipt ? 0.7 : 1
-              }}
+              style={{ ...blueBtn, display: "flex", alignItems: "center", justifyContent: "center", width: "100%", boxSizing: "border-box", whiteSpace: "normal", minHeight: "44px", marginBottom: isUploadingReceipt ? "10px" : "15px", opacity: isUploadingReceipt ? 0.7 : 1 }}
             >
               {isUploadingReceipt ? "Uploading..." : expReceiptFile ? expReceiptFile.name : "Click to Select Receipt File/Image"}
             </label>
 
-            <input 
-              id="receipt-upload"
-              type="file"
-              accept="image/*,.pdf" 
-              onChange={(e) => setExpReceiptFile(e.target.files[0])} 
-              disabled={isUploadingReceipt}
-              style={{ display: "none" }} 
-            />
-
+            <input id="receipt-upload" type="file" accept="image/*,.pdf" onChange={(e) => setExpReceiptFile(e.target.files[0])} disabled={isUploadingReceipt} style={{ display: "none" }} />
             <button onClick={saveExpense} disabled={isUploadingReceipt} style={{ ...greenBtn, width: "100%", opacity: isUploadingReceipt ? 0.7 : 1 }}>
               {isUploadingReceipt ? "Uploading & Saving..." : "Record Expense"}
             </button>
@@ -1119,9 +940,20 @@ async function generatePatientReport() {
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Expense Records</h3>
-            {expensesList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No expenses recorded.</p>}
             
-            {expensesList.map(exp => (
+            {filteredDateExpenses.length > 0 && (
+              <input
+                placeholder="Search expenses by description or category..."
+                value={searchExpenses}
+                onChange={(e) => setSearchExpenses(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "15px" }}
+              />
+            )}
+            
+            {searchedExpenses.length === 0 && filteredDateExpenses.length > 0 && <p style={{ color: "#666", textAlign: "center" }}>No expenses match your search.</p>}
+            {filteredDateExpenses.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No expenses match this date range.</p>}
+            
+            {dispExpenses.map(exp => (
               <div key={exp.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: "5px solid #e74c3c" }}>
                 <div>
                   <strong style={{ fontSize: "16px", color: "#333", display: "block" }}>{exp.description}</strong>
@@ -1132,14 +964,18 @@ async function generatePatientReport() {
                 <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
                   <div style={{ fontSize: "18px", fontWeight: "bold", color: "#e74c3c" }}>£{Number(exp.amount).toFixed(2)}</div>
                   <div style={{ display: "flex", gap: "8px" }}>
-                    {exp.receipt_url && (
-                      <button onClick={() => window.open(exp.receipt_url, "_blank")} style={{ ...blueBtn, padding: "6px 10px" }}>Receipt</button>
-                    )}
+                    {exp.receipt_url && <button onClick={() => window.open(exp.receipt_url, "_blank")} style={{ ...blueBtn, padding: "6px 10px" }}>Receipt</button>}
                     <button onClick={() => setExpenseToDelete(exp)} style={{ ...redBtn, padding: "6px 10px" }}>Delete</button>
                   </div>
                 </div>
               </div>
             ))}
+
+            {filteredDateExpenses.length > 10 && !searchExpenses.trim() && (
+              <button onClick={() => setExpandExpenses(!expandExpenses)} style={expandBtnStyle}>
+                {expandExpenses ? "Show Less" : `Show All (${filteredDateExpenses.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1156,7 +992,18 @@ async function generatePatientReport() {
           </div>
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
-            {profiles.map(p => (
+            {profiles.length > 0 && (
+              <input
+                placeholder="Search staff by email..."
+                value={searchStaff}
+                onChange={(e) => setSearchStaff(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "15px" }}
+              />
+            )}
+            
+            {dispStaff.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No staff found.</p>}
+
+            {dispStaff.map(p => (
               <div key={p.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <div>
                   <strong style={{ fontSize: "16px", color: "#333", display: "block", marginBottom: "4px" }}>{p.email || "Unknown User"}</strong>
@@ -1165,15 +1012,18 @@ async function generatePatientReport() {
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
-                  <button 
-                    onClick={() => toggleAdminRole(p.id, p.is_admin)} 
-                    style={p.is_admin ? { ...redBtn, width: "140px" } : { ...blueBtn, width: "140px" }}
-                  >
+                  <button onClick={() => toggleAdminRole(p.id, p.is_admin)} style={p.is_admin ? { ...redBtn, width: "140px" } : { ...blueBtn, width: "140px" }}>
                     {p.is_admin ? "Remove Admin" : "Make Admin"}
                   </button>
                 </div>
               </div>
             ))}
+
+            {profiles.length > 10 && !searchStaff.trim() && (
+              <button onClick={() => setExpandStaff(!expandStaff)} style={expandBtnStyle}>
+                {expandStaff ? "Show Less" : `Show All (${profiles.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1181,7 +1031,6 @@ async function generatePatientReport() {
       {/* ================= TAB 1.5: REPORTS ================= */}
       {activeTab === "reports" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>VMD / RCVS Controlled Drugs Log</h3>
@@ -1209,25 +1058,14 @@ async function generatePatientReport() {
           <div className="card">
             <h3 style={{ margin: "0 0 5px 0", color: "#2c3e50" }}>Patient Full History Report</h3>
             <p style={{ margin: "0 0 15px 0", color: "#7f8c8d", fontSize: "14px" }}>Select a patient to generate a comprehensive PDF of their details, procedures, and sedation history.</p>
-            
             <div style={{ display: "flex", gap: "10px" }}>
-              <select 
-                value={selectedPatientForReport} 
-                onChange={(e) => setSelectedPatientForReport(e.target.value)} 
-                style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
-              >
+              <select value={selectedPatientForReport} onChange={(e) => setSelectedPatientForReport(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }}>
                 <option value="">-- Select a Patient --</option>
-                {allPatientsList.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.clients?.surname || "Unknown"})</option>
-                ))}
+                {allPatientsList.map(p => <option key={p.id} value={p.id}>{p.name} ({p.clients?.surname || "Unknown"})</option>)}
               </select>
-              
-              <button onClick={generatePatientReport} style={yellowBtn}>
-                Generate PDF
-              </button>
+              <button onClick={generatePatientReport} style={yellowBtn}>Generate PDF</button>
             </div>
           </div>
-
         </div>
       )}
 
@@ -1260,7 +1098,7 @@ async function generatePatientReport() {
           
           {filteredDrugLogs.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No records found.</p>}
           
-          {filteredDrugLogs.map(h => {
+          {dispDrugLogs.map(h => {
             const clientName = h.patients?.clients ? `${h.patients.clients.name} ${h.patients.clients.surname}` : "Orphaned/Deleted Client";
             const patientName = h.patients?.name || "Orphaned/Deleted Patient";
             
@@ -1324,6 +1162,12 @@ async function generatePatientReport() {
               </div>
             );
           })}
+
+          {baseDrugLogs.length > 10 && !logSearch.trim() && (
+            <button onClick={() => setExpandLogs(!expandLogs)} style={expandBtnStyle}>
+              {expandLogs ? "Show Less" : `Show All (${baseDrugLogs.length})`}
+            </button>
+          )}
         </div>
       )}
 
@@ -1343,8 +1187,18 @@ async function generatePatientReport() {
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Product Library</h3>
-            {productsList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No products available.</p>}
-            {productsList.map(p => (
+            {productsList.length > 0 && (
+              <input
+                placeholder="Search products..."
+                value={searchProducts}
+                onChange={(e) => setSearchProducts(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "15px" }}
+              />
+            )}
+            
+            {dispProducts.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No products found.</p>}
+            
+            {dispProducts.map(p => (
               <div key={p.id} style={whiteShadowBox}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <strong style={{ fontSize: "18px", color: "#333" }}>{p.name}</strong>
@@ -1357,6 +1211,12 @@ async function generatePatientReport() {
                 </div>
               </div>
             ))}
+
+            {productsList.length > 10 && !searchProducts.trim() && (
+              <button onClick={() => setExpandProducts(!expandProducts)} style={expandBtnStyle}>
+                {expandProducts ? "Show Less" : `Show All (${productsList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1377,7 +1237,18 @@ async function generatePatientReport() {
           
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Current Inventory</h3>
-            {stockList.filter(s => !s.is_archived).map(s => (
+            {activeStock.length > 0 && (
+              <input
+                placeholder="Search inventory..."
+                value={searchStock}
+                onChange={(e) => setSearchStock(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "15px" }}
+              />
+            )}
+            
+            {dispStock.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No stock available or matched.</p>}
+            
+            {dispStock.map(s => (
               <div key={s.id} style={whiteShadowBox}>
                 {editingStockId === s.id ? (
                   <>
@@ -1408,10 +1279,16 @@ async function generatePatientReport() {
                 )}
               </div>
             ))}
-            {stockList.filter(s => !s.is_archived).length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No stock available.</p>}
+
+            {activeStock.length > 10 && !searchStock.trim() && (
+              <button onClick={() => setExpandStock(!expandStock)} style={expandBtnStyle}>
+                {expandStock ? "Show Less" : `Show All (${activeStock.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
+      
       {/* ================= TAB 5: PROTOCOLS ================= */}
       {activeTab === "protocols" && (
         <>
@@ -1449,7 +1326,10 @@ async function generatePatientReport() {
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Protocol Library</h3>
             <input placeholder="Search protocols..." value={protoSearch} onChange={e => setProtoSearch(e.target.value)} style={inputStyle} />
 
-            {protocolsList.filter(p => p.name.toLowerCase().includes(protoSearch.toLowerCase())).map(p => (
+            {dispProtocols.length === 0 && protocolsList.length > 0 && <p style={{ textAlign: "center", color: "#666" }}>No matching protocols.</p>}
+            {protocolsList.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No protocols found.</p>}
+
+            {dispProtocols.map(p => (
               <div key={p.id} style={whiteShadowBox}>
                 <div style={{display: 'flex', justifyContent: 'space-between', alignItems: "center"}}>
                   <strong style={{ fontSize: "18px", color: "#333" }}>{p.name}</strong>
@@ -1468,7 +1348,12 @@ async function generatePatientReport() {
                 </div>
               </div>
             ))}
-            {protocolsList.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No protocols found.</p>}
+
+            {protocolsList.length > 10 && !protoSearch.trim() && (
+              <button onClick={() => setExpandProtocols(!expandProtocols)} style={expandBtnStyle}>
+                {expandProtocols ? "Show Less" : `Show All (${protocolsList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1493,8 +1378,18 @@ async function generatePatientReport() {
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Template Library</h3>
-            {templatesList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No templates available.</p>}
-            {templatesList.map(t => (
+            {templatesList.length > 0 && (
+              <input
+                placeholder="Search templates..."
+                value={searchTemplates}
+                onChange={(e) => setSearchTemplates(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "15px" }}
+              />
+            )}
+            
+            {dispTemplates.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No templates available.</p>}
+            
+            {dispTemplates.map(t => (
               <div key={t.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1, paddingRight: "15px" }}>
                   <strong style={{ fontSize: "18px", display: "block", color: "#333", marginBottom: "5px" }}>{t.name}</strong>
@@ -1507,6 +1402,12 @@ async function generatePatientReport() {
                 </div>
               </div>
             ))}
+
+            {templatesList.length > 10 && !searchTemplates.trim() && (
+              <button onClick={() => setExpandTemplates(!expandTemplates)} style={expandBtnStyle}>
+                {expandTemplates ? "Show Less" : `Show All (${templatesList.length})`}
+              </button>
+            )}
           </div>
         </>
       )}

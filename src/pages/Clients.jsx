@@ -24,7 +24,7 @@ const btnRow = {
 // Strict uniform button properties copied from Admin Dashboard layout
 const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
 
-const primaryBlueBtn = { background: "#5499c7", color: "white", ...standardBtnProps };
+const primaryBlueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
 const redBtn         = { background: "#e74c3c", color: "white", ...standardBtnProps };
 const greenBtn       = { background: "#27ae60", color: "white", ...standardBtnProps };
 const yellowBtn      = { background: "#f39c12", color: "white", ...standardBtnProps };
