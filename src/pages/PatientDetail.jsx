@@ -358,10 +358,18 @@ export default function PatientDetail() {
   // --- PATIENT INFO ACTIONS ---
   async function updatePatient() {
     const payload = { ...editData, age_years: Number(editData.age_years) || null, age_months: Number(editData.age_months) || null, weight: Number(editData.weight) };
+    
     delete payload.notes; 
+    delete payload.clients; // Added to prevent schema cache error
 
     const { error } = await supabase.from("patients").update(payload).eq("id", id);
-    if (!error) { setEditMode(false); fetchPatient(); } else setAlertMessage(error.message);
+    if (!error) { 
+      setEditMode(false); 
+      fetchPatient(); 
+      setAlertMessage("Patient details saved successfully!"); // <-- Trigger success notification
+    } else {
+      setAlertMessage(error.message);
+    }
   }
 
   function toggleDeceased() {

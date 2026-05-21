@@ -16,27 +16,9 @@ const redBtn   = { background: "#e74c3c", color: "white", ...standardBtnProps };
 const greyBtn  = { background: "#95a5a6", color: "white", ...standardBtnProps };
 const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
 
-const DRUG_MAP = {
-  ketamine: ["ket", "ketamine"],
-  butorphanol: ["but", "butorphanol"],
-  dexmedetomidine: ["dex", "dexmedetomidine", "medetomidine"],
-  acp: ["acp", "acepromazine"],
-  zoletil: ["zoletil", "zol", "tiletamine"]
-};
-
-function normaliseDrugName(name) {
-  if (!name) return "";
-  const clean = name.toLowerCase().trim();
-  for (const [key, aliases] of Object.entries(DRUG_MAP)) {
-    if (aliases.some(a => clean.includes(a))) return key;
-  }
-  return clean;
-}
-
 export default function Sedation() {
   const [isLoading, setIsLoading] = useState(true);
   const [protocols, setProtocols] = useState([]);
-  const [stock, setStock] = useState([]);
 
   // Calculator State
   const [protocolId, setProtocolId] = useState("");
@@ -57,7 +39,6 @@ export default function Sedation() {
       setIsLoading(true);
       window.scrollTo(0, 0); 
       await fetchProtocols();
-      await fetchStock();
       loadTemporaryHistory();
       setIsLoading(false);
     }
@@ -69,11 +50,6 @@ export default function Sedation() {
     setProtocols(data || []);
   }
 
-  async function fetchStock() {
-    const { data } = await supabase.from("stock").select("*");
-    setStock(data || []);
-  }
-
   function loadTemporaryHistory() {
     const stored = JSON.parse(localStorage.getItem('temp_sedation_history') || '[]');
     const valid = stored.filter(r => Date.now() - r.timestamp < 24 * 60 * 60 * 1000);
@@ -83,21 +59,14 @@ export default function Sedation() {
     setLocalHistory(valid);
   }
 
-  function getStockForDrug(drug) {
-    return stock.filter(s => normaliseDrugName(s.drug) === normaliseDrugName(drug) && s.total_ml > 0 && !s.is_archived);
-  }
-
   async function calculate() {
     if (!protocolId || !weight) return setAlertMessage("Please select a protocol and enter a weight.");
     const proto = protocols.find(p => String(p.id) === String(protocolId));
     if (!proto || !proto.protocol_drugs) return;
 
     const calc = proto.protocol_drugs.map(d => ({
-      drug: normaliseDrugName(d.drug_name), 
       label: d.drug_name,
-      ml: Number(((d.mg_per_kg * Number(weight)) / d.mg_per_ml).toFixed(3)),
-      waste: 0.05, 
-      batchName: "" 
+      ml: Number(((d.mg_per_kg * Number(weight)) / d.mg_per_ml).toFixed(3))
     }));
     setResults(calc);
   }
@@ -184,20 +153,11 @@ export default function Sedation() {
                 <input type="number" step="0.01" value={r.ml} onChange={e => updateDose(i, e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #ccc" }} />
               </div>
             </div>
-            
-            <select value={r.batchName} onChange={e => {
-              const updated = [...results];
-              updated[i].batchName = e.target.value;
-              setResults(updated);
-            }} style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #ccc" }}>
-              <option value="">-- Reference Batch (Optional) --</option>
-              {getStockForDrug(r.drug).map(s => <option key={s.id} value={s.batch}>{s.batch} ({s.total_ml} ml in stock)</option>)}
-            </select>
           </div>
         ))}
 
         {results.length > 0 && (
-          <button onClick={saveToTemporaryHistory} style={{ ...greenBtn, marginTop: "10px" }}>
+          <button onClick={saveToTemporaryHistory} style={{ ...greenBtn, marginTop: "10px", width: "100%" }}>
             Save Temporary Record
           </button>
         )}
