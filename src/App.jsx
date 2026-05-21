@@ -96,9 +96,9 @@ function ProtectedRoute({children}) {
 
 // ---------- Navbar ----------
 function Navbar(){
-  const location=useLocation();
-  const [isAdmin,setIsAdmin]=useState(false);
-  const [showMenu,setShowMenu]=useState(false);
+  const location = useLocation();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(()=>{
     async function checkAdmin(){
@@ -121,146 +121,94 @@ function Navbar(){
     window.location.href="/login";
   }
 
-  if(location.pathname==="/login"){
+  if(location.pathname === "/login"){
     return null;
   }
 
   return(
-    <>
-      {/* Centered Top Navbar */}
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
+    <div style={{
+      position: "sticky", top: 0, background: "white", zIndex: 1000, 
+      borderBottom: "1px solid #eee", padding: "10px 5px",
+      display: "flex", justifyContent: "center", alignItems: "center" // Centering the cluster
+    }}>
+      {/* Centered Cluster Container */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "15px",
+        flexWrap: "nowrap"
+      }}>
+        <NavLink to="/" end style={navStyle}><HomeIcon size={18}/><span>Home</span></NavLink>
+        <NavLink to="/clients" style={navStyle}><Users size={18}/><span>Clients</span></NavLink>
+        <NavLink to="/patients" style={navStyle}><PawPrint size={18}/><span>Patients</span></NavLink>
+        <NavLink to="/sedation" style={navStyle}><Syringe size={18}/><span>Sedation</span></NavLink>
+        
+        {/* Menu Button as part of the center cluster */}
+        <button onClick={()=>setShowMenu(!showMenu)} style={menuButtonStyle}>
+          <Menu size={20}/>
+        </button>
+      </div>
+
+      {/* Dropdown Menu */}
+      {showMenu && (
+        <div style={{
+          position: "absolute",
+          top: "55px",
           background: "white",
-          borderBottom: "1px solid #eee",
-          zIndex: 999,
-          padding: "10px 0",
-          display: "flex",
-          justifyContent: "center", // This centers the group
-          alignItems: "center"
-        }}
-      >
-        {/* Navigation Link Container */}
-        <div style={{ display: "flex", gap: "15px", alignItems: "center" }}>
-          <NavLink to="/" end style={navStyle}>
-            <HomeIcon size={18}/>
-            <span>Home</span>
-          </NavLink>
-
-          <NavLink to="/clients" style={navStyle}>
-            <Users size={18}/>
-            <span>Clients</span>
-          </NavLink>
-
-          <NavLink to="/patients" style={navStyle}>
-            <PawPrint size={18}/>
-            <span>Patients</span>
-          </NavLink>
-
-          <NavLink to="/sedation" style={navStyle}>
-            <Syringe size={18}/>
-            <span>Sedation</span>
-          </NavLink>
-
-          {/* Hamburger Menu is now part of the central cluster */}
-          <button
-            onClick={()=>setShowMenu(!showMenu)}
-            style={{
-              border:"none",
-              background:"transparent",
-              display:"flex",
-              alignItems:"center",
-              cursor:"pointer",
-              color:"#5b8fb9",
-              padding: "6px 8px"
-            }}
-          >
-            <Menu size={20}/>
+          borderRadius: "12px",
+          padding: "10px",
+          boxShadow: "0 5px 20px rgba(0,0,0,.15)",
+          zIndex: 2000,
+          width: "160px"
+        }}>
+          <NavLink to="/products" style={menuItemStyle} onClick={()=>setShowMenu(false)}><Package size={18}/>Products</NavLink>
+          {isAdmin && (
+            <NavLink to="/admin" style={{...menuItemStyle, color:"#e74c3c", fontWeight:"bold"}} onClick={()=>setShowMenu(false)}>
+              <Shield size={18} color="#e74c3c"/>Admin
+            </NavLink>
+          )}
+          <button onClick={logout} style={{...menuItemStyle, width:"100%", border:"none", background:"transparent"}}>
+            <LogOut size={18}/>Logout
           </button>
         </div>
-
-        {/* Dropdown Menu Overlay */}
-        {showMenu && (
-          <div
-            style={{
-              position: "absolute",
-              top: "50px",
-              background: "white",
-              borderRadius: "16px",
-              padding: "10px",
-              boxShadow: "0 5px 20px rgba(0,0,0,.15)",
-              zIndex: 2000,
-              width: "180px"
-            }}
-          >
-            <NavLink
-              to="/products"
-              style={menuItemStyle}
-              onClick={()=>setShowMenu(false)}
-            >
-              <Package size={18}/>
-              Products
-            </NavLink>
-
-            {isAdmin && (
-              <NavLink
-                to="/admin"
-                style={{
-                  ...menuItemStyle,
-                  color:"#e74c3c",
-                  fontWeight:"bold"
-                }}
-                onClick={()=>setShowMenu(false)}
-              >
-                <Shield size={18} color="#e74c3c"/>
-                Admin
-              </NavLink>
-            )}
-
-            <button
-              onClick={logout}
-              style={{
-                ...menuItemStyle,
-                width:"100%",
-                border:"none",
-                background:"transparent"
-              }}
-            >
-              <LogOut size={18}/>
-              Logout
-            </button>
-          </div>
-        )}
-      </div>
-    </>
+      )}
+    </div>
   )
 }
 
-const navStyle=({isActive})=>({
-  display:"flex",
-  alignItems:"center",
-  textDecoration:"none",
-  fontSize:"14px",
+const navStyle = ({isActive}) => ({
+  display: "flex",
+  alignItems: "center",
+  textDecoration: "none",
+  fontSize: "14px",
   padding: "6px 8px",
   color: isActive ? "#2c3e50" : "#5b8fb9",
   fontWeight: isActive ? "bold" : "normal",
-  gap:"6px",
-  whiteSpace:"nowrap"
+  gap: "6px",
+  whiteSpace: "nowrap"
 });
 
-const menuItemStyle={
-  display:"flex",
-  alignItems:"center",
-  gap:"10px",
-  padding:"12px",
-  textDecoration:"none",
-  borderRadius:"10px",
-  color:"#2c3e50",
-  cursor:"pointer",
-  fontSize: "14px"
+const menuButtonStyle = {
+  border: "none",
+  background: "transparent",
+  display: "flex",
+  alignItems: "center",
+  cursor: "pointer",
+  color: "#5b8fb9",
+  padding: "6px"
 };
 
+const menuItemStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  padding: "12px",
+  textDecoration: "none",
+  borderRadius: "10px",
+  color: "#2c3e50",
+  cursor: "pointer",
+  fontSize: "14px"
+};
 
 // ---------- Hardware Back Button ----------
 function BackButtonHandler(){
@@ -269,38 +217,23 @@ function BackButtonHandler(){
 
   const currentPathRef = useRef(location.pathname);
 
-  useEffect(() => {
-    currentPathRef.current = location.pathname;
-  }, [location.pathname]);
+  useEffect(() => { currentPathRef.current = location.pathname; }, [location.pathname]);
 
   useEffect(() => {
     const setupHardwareLink = async () => {
       return await CapacitorApp.addListener('backButton', () => {
         const path = currentPathRef.current;
-
-        if(path==="/" || path==="/login"){
-          CapacitorApp.exitApp();
-        }
-        else if(path.startsWith("/patient/")){
-          navigate("/patients");
-        }
-        else if(path.startsWith("/client/")){
-          navigate("/clients");
-        }
-        else{
-          navigate(-1);
-        }
+        if(path==="/" || path==="/login") CapacitorApp.exitApp();
+        else if(path.startsWith("/patient/")) navigate("/patients");
+        else if(path.startsWith("/client/")) navigate("/clients");
+        else navigate(-1);
       });
     };
 
     const initiationPromise = setupHardwareLink();
 
     return () => {
-      initiationPromise.then(handler => {
-        if(handler){
-          handler.remove();
-        }
-      });
+      initiationPromise.then(handler => { if(handler) handler.remove(); });
     };
   }, [navigate]);
 
@@ -316,7 +249,6 @@ export default function App(){
       <BackButtonHandler />
       <Navbar />
 
-      {/* Main Content Body Container */}
       <div style={{ paddingTop: "25px", paddingBottom: "30px" }}>
         <Routes>
           <Route path="/login" element={<Login/>}/>
