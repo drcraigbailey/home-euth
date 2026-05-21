@@ -127,33 +127,41 @@ function Navbar(){
 
   return(
     <div style={{
-      position: "sticky", top: 0, background: "white", zIndex: 1000, 
-      borderBottom: "1px solid #eee", padding: "10px 5px",
-      display: "flex", justifyContent: "center", alignItems: "center" // Centering the cluster
+      position: "sticky",
+      top: 0,
+      background: "white",
+      zIndex: 1000,
+      borderBottom: "1px solid #eee",
+      width: "100%"
     }}>
-      {/* Centered Cluster Container */}
+      {/* Container that handles the centering and overflow */}
       <div style={{
         display: "flex",
+        justifyContent: "center",
         alignItems: "center",
-        gap: "15px",
-        flexWrap: "nowrap"
+        padding: "10px 0",
+        overflowX: "auto", // Allows scrolling on small screens
+        whiteSpace: "nowrap",
+        WebkitOverflowScrolling: "touch"
       }}>
-        <NavLink to="/" end style={navStyle}><HomeIcon size={18}/><span>Home</span></NavLink>
-        <NavLink to="/clients" style={navStyle}><Users size={18}/><span>Clients</span></NavLink>
-        <NavLink to="/patients" style={navStyle}><PawPrint size={18}/><span>Patients</span></NavLink>
-        <NavLink to="/sedation" style={navStyle}><Syringe size={18}/><span>Sedation</span></NavLink>
-        
-        {/* Menu Button as part of the center cluster */}
-        <button onClick={()=>setShowMenu(!showMenu)} style={menuButtonStyle}>
-          <Menu size={20}/>
-        </button>
+        <div style={{ display: "flex", gap: "15px", alignItems: "center", padding: "0 10px" }}>
+          <NavLink to="/" end style={navStyle}><HomeIcon size={18}/><span>Home</span></NavLink>
+          <NavLink to="/clients" style={navStyle}><Users size={18}/><span>Clients</span></NavLink>
+          <NavLink to="/patients" style={navStyle}><PawPrint size={18}/><span>Patients</span></NavLink>
+          <NavLink to="/sedation" style={navStyle}><Syringe size={18}/><span>Sedation</span></NavLink>
+          
+          <button onClick={()=>setShowMenu(!showMenu)} style={menuButtonStyle}>
+            <Menu size={20}/>
+          </button>
+        </div>
       </div>
 
       {/* Dropdown Menu */}
       {showMenu && (
         <div style={{
           position: "absolute",
-          top: "55px",
+          right: "10px",
+          top: "50px",
           background: "white",
           borderRadius: "12px",
           padding: "10px",
@@ -214,7 +222,6 @@ const menuItemStyle = {
 function BackButtonHandler(){
   const navigate=useNavigate();
   const location=useLocation();
-
   const currentPathRef = useRef(location.pathname);
 
   useEffect(() => { currentPathRef.current = location.pathname; }, [location.pathname]);
@@ -229,17 +236,11 @@ function BackButtonHandler(){
         else navigate(-1);
       });
     };
-
     const initiationPromise = setupHardwareLink();
-
-    return () => {
-      initiationPromise.then(handler => { if(handler) handler.remove(); });
-    };
+    return () => { initiationPromise.then(handler => { if(handler) handler.remove(); }); };
   }, [navigate]);
-
   return null;
 }
-
 
 // ---------- App ----------
 export default function App(){
@@ -248,8 +249,7 @@ export default function App(){
       <ScrollToTop />
       <BackButtonHandler />
       <Navbar />
-
-      <div style={{ paddingTop: "25px", paddingBottom: "30px" }}>
+      <div style={{ paddingTop: "20px", paddingBottom: "20px" }}>
         <Routes>
           <Route path="/login" element={<Login/>}/>
           <Route path="/" element={<ProtectedRoute><Home/></ProtectedRoute>}/>
