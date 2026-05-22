@@ -47,6 +47,7 @@ export default function Clients() {
 
   // Custom Modal States
   const [alertMessage, setAlertMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [confirmModal, setConfirmModal] = useState(null);
 
   // Form State
@@ -154,6 +155,19 @@ export default function Clients() {
     });
   }
 
+  function handleSkip() {
+    setConfirmModal({
+      title: "Skip Registration?",
+      message: "Are you sure you want to skip registering this pet? You can add it later from the client's file.",
+      confirmText: "Yes, Skip",
+      confirmColor: "#f39c12",
+      onConfirm: () => {
+        closePetModal();
+        setConfirmModal(null);
+      }
+    });
+  }
+
   async function addPet() {
     if (!petName || !newClient) return setAlertMessage("Please provide a pet name.");
     const patientPayload = {
@@ -173,7 +187,7 @@ export default function Clients() {
       patientPayload
     ]);
     if (!error) {
-      setAlertMessage("Pet added successfully!");
+      setSuccessMessage("Pet added successfully!");
       closePetModal(); 
     } else {
       setAlertMessage(error.message);
@@ -192,9 +206,19 @@ export default function Clients() {
     setNewClient(null);
   }
 
+  // --- UPDATED SEARCH LOGIC ---
   const filtered = (clients || []).filter(c => {
-    const fullName = `${c.name || ""} ${c.surname || ""}`.toLowerCase();
-    return fullName.includes(search.toLowerCase());
+    const searchableString = `
+      ${c.name || ""} 
+      ${c.surname || ""} 
+      ${c.phone || ""} 
+      ${c.email || ""} 
+      ${c.address || ""} 
+      ${c.city || ""} 
+      ${c.postcode || ""}
+    `.toLowerCase();
+    
+    return searchableString.includes(search.toLowerCase());
   });
 
   const dispClients = (expandClients || search.trim()) ? filtered : filtered.slice(0, 10);
@@ -231,7 +255,7 @@ export default function Clients() {
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
-        <input placeholder="Search name..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" }} />
+        <input placeholder="Search name, phone, email, address..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" }} />
       </div>
 
       <div style={{ marginTop: "20px", background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
@@ -315,9 +339,24 @@ export default function Clients() {
               
               <div style={{ display: "flex", gap: "10px", marginTop: "10px", justifyContent: "center" }}>
                 <button onClick={addPet} style={greenBtn}>Save Pet</button>
-                <button onClick={closePetModal} style={yellowBtn}>Skip for now</button>
+                <button onClick={handleSkip} style={yellowBtn}>Skip for now</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SUCCESS MODAL ================= */}
+      {successMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setSuccessMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#27ae60", marginTop: 0 }}>✓ Success</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {successMessage}
+            </p>
+            <button onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>
+              OK
+            </button>
           </div>
         </div>
       )}
@@ -350,7 +389,6 @@ export default function Clients() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

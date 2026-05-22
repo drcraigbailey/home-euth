@@ -34,6 +34,7 @@ const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 
 const GENDER_OPTIONS = ["Male (Entire)", "Male (Neutered)", "Female (Entire)", "Female (Spayed)", "Unknown"];
+const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
 
 function isValidWeight(value) {
   if (!value) return false;
@@ -49,6 +50,7 @@ export default function ClientDetail() {
   const [patients, setPatients] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   
   const [isEditing, setIsEditing] = useState(false);
 
@@ -118,6 +120,7 @@ export default function ClientDetail() {
       setAlertMessage("Please enter all patient details (Name, Species, and Weight) before adding.");
       return;
     }
+
     if (!isValidWeight(weight)) {
       setAlertMessage("Weight must be a valid number.");
       return;
@@ -137,13 +140,21 @@ export default function ClientDetail() {
     };
 
     const { error } = await supabase.from("patients").insert([payload]);
-    
-    if (!error) { 
-      setName(""); setSpecies(""); setWeight(""); 
-      setBreed(""); setColour(""); setGender("");
-      setAgeYears(""); setAgeMonths(""); setMicrochip("");
+
+    if (!error) {
+      const petName = name;
+      setName("");
+      setSpecies("");
+      setWeight("");
+      setBreed("");
+      setColour("");
+      setGender("");
+      setAgeYears("");
+      setAgeMonths("");
+      setMicrochip("");
       setShowMoreInfo(false);
-      fetchPatients(); 
+      fetchPatients();
+      setSuccessMessage(`${petName} was successfully added`);
     } else {
       setAlertMessage("Error adding patient: " + error.message);
     }
@@ -175,7 +186,13 @@ export default function ClientDetail() {
 
   async function updateClient() {
     const { error } = await supabase.from("clients").update({ name: editName, surname: editSurname, phone: editPhone, email: editEmail, address: editAddress, city: editCity, postcode: editPostcode }).eq("id", id);
-    if (!error) { setIsEditing(false); fetchClient(); }
+    if (!error) { 
+      setIsEditing(false); 
+      fetchClient(); 
+      setSuccessMessage("Client details updated successfully!");
+    } else {
+      setAlertMessage("Error updating client: " + error.message);
+    }
   }
 
   const googleMapsUrl = client?.address ? `https://maps.google.com/?q=$${encodeURIComponent(`${client.address}, ${client.city || ""} ${client.postcode || ""}`)}` : null;
@@ -251,7 +268,11 @@ export default function ClientDetail() {
       <div className="card" style={{ marginTop: "20px" }}>
         <h3>Add Patient</h3>
         <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-        <input placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} style={inputStyle} />
+        
+        {/* UPDATED SPECIES INPUT */}
+        <input list="species-options" placeholder="Species" value={species} onChange={(e) => setSpecies(e.target.value)} style={inputStyle} />
+        <datalist id="species-options">{SPECIES_OPTIONS.map(s => <option key={s} value={s} />)}</datalist>
+        
         <input type="number" step="0.1" placeholder="Weight (kg)" value={weight} onChange={(e) => setWeight(e.target.value)} style={inputStyle} />
         
         {/* Toggle Button */}
@@ -359,10 +380,26 @@ export default function ClientDetail() {
         </div>
       )}
 
+      {/* ================= SUCCESS MODAL ================= */}
+      {successMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setSuccessMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#27ae60", marginTop: 0 }}>✓ Success</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {successMessage}
+            </p>
+            <button onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ================= GENERIC ALERT MODAL ================= */}
       {alertMessage && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#f39c12", marginTop: 0 }}>Notice</h2>
+            <h2 style={{ color: "#f39c12", marginTop: 0 }}>⚠️ Notice</h2>
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {alertMessage}
             </p>

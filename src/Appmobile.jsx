@@ -194,7 +194,7 @@ height:"35px"
 style={{
 margin:0,
 fontSize:"18px",
-color:"#2c3e50"
+color:"#5b8fb9"
 }}
 >
 SP Home Euthanasia
@@ -223,11 +223,14 @@ width:"180px"
 
 <NavLink
 to="/products"
-style={menuStyle}
+style={{
+...menuStyle,
+color:"#5b8fb9"
+}}
 onClick={()=>setShowMenu(false)}
 >
 
-<Package size={18}/>
+<Package size={18} color="#5b8fb9"/>
 Products
 
 </NavLink>
@@ -238,9 +241,9 @@ Products
 <NavLink
 to="/admin"
 style={{
-  ...menuStyle,
-  color:"#e74c3c",
-  fontWeight:"bold"
+...menuStyle,
+color:"#e74c3c",
+fontWeight:"bold"
 }}
 onClick={()=>setShowMenu(false)}
 >
@@ -258,11 +261,12 @@ style={{
 ...menuStyle,
 width:"100%",
 border:"none",
-background:"transparent"
+background:"transparent",
+color:"#5b8fb9"
 }}
 >
 
-<LogOut size={18}/>
+<LogOut size={18} color="#5b8fb9"/>
 Logout
 
 </button>

@@ -54,7 +54,10 @@ export default function Home() {
   
   const [viewEntry, setViewEntry] = useState(null);
   const [entryToDelete, setEntryToDelete] = useState(null);
+  
+  // Custom Modal States
   const [alertMessage, setAlertMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -133,8 +136,13 @@ export default function Home() {
       client_id: clientId || null, patient_id: patientId || null, title, notes, phone, address
     };
 
-    if (isEditing) await supabase.from("diary_entries").update(payload).eq("id", editId);
-    else await supabase.from("diary_entries").insert([payload]);
+    if (isEditing) {
+      await supabase.from("diary_entries").update(payload).eq("id", editId);
+      setSuccessMessage("Diary entry updated successfully!");
+    } else {
+      await supabase.from("diary_entries").insert([payload]);
+      setSuccessMessage("Diary entry added successfully!");
+    }
 
     resetForm();
     fetchEntries();
@@ -377,6 +385,21 @@ export default function Home() {
               <button onClick={confirmDeleteEntry} style={redBtn}>Yes, Delete</button>
               <button onClick={() => setEntryToDelete(null)} style={greyBtn}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= SUCCESS MODAL ================= */}
+      {successMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setSuccessMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#27ae60", marginTop: 0 }}>✓ Success</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {successMessage}
+            </p>
+            <button onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>
+              OK
+            </button>
           </div>
         </div>
       )}

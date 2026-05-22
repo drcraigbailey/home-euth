@@ -59,6 +59,7 @@ export default function AdminDashboard() {
   const [statModalMode, setStatModalMode] = useState(null); 
   const [statSearch, setStatSearch] = useState("");
   const [alertMessage, setAlertMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [confirmModal, setConfirmModal] = useState(null);
 
   const [productToDelete, setProductToDelete] = useState(null);
@@ -201,7 +202,6 @@ export default function AdminDashboard() {
 
   // --- PDF BRANDING ENGINE ---
 
-  // 1. Helper to fetch logo and convert to base64 required by jsPDF
   async function getBase64ImageFromUrl(imageUrl) {
     try {
       const res = await fetch(imageUrl);
@@ -218,38 +218,33 @@ export default function AdminDashboard() {
     }
   }
 
-  // 2. The unified Header engine
   async function drawReportHeader(doc, subtitle) {
     const base64Logo = await getBase64ImageFromUrl(logoImage);
-    
-    // Position the logo
     if (base64Logo) {
       doc.addImage(base64Logo, 'PNG', 14, 10, 20, 20); 
     }
 
-    // Company & Professional Name Setup
     doc.setFontSize(22);
-    doc.setTextColor(44, 62, 80); // #2c3e50 (Slate)
+    doc.setTextColor(44, 62, 80);
     doc.setFont("helvetica", "bold");
     doc.text("SP Home Euthanasia", 38, 20);
 
     doc.setFontSize(12);
-    doc.setTextColor(91, 143, 185); // #5b8fb9 (Primary Brand Blue)
+    doc.setTextColor(91, 143, 185);
     doc.setFont("helvetica", "normal");
-    doc.text("Craig Bailey", 38, 26);
+    doc.text("Dr Craig Bailey", 38, 26);
 
     doc.setFontSize(12);
-    doc.setTextColor(127, 140, 141); // #7f8c8d (Grey)
+    doc.setTextColor(127, 140, 141);
     doc.text(subtitle, 38, 32);
     
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 38, 38);
 
-    doc.setTextColor(0, 0, 0); // Reset for standard text
-    return 50; // New Y-position for tables to start below the header
+    doc.setTextColor(0, 0, 0);
+    return 50;
   }
 
-  // 3. Unified AutoTable Theme
   const tableBrandTheme = {
     headStyles: { fillColor: [91, 143, 185], textColor: [255, 255, 255], fontStyle: 'bold' },
     styles: { textColor: [44, 62, 80] },
@@ -278,14 +273,17 @@ export default function AdminDashboard() {
   const filteredStaff = profiles.filter(p => (p.email || "").toLowerCase().includes(searchStaff.toLowerCase()));
   const dispStaff = (expandStaff || searchStaff.trim()) ? filteredStaff : filteredStaff.slice(0, 10);
   const baseDrugLogs = allSedationsList.filter(h => showArchivedLogs ? h.is_archived : !h.is_archived);
+  
   const filteredDrugLogs = baseDrugLogs.filter(h => {
     if (!logSearch.trim()) return true;
     const s = logSearch.toLowerCase();
     const cName = h.patients?.clients ? `${h.patients.clients.name} ${h.patients.clients.surname}`.toLowerCase() : "";
     const pName = (h.patients?.name || "").toLowerCase();
     const drugs = (h.results || []).map(r => (r.label || r.drug || "")).join(" ").toLowerCase();
-    return cName.includes(s) || pName.includes(s) || drugs.includes(s);
+    const logDate = new Date(h.created_at).toLocaleDateString('en-GB').toLowerCase();
+    return cName.includes(s) || pName.includes(s) || drugs.includes(s) || logDate.includes(s);
   });
+  
   const dispDrugLogs = (expandLogs || logSearch.trim()) ? filteredDrugLogs : filteredDrugLogs.slice(0, 10);
   const filteredProducts = productsList.filter(p => (p.name || "").toLowerCase().includes(searchProducts.toLowerCase()) || (p.description || "").toLowerCase().includes(searchProducts.toLowerCase()));
   const dispProducts = (expandProducts || searchProducts.trim()) ? filteredProducts : filteredProducts.slice(0, 10);
@@ -296,8 +294,6 @@ export default function AdminDashboard() {
   const dispProtocols = (expandProtocols || protoSearch.trim()) ? filteredProtocols : filteredProtocols.slice(0, 10);
   const filteredTemplates = templatesList.filter(t => (t.name || "").toLowerCase().includes(searchTemplates.toLowerCase()) || (t.subject || "").toLowerCase().includes(searchTemplates.toLowerCase()));
   const dispTemplates = (expandTemplates || searchTemplates.trim()) ? filteredTemplates : filteredTemplates.slice(0, 10);
-
-  // --- REPORT GENERATION (NOW ASYNC FOR LOGO LOADING) ---
 
   async function generateCDReport() {
     try {
@@ -315,7 +311,7 @@ export default function AdminDashboard() {
         
         const drugs = (record.results || []).map(r => {
           const bName = r.batchName ? r.batchName : resolveBatchName(r.batchId);
-          return `${r.label || r.drug}: ${r.ml}ml ${r.waste > 0 ? `(+${r.waste}ml waste)` : ''} [Batch: ${bName}]`;
+          return `${r.label || r.drug}: ${Number(r.ml).toFixed(2)}ml ${r.waste > 0 ? `(+${Number(r.waste).toFixed(2)}ml waste)` : ''} [Batch: ${bName}]`;
         }).join('\n');
 
         rows.push([date, clientName, patientName, species, `${record.weight} kg`, drugs]);
@@ -345,7 +341,7 @@ export default function AdminDashboard() {
       const tableColumn = ["Drug Name", "Batch Number", "Remaining (ml)", "Expiry Date", "Status"];
       const tableRows = [];
       stockList.forEach(s => {
-        tableRows.push([s.drug, s.batch, `${s.total_ml} ml`, s.expiry_date ? new Date(s.expiry_date).toLocaleDateString('en-GB') : "N/A", s.is_archived ? "Archived" : "Active"]);
+        tableRows.push([s.drug, s.batch, `${Number(s.total_ml).toFixed(2)} ml`, s.expiry_date ? new Date(s.expiry_date).toLocaleDateString('en-GB') : "N/A", s.is_archived ? "Archived" : "Active"]);
       });
       autoTable(doc, { ...tableBrandTheme, head: [tableColumn], body: tableRows, startY: startY });
       const fileName = `Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -412,7 +408,7 @@ export default function AdminDashboard() {
       yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPos + 30;
       doc.setFontSize(14); doc.setTextColor(44, 62, 80); doc.setFont("helvetica", "bold"); doc.text("Sedation & Dosing History", 14, yPos); yPos += 5;
       const sedCols = ["Date", "Weight at time", "Drugs Administered"];
-      const sedRows = (seds || []).map(s => { const drugs = (s.results || []).map(r => `${r.label}: ${r.ml}ml`).join(", "); return [new Date(s.created_at).toLocaleDateString('en-GB'), `${s.weight} kg`, drugs]; });
+      const sedRows = (seds || []).map(s => { const drugs = (s.results || []).map(r => `${r.label}: ${Number(r.ml).toFixed(2)}ml`).join(", "); return [new Date(s.created_at).toLocaleDateString('en-GB'), `${s.weight} kg`, drugs]; });
       autoTable(doc, { ...tableBrandTheme, head: [sedCols], body: sedRows, startY: yPos });
       
       const fileName = `Patient_History_${patient.name.replace(/\s+/g, '_')}.pdf`;
@@ -472,8 +468,6 @@ export default function AdminDashboard() {
     } catch (error) { setAlertMessage("Error exporting CSV."); }
   }
 
-  // --- ACTIONS (DRUG LOGS, STOCK, EXPENSES, ETC) ---
-
   function startEditDrugLog(log) {
     setEditingDrugLogId(log.id);
     setEditDrugLogResults((log.results || []).map(r => ({ ...r, waste: r.waste !== undefined ? r.waste : 0.05 })));
@@ -514,7 +508,7 @@ export default function AdminDashboard() {
   async function confirmUnarchive() {
     if (unarchivePassword === "admin123") {
       const { error } = await supabase.from("sedation_records").update({ is_archived: false }).eq("id", unarchiveModalLog.id);
-      if (!error) { fetchReports(); setAlertMessage("Record unarchived successfully."); } else setAlertMessage("Failed to unarchive: " + error.message);
+      if (!error) { fetchReports(); setSuccessMessage("Record unarchived successfully."); } else setAlertMessage("Failed to unarchive: " + error.message);
       setUnarchiveModalLog(null);
     } else {
       setAlertMessage("Incorrect password. Please try again.");
@@ -569,7 +563,7 @@ export default function AdminDashboard() {
     if (!error) {
       setExpDesc(""); setExpAmount(""); setExpReceiptFile(null); 
       document.getElementById('receipt-upload').value = "";
-      fetchExpenses(); setAlertMessage("Expense recorded successfully.");
+      fetchExpenses(); setSuccessMessage("Expense recorded successfully.");
     } else setAlertMessage("Failed to save expense: " + error.message);
   }
 
@@ -579,13 +573,39 @@ export default function AdminDashboard() {
     setExpenseToDelete(null); fetchExpenses();
   }
 
-  async function saveProduct() {
-    if (!prodName || !prodPrice) return setAlertMessage("Name and Price are required.");
-    const payload = { name: prodName, description: prodDesc, price: Number(prodPrice) };
-    if (isEditingProd) await supabase.from("products").update(payload).eq("id", editProdId);
-    else await supabase.from("products").insert([payload]);
-    setIsEditingProd(false); setEditProdId(null); setProdName(""); setProdDesc(""); setProdPrice(""); fetchProducts();
+ async function saveProduct() {
+  if (!prodName || !prodPrice)
+    return setAlertMessage("Name and Price are required.");
+
+  const payload = {
+    name: prodName,
+    description: prodDesc,
+    price: Number(prodPrice)
+  };
+
+  if (isEditingProd) {
+    await supabase
+      .from("products")
+      .update(payload)
+      .eq("id", editProdId);
+
+    setSuccessMessage("Product updated successfully!");
+  } else {
+    await supabase
+      .from("products")
+      .insert([payload]);
+
+    setSuccessMessage("Product saved successfully!");
   }
+
+  setIsEditingProd(false);
+  setEditProdId(null);
+  setProdName("");
+  setProdDesc("");
+  setProdPrice("");
+
+  fetchProducts();
+}
   
   async function confirmDeleteProduct() {
     if (!productToDelete) return;
@@ -596,10 +616,35 @@ export default function AdminDashboard() {
   function startEditProd(p) { setIsEditingProd(true); setEditProdId(p.id); setProdName(p.name); setProdDesc(p.description || ""); setProdPrice(p.price); window.scrollTo({ top: 0, behavior: "smooth" }); }
 
   async function addStock() {
-    if (!stockDrugName.trim() || !stockBatch.trim() || !stockQty.trim()) return setAlertMessage("Please fill all stock fields.");
-    await supabase.from("stock").insert([{ drug: stockDrugName.trim(), batch: stockBatch.trim(), total_ml: Number(stockQty), expiry_date: stockExp || null, is_archived: false }]);
-    setStockDrugName(""); setStockBatch(""); setStockQty(""); setStockExp(""); fetchStock();
+  if (
+    !stockDrugName.trim() ||
+    !stockBatch.trim() ||
+    !stockQty.trim()
+  ) {
+    return setAlertMessage(
+      "Please fill all stock fields."
+    );
   }
+
+  await supabase.from("stock").insert([
+    {
+      drug: stockDrugName.trim(),
+      batch: stockBatch.trim(),
+      total_ml: Number(stockQty),
+      expiry_date: stockExp || null,
+      is_archived: false
+    }
+  ]);
+
+  setStockDrugName("");
+  setStockBatch("");
+  setStockQty("");
+  setStockExp("");
+
+  fetchStock();
+
+  setSuccessMessage("Stock added successfully!");
+}
   function startEditStock(s) { setEditingStockId(s.id); setEditStockData({ ...s }); }
   async function saveEditStock(id) { await supabase.from("stock").update({ drug: editStockData.drug, batch: editStockData.batch, total_ml: Number(editStockData.total_ml), expiry_date: editStockData.expiry_date || null }).eq("id", id); setEditingStockId(null); fetchStock(); }
   
@@ -634,7 +679,7 @@ export default function AdminDashboard() {
       }
       await supabase.from("protocol_drugs").insert(protoDrugs.map(d => ({ protocol_id: pId, ...d })));
       setProtoName(""); setProtoSpecies(""); setProtoDrugs([]); setEditingProtoId(null); fetchProtocols(); 
-      setAlertMessage("Protocol saved successfully!");
+      setSuccessMessage("Protocol saved successfully!");
     } catch (err) { setAlertMessage(`Save failed: ${err.message}`); }
   }
   function startEditProtocol(p) { setEditingProtoId(p.id); setProtoName(p.name); setProtoSpecies(p.species || ""); setProtoDrugs(p.protocol_drugs || []); window.scrollTo({ top: 0, behavior: "smooth" }); }
@@ -752,7 +797,6 @@ export default function AdminDashboard() {
     <div className="page" style={{ paddingBottom: "100px" }}>
       <h1 style={{ textAlign: "center" }}>Admin Control</h1>
 
-      {/* ================= SUB-NAVIGATION TABS ================= */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: "30px", background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px" }}>
         <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none" }}>&lt;</span>
         <div className="admin-tabs-scrollbox" style={{ 
@@ -778,7 +822,6 @@ export default function AdminDashboard() {
 
       <style>{`.admin-tabs-scrollbox::-webkit-scrollbar { display: none; } .admin-tabs-scrollbox { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
 
-      {/* ================= TAB 1: OVERVIEW ================= */}
       {activeTab === "overview" && (
         <>
           <h3 style={{ color: "#2c3e50", marginTop: 0 }}>Financial Overview</h3>
@@ -867,7 +910,6 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= TAB 1.1: BOOKKEEPING & EXPENSES ================= */}
       {activeTab === "bookkeeping" && (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px", flexWrap: "wrap", gap: "10px" }}>
@@ -980,7 +1022,6 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= TAB 1.2: STAFF MANAGEMENT ================= */}
       {activeTab === "staff" && (
         <>
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -1028,7 +1069,6 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= TAB 1.5: REPORTS ================= */}
       {activeTab === "reports" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1069,8 +1109,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-     {/* ================= TAB 2: DRUG LOGS (VMD) ================= */}
-      {activeTab === "drug_logs" && (
+     {activeTab === "drug_logs" && (
         <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
             <h3 style={{ marginTop: 0, marginBottom: 0 }}>Controlled Drugs Log (VMD)</h3>
@@ -1083,7 +1122,7 @@ export default function AdminDashboard() {
 
           <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
             <input 
-              placeholder="Search logs by client, patient, or drug..." 
+              placeholder="Search logs by client, patient, drug, or date (DD/MM/YYYY)..." 
               value={logSearch} 
               onChange={(e) => setLogSearch(e.target.value)} 
               style={{ ...inputStyle, marginBottom: 0, flex: 1 }} 
@@ -1141,7 +1180,7 @@ export default function AdminDashboard() {
                   <>
                     {h.results?.map((r, idx) => (
                       <div key={idx} style={{ fontSize: "14px", color: "#333", marginBottom: "5px" }}>
-                        <strong>{r.label || r.drug}</strong>: {r.ml} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {r.waste} ml waste)</span> : ""} 
+                        <strong>{r.label || r.drug}</strong>: {Number(r.ml).toFixed(2)} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {Number(r.waste).toFixed(2)} ml waste)</span> : ""} 
                         <span style={{color: "#95a5a6", fontSize: "12px", marginLeft: "10px"}}>[Batch: {r.batchName ? r.batchName : resolveBatchName(r.batchId)}]</span>
                       </div>
                     ))}
@@ -1171,13 +1210,12 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ================= TAB 3: PRODUCTS ================= */}
       {activeTab === "products" && (
         <>
           <div className="card" style={{ marginBottom: "20px", border: isEditingProd ? "2px solid #f39c12" : "none" }}>
             <h3 style={{ marginTop: 0 }}>{isEditingProd ? "Edit Product" : "Add New Product"}</h3>
             <input placeholder="Product / Service Name" value={prodName} onChange={e => setProdName(e.target.value)} style={inputStyle} />
-            <textarea placeholder="Description..." value={prodDesc} onChange={e => setProdDesc(e.target.value)} style={inputStyle} rows={2} />
+            <textarea placeholder="Description..." value={prodDesc} onChange={e => setProdDesc(e.target.value)} style={{...inputStyle, minHeight: "80px"}} rows={2} />
             <input placeholder="Price (£)" type="number" step="0.01" value={prodPrice} onChange={e => setProdPrice(e.target.value)} style={inputStyle} />
             <div style={btnRow}>
               <button onClick={saveProduct} style={{...greenBtn, flex: 1}}> {isEditingProd ? "Update Product" : "Save Product"} </button>
@@ -1221,7 +1259,6 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= TAB 4: STOCK ================= */}
       {activeTab === "stock" && (
         <>
           <div className="card">
@@ -1229,8 +1266,8 @@ export default function AdminDashboard() {
             <input placeholder="Drug" value={stockDrugName} onChange={e => setStockDrugName(e.target.value)} style={inputStyle} />
             <input placeholder="Batch" value={stockBatch} onChange={e => setStockBatch(e.target.value)} style={inputStyle} />
             <div style={{ display: "flex", gap: "10px" }}>
-              <input type="number" placeholder="Total ml" value={stockQty} onChange={e => setStockQty(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-              <input type="date" value={stockExp} onChange={e => setStockExp(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+              <input type="number" placeholder="Total ml" value={stockQty} onChange={e => setStockQty(e.target.value)} style={{...inputStyle, flex: 1}} />
+              <input type="date" value={stockExp} onChange={e => setStockExp(e.target.value)} style={{...inputStyle, flex: 1}} />
             </div>
             <button onClick={addStock} style={{ ...blueBtn }}>Add Stock</button>
           </div>
@@ -1255,8 +1292,8 @@ export default function AdminDashboard() {
                     <input value={editStockData.drug} onChange={e => setEditStockData({ ...editStockData, drug: e.target.value })} style={inputStyle} />
                     <input value={editStockData.batch} onChange={e => setEditStockData({ ...editStockData, batch: e.target.value })} style={inputStyle} />
                     <div style={{ display: "flex", gap: "10px" }}>
-                      <input type="number" value={editStockData.total_ml} onChange={e => setEditStockData({ ...editStockData, total_ml: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-                      <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+                      <input type="number" value={editStockData.total_ml} onChange={e => setEditStockData({ ...editStockData, total_ml: e.target.value })} style={{...inputStyle, flex: 1}} />
+                      <input type="date" value={editStockData.expiry_date || ""} onChange={e => setEditStockData({ ...editStockData, expiry_date: e.target.value })} style={{...inputStyle, flex: 1}} />
                     </div>
                     <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
                       <button style={{...blueBtn, flex: 1}} onClick={() => saveEditStock(s.id)}>Save</button>
@@ -1267,7 +1304,7 @@ export default function AdminDashboard() {
                   <>
                     <strong style={{fontSize: "18px", color: "#333"}}>{s.drug}</strong><br/>
                     <div style={{ color: "#7f8c8d", fontSize: "14px", lineHeight: "1.6", marginTop: "5px" }}>
-                      Batch: {s.batch} | <strong>{s.total_ml} ml remaining</strong><br/>
+                      Batch: {s.batch} | <strong>{Number(s.total_ml).toFixed(2)} ml remaining</strong><br/>
                       {s.expiry_date && `Expires: ${new Date(s.expiry_date).toLocaleDateString('en-GB')}`}
                     </div>
                     <div style={{ display: "flex", gap: "10px", marginTop: "12px", flexWrap: "wrap" }}>
@@ -1289,7 +1326,6 @@ export default function AdminDashboard() {
         </>
       )}
       
-      {/* ================= TAB 5: PROTOCOLS ================= */}
       {activeTab === "protocols" && (
         <>
           <div className="card" style={{ border: editingProtoId ? "2px solid #f39c12" : "none" }}>
@@ -1300,10 +1336,10 @@ export default function AdminDashboard() {
             <div style={{ background: "#f8f9fb", padding: "15px", borderRadius: "10px", marginTop: "10px" }}>
               <h4 style={{ marginTop: 0 }}>Add Drug to Protocol</h4>
               <div style={{ display: "grid", gap: "8px" }}>
-                <input placeholder="Drug name" value={protoDrugName} onChange={e => setProtoDrugName(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+                <input placeholder="Drug name" value={protoDrugName} onChange={e => setProtoDrugName(e.target.value)} style={inputStyle} />
                 <div style={{ display: "flex", gap: "8px" }}>
-                  <input placeholder="mg/kg" value={protoMgKg} onChange={e => setProtoMgKg(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-                  <input placeholder="mg/ml" value={protoMgMl} onChange={e => setProtoMgMl(e.target.value)} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+                  <input placeholder="mg/kg" value={protoMgKg} onChange={e => setProtoMgKg(e.target.value)} style={{...inputStyle, marginBottom: 0}} />
+                  <input placeholder="mg/ml" value={protoMgMl} onChange={e => setProtoMgMl(e.target.value)} style={{...inputStyle, marginBottom: 0}} />
                 </div>
               </div>
               <button style={{ ...blueBtn, marginTop: "12px" }} onClick={addProtoDrug}>+ Add Drug</button>
@@ -1358,7 +1394,6 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= TAB 6: EMAIL TEMPLATES ================= */}
       {activeTab === "templates" && (
         <>
           <div className="card" style={{ marginBottom: "20px", border: isEditingTemplate ? "2px solid #f39c12" : "none" }}>
@@ -1368,7 +1403,7 @@ export default function AdminDashboard() {
             </p>
             <input placeholder="Template Name (e.g., Sympathy Card)" value={templateName} onChange={e => setTemplateName(e.target.value)} style={inputStyle} />
             <input placeholder="Email Subject" value={templateSubject} onChange={e => setTemplateSubject(e.target.value)} style={inputStyle} />
-            <textarea placeholder="Email Body..." value={templateBody} onChange={e => setTemplateBody(e.target.value)} style={{...inputStyle, fontFamily: "inherit"}} rows={6} />
+            <textarea placeholder="Email Body..." value={templateBody} onChange={e => setTemplateBody(e.target.value)} style={{...inputStyle, fontFamily: "inherit", minHeight: "100px"}} rows={6} />
             
             <div style={btnRow}>
               <button onClick={saveTemplate} style={{...greenBtn, flex: 1}}>{isEditingTemplate ? "Update Template" : "Save Template"}</button>
@@ -1412,19 +1447,17 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* ================= STATS LIST MODAL ================= */}
       {statModalMode && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setStatModalMode(null)}>
           <div style={{ background: "white", padding: "20px", borderRadius: "15px", width: "100%", maxWidth: "500px", maxHeight: "80vh", display: "flex", flexDirection: "column", position: "relative" }} onClick={e => e.stopPropagation()}>
             <button onClick={() => setStatModalMode(null)} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
             <h2 style={{ marginTop: 0, textTransform: "capitalize", color: "#2c3e50" }}>{statModalMode} List</h2>
-            <input placeholder={`Search ${statModalMode}...`} value={statSearch} onChange={(e) => setStatSearch(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "15px" }} />
+            <input placeholder={`Search ${statModalMode}...`} value={statSearch} onChange={(e) => setStatSearch(e.target.value)} style={inputStyle} />
             <div style={{ overflowY: "auto", flex: 1, paddingRight: "5px" }}>{renderStatModalList()}</div>
           </div>
         </div>
       )}
 
-      {/* ================= STAFF INFO MODAL ================= */}
       {showAddStaffInfo && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setShowAddStaffInfo(false)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "450px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
@@ -1443,7 +1476,20 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ================= GENERIC ALERT MODAL ================= */}
+      {successMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setSuccessMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#27ae60", marginTop: 0 }}>✓ Success</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {successMessage}
+            </p>
+            <button onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+
       {alertMessage && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
@@ -1456,7 +1502,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ================= ACTION CONFIRM MODALS ================= */}
       {confirmModal && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setConfirmModal(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
@@ -1472,7 +1517,6 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ================= UNARCHIVE PASSWORD MODAL ================= */}
       {unarchiveModalLog && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => { setUnarchiveModalLog(null); setUnarchivePassword(""); }}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>

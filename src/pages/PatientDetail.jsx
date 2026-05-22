@@ -8,6 +8,9 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import tombIcon from '../assets/tomb.png'; 
 
+// --- IMPORT YOUR LOGO HERE ---
+import logoImage from "../assets/logo.png";
+
 // --- CAPACITOR IMPORTS FOR NATIVE PDF SHARING ---
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -90,6 +93,7 @@ export default function PatientDetail() {
 
   // Custom Modal States
   const [alertMessage, setAlertMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [confirmModal, setConfirmModal] = useState(null); 
   const [showConsentPrompt, setShowConsentPrompt] = useState(false);
 
@@ -192,6 +196,63 @@ export default function PatientDetail() {
     }
   }, [location.state]);
 
+  // --- PDF BRANDING ENGINE ---
+
+  // 1. Helper to fetch logo and convert to base64 required by jsPDF
+  async function getBase64ImageFromUrl(imageUrl) {
+    try {
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject("Error converting image");
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      console.warn("Failed to load logo", err);
+      return null;
+    }
+  }
+
+  // 2. The unified Header engine
+  async function drawReportHeader(doc, subtitle) {
+    const base64Logo = await getBase64ImageFromUrl(logoImage);
+    
+    // Position the logo
+    if (base64Logo) {
+      doc.addImage(base64Logo, 'PNG', 14, 10, 20, 20); 
+    }
+
+    // Company & Professional Name Setup
+    doc.setFontSize(22);
+    doc.setTextColor(44, 62, 80); // #2c3e50 (Slate)
+    doc.setFont("helvetica", "bold");
+    doc.text("SP Home Euthanasia", 38, 20);
+
+    doc.setFontSize(12);
+    doc.setTextColor(91, 143, 185); // #5b8fb9 (Primary Brand Blue)
+    doc.setFont("helvetica", "normal");
+    doc.text("Dr Craig Bailey", 38, 26);
+
+    doc.setFontSize(12);
+    doc.setTextColor(127, 140, 141); // #7f8c8d (Grey)
+    doc.text(subtitle, 38, 32);
+    
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 38, 38);
+
+    doc.setTextColor(0, 0, 0); // Reset for standard text
+    return 50; // New Y-position for tables to start below the header
+  }
+
+  // 3. Unified AutoTable Theme
+  const tableBrandTheme = {
+    headStyles: { fillColor: [91, 143, 185], textColor: [255, 255, 255], fontStyle: 'bold' },
+    styles: { textColor: [44, 62, 80] },
+    alternateRowStyles: { fillColor: [248, 249, 251] }
+  };
+
   async function checkAdmin() {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
@@ -250,7 +311,7 @@ export default function PatientDetail() {
     if (error) {
       setAlertMessage("Failed to upload file: " + error.message);
     } else {
-      setAlertMessage("File uploaded successfully!");
+      setSuccessMessage("File uploaded successfully!");
       fetchFiles();
     }
   }
@@ -360,13 +421,13 @@ export default function PatientDetail() {
     const payload = { ...editData, age_years: Number(editData.age_years) || null, age_months: Number(editData.age_months) || null, weight: Number(editData.weight) };
     
     delete payload.notes; 
-    delete payload.clients; // Added to prevent schema cache error
+    delete payload.clients; 
 
     const { error } = await supabase.from("patients").update(payload).eq("id", id);
     if (!error) { 
       setEditMode(false); 
       fetchPatient(); 
-      setAlertMessage("Patient details saved successfully!"); // <-- Trigger success notification
+      setSuccessMessage("Patient details saved successfully!"); 
     } else {
       setAlertMessage(error.message);
     }
@@ -409,7 +470,7 @@ export default function PatientDetail() {
     if (!error) {
       setPatient(prev => ({ ...prev, is_deceased: true }));
       fetchPatient();
-      setAlertMessage("Euthanasia added to invoice. Patient has automatically been marked as Deceased. 🕊️");
+      setSuccessMessage("Euthanasia added to invoice. Patient has automatically been marked as Deceased. 🕊️");
     }
   }
 
@@ -433,6 +494,7 @@ export default function PatientDetail() {
     if (success) {
       setNotesList(updated);
       setNewNoteText("");
+      setSuccessMessage("Clinical note saved successfully!");
     }
   }
 
@@ -448,6 +510,7 @@ export default function PatientDetail() {
     if (success) {
       setNotesList(updated);
       setEditingNoteId(null);
+      setSuccessMessage("Clinical note updated successfully!");
     }
   }
 
@@ -488,7 +551,7 @@ export default function PatientDetail() {
         const prefilledBatchId = stockMatches.length > 0 ? stockMatches[stockMatches.length - 1].id : "";
 
         const calculatedVolume = (d.mg_per_kg && d.mg_per_ml && Number(d.mg_per_ml) > 0) 
-            ? Number(((d.mg_per_kg * patient.weight) / d.mg_per_ml).toFixed(3)) 
+            ? Number(((d.mg_per_kg * patient.weight) / d.mg_per_ml).toFixed(2)) 
             : 0;
 
         return {
@@ -540,7 +603,7 @@ export default function PatientDetail() {
           }
         }
       }
-      setAlertMessage("Doses successfully recorded and deducted from stock!");
+      setSuccessMessage("Doses successfully recorded and deducted from stock!");
       setCalcResults([]);
       setProtocolId("");
       fetchStock(); 
@@ -742,19 +805,13 @@ export default function PatientDetail() {
     try {
       const doc = new jsPDF();
       
-      doc.setFontSize(22);
-      doc.setTextColor(44, 62, 80); 
-      doc.setFont("helvetica", "bold");
-      doc.text("SP Home Euthanasia", 14, 22);
-      doc.setFontSize(14);
-      doc.setTextColor(127, 140, 141); 
-      doc.setFont("helvetica", "normal");
-      doc.text("Invoice", 14, 30);
+      let yPos = await drawReportHeader(doc, "Invoice");
+
       doc.setFontSize(10);
       doc.setTextColor(0, 0, 0);
-      doc.text(`Date: ${new Date(inv.date).toLocaleDateString('en-GB')}`, 14, 40);
-      doc.text(`Client: ${patient?.clients?.name || ""} ${patient?.clients?.surname || ""}`, 14, 46);
-      doc.text(`Patient: ${patient?.name || ""}`, 14, 52);
+      doc.text(`Date: ${new Date(inv.date).toLocaleDateString('en-GB')}`, 14, yPos); yPos += 6;
+      doc.text(`Client: ${patient?.clients?.name || ""} ${patient?.clients?.surname || ""}`, 14, yPos); yPos += 6;
+      doc.text(`Patient: ${patient?.name || ""}`, 14, yPos); yPos += 10;
 
       const procCols = ["Item / Procedure", "Notes", "Price"];
       const procRows = inv.procedures.map(p => [
@@ -763,7 +820,12 @@ export default function PatientDetail() {
         `£${Number(p.price).toFixed(2)}`
       ]);
       
-      autoTable(doc, { head: [procCols], body: procRows, startY: 60 });
+      autoTable(doc, { 
+        ...tableBrandTheme,
+        head: [procCols], 
+        body: procRows, 
+        startY: yPos 
+      });
       
       const finalY = doc.lastAutoTable.finalY + 10;
       doc.setFont("helvetica", "bold");
@@ -801,6 +863,7 @@ export default function PatientDetail() {
     const { error } = await supabase.from("consent_records").insert([{ patient_id: id, name: consentName, signature: sigPadRef.current.toDataURL() }]);
     if (!error) {
       sigPadRef.current.clear(); setConsentName(""); fetchConsentHistory();
+      setSuccessMessage("Consent saved successfully!");
       if (andSedate) setActiveTab("dosing");
     }
   }
@@ -825,8 +888,13 @@ export default function PatientDetail() {
     const combinedTime = (aptStartTime && aptEndTime) ? `${aptStartTime} - ${aptEndTime}` : (aptStartTime || aptEndTime || "");
     
     const payload = { user_id: aptUserId, date: aptDate, time_range: combinedTime, entry_type: aptType, client_id: patient?.client_id || null, patient_id: id, title: aptTitle, notes: aptNotes };
-    if (isEditingApt) await supabase.from("diary_entries").update(payload).eq("id", editAptId);
-    else await supabase.from("diary_entries").insert([payload]);
+    if (isEditingApt) {
+      await supabase.from("diary_entries").update(payload).eq("id", editAptId);
+      setSuccessMessage("Appointment updated successfully!");
+    } else {
+      await supabase.from("diary_entries").insert([payload]);
+      setSuccessMessage("Appointment added to diary successfully!");
+    }
     resetAptForm(); fetchAppointments();
   }
 
@@ -1119,7 +1187,7 @@ export default function PatientDetail() {
               </div>
               <select value={r.batchId} onChange={e => updateBatch(i, e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
                 <option value="">-- Select Stock Batch --</option>
-                {getStockForDrug(r.drug).map(s => <option key={s.id} value={s.id}>{s.batch} ({s.total_ml} ml left)</option>)}
+                {getStockForDrug(r.drug).map(s => <option key={s.id} value={s.id}>{s.batch} ({Number(s.total_ml).toFixed(2)} ml left)</option>)}
               </select>
             </div>
           ))}
@@ -1182,7 +1250,7 @@ export default function PatientDetail() {
                       <>
                         {h.results?.map((r, idx) => (
                           <div key={idx} style={{ fontSize: "14px", color: "#333", marginBottom: "5px" }}>
-                            <strong>{r.label || r.drug}</strong>: {r.ml} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {r.waste} ml waste)</span> : ""}
+                            <strong>{r.label || r.drug}</strong>: {Number(r.ml).toFixed(2)} ml {r.waste > 0 ? <span style={{color: "#7f8c8d", fontSize: "12px"}}>(+ {Number(r.waste).toFixed(2)} ml waste)</span> : ""}
                           </div>
                         ))}
                         <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
@@ -1200,7 +1268,7 @@ export default function PatientDetail() {
                                   const { data: original } = await supabase.from("sedation_records").select("*").eq("id", h.id).single();
                                   if (original && original.results) {
                                     for (const r of original.results) {
-                                      const totalToReturn = (parseFloat(r.ml) || 0) + (r.waste !== undefined ? parseFloat(r.waste) : 0);
+                                      const totalToReturn = (parseFloat(r.ml) || 0) + (parseFloat(r.waste) || 0);
                                       if (r.batchId && totalToReturn > 0) {
                                         const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", r.batchId).single();
                                         if (currentStock) await supabase.from("stock").update({ total_ml: currentStock.total_ml + totalToReturn }).eq("id", r.batchId);
@@ -1652,6 +1720,21 @@ export default function PatientDetail() {
           <p style={{ fontSize: "12px", color: "#7f8c8d", textAlign: "center", marginTop: "10px" }}>
             This will open your device's default email client (e.g., Outlook, Apple Mail) so you can review the message before sending.
           </p>
+        </div>
+      )}
+
+      {/* ================= SUCCESS MODAL ================= */}
+      {successMessage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setSuccessMessage("")}>
+          <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#27ae60", marginTop: 0 }}>✓ Success</h2>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
+              {successMessage}
+            </p>
+            <button onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>
+              OK
+            </button>
+          </div>
         </div>
       )}
 
