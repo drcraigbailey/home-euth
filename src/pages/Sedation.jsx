@@ -22,6 +22,7 @@ export default function Sedation() {
 
   // Calculator State
   const [protocolId, setProtocolId] = useState("");
+  const [protocolSearch, setProtocolSearch] = useState(""); // <-- Added for Type-Box
   const [weight, setWeight] = useState("");
   const [results, setResults] = useState([]);
 
@@ -60,6 +61,24 @@ export default function Sedation() {
     setLocalHistory(valid);
   }
 
+  // Handle Type-Box Selection
+  function handleProtocolChange(e) {
+    const val = e.target.value;
+    setProtocolSearch(val);
+    
+    // Find matching protocol based on datalist string
+    const match = protocols.find(p => {
+      const label = `${p.name} ${p.species ? `(${p.species})` : ""}`.trim();
+      return label === val;
+    });
+
+    if (match) {
+      setProtocolId(match.id);
+    } else {
+      setProtocolId("");
+    }
+  }
+
   async function calculate() {
     if (!protocolId || !weight) return setAlertMessage("Please select a protocol and enter a weight.");
     const proto = protocols.find(p => String(p.id) === String(protocolId));
@@ -94,6 +113,7 @@ export default function Sedation() {
     
     setResults([]);
     setProtocolId("");
+    setProtocolSearch(""); // Reset type-box
     setWeight("");
     setSuccessMessage("Doses saved temporarily to your browser.");
   }
@@ -136,14 +156,25 @@ export default function Sedation() {
       </p>
 
       <div className="card" style={{ display: "flex", flexDirection: "column", gap: "15px", alignItems: "flex-start" }}>
-        <select value={protocolId} onChange={e => setProtocolId(e.target.value)} style={inputStyle}>
-          <option value="">-- Select Protocol --</option>
-          {protocols.map(p => <option key={p.id} value={p.id}>{p.name} {p.species ? `(${p.species})` : ""}</option>)}
-        </select>
-
-        <input type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value)} placeholder="Patient Weight (kg)" style={inputStyle} />
         
-        <button onClick={calculate} style={blueBtn}>Calculate Doses</button>
+        {/* REPLACED SELECT WITH DATALIST TYPE-BOX */}
+        <input 
+          list="protocol-options"
+          placeholder="-- Select Protocol --"
+          value={protocolSearch}
+          onChange={handleProtocolChange}
+          style={inputStyle}
+        />
+        <datalist id="protocol-options">
+          {protocols.map(p => {
+            const label = `${p.name} ${p.species ? `(${p.species})` : ""}`.trim();
+            return <option key={p.id} value={label} />;
+          })}
+        </datalist>
+
+        <input type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value)} placeholder="Patient Weight (kg)" style={{ ...inputStyle, marginBottom: 0 }} />
+        
+        <button onClick={calculate} style={{ ...blueBtn, width: "100%", marginTop: "5px" }}>Calculate Doses</button>
 
         {results.map((r, i) => (
           <div key={i} style={{ ...drugResultStyle, width: "100%" }}>

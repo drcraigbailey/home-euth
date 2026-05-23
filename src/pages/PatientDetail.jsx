@@ -49,10 +49,10 @@ const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c
 
 const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
 const BREED_MAP = {
-  dog: ["Mixed Breed", "Labrador Retriever", "Golden Retriever", "French Bulldog", "German Shepherd", "Cocker Spaniel", "Staffordshire Bull Terrier", "Jack Russell Terrier", "Shih Tzu", "Chihuahua", "Pug", "Border Collie", "Dachshund", "Poodle", "Greyhound", "Lurcher"],
-  cat: ["Domestic Shorthair", "Domestic Longhair", "British Shorthair", "Ragdoll", "Siamese", "Bengal", "Maine Coon", "Persian", "Sphynx", "Burmese"],
-  rabbit: ["Mixed Breed", "Mini Lop", "Netherland Dwarf", "Lionhead", "French Lop", "Dutch", "Flemish Giant", "Rex"],
-  "small mammal": ["Guinea Pig", "Hamster (Syrian)", "Hamster (Dwarf)", "Rat", "Mouse", "Chinchilla", "Ferret", "Gerbil", "Degu"]
+  dog: ["Mixed Breed", "Labrador Retriever", "Golden Retriever", "French Bulldog", "German Shepherd", "Cocker Spaniel", "Staffordshire Bull Terrier", "Jack Russell Terrier", "Shih Tzu", "Chihuahua", "Pug", "Border Collie", "Dachshund", "Poodle", "Greyhound", "Lurcher", "Other"],
+  cat: ["Domestic Shorthair", "Domestic Longhair", "British Shorthair", "Ragdoll", "Siamese", "Bengal", "Maine Coon", "Persian", "Sphynx", "Burmese", "Other"],
+  rabbit: ["Mixed Breed", "Mini Lop", "Netherland Dwarf", "Lionhead", "French Lop", "Dutch", "Flemish Giant", "Rex", "Other"],
+  "small mammal": ["Guinea Pig", "Hamster (Syrian)", "Hamster (Dwarf)", "Rat", "Mouse", "Chinchilla", "Ferret", "Gerbil", "Degu", "Other"]
 };
 const COMMON_COLOURS = ["Black", "White", "Brown", "Chocolate", "Tan", "Black & White", "Brown & White", "Tabby", "Tortoiseshell", "Calico", "Brindle", "Fawn", "Blue/Grey", "Ginger", "Cream", "Tricolour", "Merle", "Roan", "Agouti"];
 const GENDER_OPTIONS = ["Male (Entire)", "Male (Neutered)", "Female (Entire)", "Female (Spayed)", "Unknown"];
@@ -1070,14 +1070,27 @@ export default function PatientDetail() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <input placeholder="Name" value={editData.name} onChange={(e) => setEditData({...editData, name: e.target.value})} style={inputStyle} />
-              <input list="species-options" placeholder="Species" value={editData.species} onChange={(e) => setEditData({...editData, species: e.target.value, breed: ""})} style={inputStyle} />
-              <datalist id="species-options">{SPECIES_OPTIONS.map(s => <option key={s} value={s} />)}</datalist>
-              <input list="breed-options" placeholder="Breed" value={editData.breed} onChange={(e) => setEditData({...editData, breed: e.target.value})} style={inputStyle} />
-              <datalist id="breed-options">{activeBreeds.map(b => <option key={b} value={b} />)}</datalist>
-              <input list="colour-options" placeholder="Colour" value={editData.colour} onChange={(e) => setEditData({...editData, colour: e.target.value})} style={inputStyle} />
-              <datalist id="colour-options">{COMMON_COLOURS.map(c => <option key={c} value={c} />)}</datalist>
-              <input list="gender-options" placeholder="Gender" value={editData.gender} onChange={(e) => setEditData({...editData, gender: e.target.value})} style={inputStyle} />
-              <datalist id="gender-options">{GENDER_OPTIONS.map(g => <option key={g} value={g} />)}</datalist>
+              
+              <select value={editData.species} onChange={(e) => setEditData({...editData, species: e.target.value, breed: ""})} style={inputStyle}>
+                <option value="">-- Select Species --</option>
+                {SPECIES_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+
+              <select value={editData.breed} onChange={(e) => setEditData({...editData, breed: e.target.value})} style={inputStyle}>
+                <option value="">-- Select Breed --</option>
+                {activeBreeds.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+
+              <select value={editData.colour} onChange={(e) => setEditData({...editData, colour: e.target.value})} style={inputStyle}>
+                <option value="">-- Select Colour --</option>
+                {COMMON_COLOURS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+
+              <select value={editData.gender} onChange={(e) => setEditData({...editData, gender: e.target.value})} style={inputStyle}>
+                <option value="">-- Select Gender --</option>
+                {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+
               <input placeholder="Microchip" value={editData.microchip} onChange={(e) => setEditData({...editData, microchip: e.target.value})} style={inputStyle} />
               
               <div style={{ display: "flex", gap: "10px" }}>

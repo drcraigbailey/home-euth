@@ -14,7 +14,8 @@ import {
   Menu,
   LogOut,
   Shield,
-  Package
+  Package,
+  Book // Added for Library
 } from "lucide-react";
 
 import logoImage from "./assets/logo.png";
@@ -29,7 +30,7 @@ import PatientDetail from "./pages/PatientDetail";
 import Sedation from "./pages/Sedation";
 import Products from "./pages/Products";
 import AdminDashboard from "./pages/AdminDashboard";
-
+import Library from "./pages/Library"; // Added Library
 
 // ---------- Scroll to top ----------
 function ScrollToTop() {
@@ -42,14 +43,11 @@ function ScrollToTop() {
   return null;
 }
 
-
 // ---------- Protected Route ----------
 function ProtectedRoute({children}) {
-
   const [session,setSession]=useState(undefined);
 
   useEffect(()=>{
-
     supabase.auth.getSession()
     .then(({data})=>{
       setSession(data.session)
@@ -63,40 +61,15 @@ function ProtectedRoute({children}) {
     );
 
     return ()=>listener.subscription.unsubscribe();
-
   },[]);
 
   if(session===undefined){
-
     return(
-
-      <div
-      style={{
-        display:"flex",
-        flexDirection:"column",
-        alignItems:"center",
-        justifyContent:"center",
-        minHeight:"100vh",
-        background:"#f8f9fb"
-      }}
-      >
-
+      <div style={{display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#f8f9fb"}}>
         <Loader/>
-
-        <p
-        style={{
-          marginTop:"15px",
-          color:"#5b8fb9",
-          fontWeight:"bold"
-        }}
-        >
-          Authenticating...
-        </p>
-
+        <p style={{marginTop:"15px", color:"#5b8fb9", fontWeight:"bold"}}>Authenticating...</p>
       </div>
-
     )
-
   }
 
   if(!session){
@@ -104,395 +77,179 @@ function ProtectedRoute({children}) {
   }
 
   return children;
-
 }
-
 
 // ---------- Navbar ----------
 function Navbar(){
+  const location=useLocation();
+  const [isAdmin,setIsAdmin]=useState(false);
+  const [showMenu,setShowMenu]=useState(false);
 
-const location=useLocation();
+  useEffect(()=>{
+    async function checkAdmin(){
+      const { data:{session} } = await supabase.auth.getSession();
+      if(session?.user){
+        const { data } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id",session.user.id)
+        .single();
+        setIsAdmin(!!data?.is_admin);
+      }
+    }
+    checkAdmin();
+  },[location.pathname]);
 
-const [isAdmin,setIsAdmin]=useState(false);
-const [showMenu,setShowMenu]=useState(false);
+  async function logout(){
+    await supabase.auth.signOut();
+    window.location.href="/login";
+  }
 
-useEffect(()=>{
+  if(location.pathname==="/login"){ return null; }
 
-async function checkAdmin(){
+  return(
+    <>
+      <div style={{position:"sticky", top:0, background:"white", padding:"14px", borderBottom:"1px solid #eee", zIndex:999}}>
+        <div style={{display:"flex", alignItems:"center", justifyContent:"center", gap:"10px"}}>
+          <img src={logoImage} alt="logo" style={{height:"35px"}} />
+          <h2 style={{margin:0, fontSize:"18px", color:"#5b8fb9"}}>SP Home Euthanasia</h2>
+        </div>
+      </div>
 
-const {
-data:{session}
-}=await supabase.auth.getSession();
+      {showMenu && (
+        <div style={{position:"fixed", right:"15px", bottom:"90px", background:"white", borderRadius:"16px", padding:"10px", boxShadow:"0 5px 20px rgba(0,0,0,.15)", zIndex:2000, width:"180px"}}>
+          <NavLink to="/products" style={{...menuStyle, color:"#5b8fb9"}} onClick={()=>setShowMenu(false)}>
+            <Package size={18} color="#5b8fb9"/> Products
+          </NavLink>
+          
+          <NavLink to="/library" style={{...menuStyle, color:"#5b8fb9"}} onClick={()=>setShowMenu(false)}>
+            <Book size={18} color="#5b8fb9"/> Library
+          </NavLink>
 
-if(session?.user){
+          {isAdmin && (
+            <NavLink to="/admin" style={{...menuStyle, color:"#e74c3c", fontWeight:"bold"}} onClick={()=>setShowMenu(false)}>
+              <Shield size={18} color="#e74c3c"/> Admin
+            </NavLink>
+          )}
 
-const {data}=await supabase
-.from("profiles")
-.select("is_admin")
-.eq("id",session.user.id)
-.single();
+          <button onClick={logout} style={{...menuStyle, width:"100%", border:"none", background:"transparent", color:"#5b8fb9"}}>
+            <LogOut size={18} color="#5b8fb9"/> Logout
+          </button>
+        </div>
+      )}
 
-setIsAdmin(
-!!data?.is_admin
-);
-
+      <div style={{position:"fixed", bottom:0, left:0, right:0, margin:"0 auto", width:"100%", maxWidth:"700px", height:"72px", background:"white", borderTop:"1px solid #ddd", display:"flex", justifyContent:"space-evenly", alignItems:"center", padding:"0 10px", boxShadow:"0 -2px 12px rgba(0,0,0,.08)", zIndex:1000}}>
+        <NavLink to="/" end style={navStyle}>
+          <HomeIcon size={22}/>
+          <span>Home</span>
+        </NavLink>
+        <NavLink to="/clients" style={navStyle}>
+          <Users size={22}/>
+          <span>Clients</span>
+        </NavLink>
+        <NavLink to="/patients" style={navStyle}>
+          <PawPrint size={22}/>
+          <span>Patients</span>
+        </NavLink>
+        <NavLink to="/sedation" style={navStyle}>
+          <Syringe size={22}/>
+          <span>Sedation</span>
+        </NavLink>
+        <button onClick={()=>setShowMenu(!showMenu)} style={{border:"none", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minWidth:"70px", flex:1, cursor:"pointer", color:"#5b8fb9"}}>
+          <Menu size={22}/>
+          <span style={{fontSize:"12px"}}>More</span>
+        </button>
+      </div>
+    </>
+  )
 }
-
-}
-
-checkAdmin();
-
-},[location.pathname]);
-
-
-async function logout(){
-
-await supabase.auth.signOut();
-
-window.location.href="/login";
-
-}
-
-if(location.pathname==="/login"){
-return null;
-}
-
-
-return(
-
-<>
-
-<div
-style={{
-position:"sticky",
-top:0,
-background:"white",
-padding:"14px",
-borderBottom:"1px solid #eee",
-zIndex:999
-}}
->
-
-<div
-style={{
-display:"flex",
-alignItems:"center",
-justifyContent:"center",
-gap:"10px"
-}}
->
-
-<img
-src={logoImage}
-alt="logo"
-style={{
-height:"35px"
-}}
-/>
-
-<h2
-style={{
-margin:0,
-fontSize:"18px",
-color:"#5b8fb9"
-}}
->
-SP Home Euthanasia
-</h2>
-
-</div>
-
-</div>
-
-
-{showMenu && (
-
-<div
-style={{
-position:"fixed",
-right:"15px",
-bottom:"90px",
-background:"white",
-borderRadius:"16px",
-padding:"10px",
-boxShadow:"0 5px 20px rgba(0,0,0,.15)",
-zIndex:2000,
-width:"180px"
-}}
->
-
-<NavLink
-to="/products"
-style={{
-...menuStyle,
-color:"#5b8fb9"
-}}
-onClick={()=>setShowMenu(false)}
->
-
-<Package size={18} color="#5b8fb9"/>
-Products
-
-</NavLink>
-
-
-{isAdmin && (
-
-<NavLink
-to="/admin"
-style={{
-...menuStyle,
-color:"#e74c3c",
-fontWeight:"bold"
-}}
-onClick={()=>setShowMenu(false)}
->
-
-<Shield size={18} color="#e74c3c"/>
-Admin
-
-</NavLink>
-
-)}
-
-<button
-onClick={logout}
-style={{
-...menuStyle,
-width:"100%",
-border:"none",
-background:"transparent",
-color:"#5b8fb9"
-}}
->
-
-<LogOut size={18} color="#5b8fb9"/>
-Logout
-
-</button>
-
-</div>
-
-)}
-
-
-
-<div
-style={{
-position:"fixed",
-bottom:0,
-left:0,
-right:0,
-margin:"0 auto",
-width:"100%",
-maxWidth:"700px",
-height:"72px",
-background:"white",
-borderTop:"1px solid #ddd",
-display:"flex",
-justifyContent:"space-evenly",
-alignItems:"center",
-padding:"0 10px",
-boxShadow:"0 -2px 12px rgba(0,0,0,.08)",
-zIndex:1000
-}}
->
-
-<NavLink to="/" end style={navStyle}>
-<HomeIcon size={22}/>
-<span>Home</span>
-</NavLink>
-
-<NavLink to="/clients" style={navStyle}>
-<Users size={22}/>
-<span>Clients</span>
-</NavLink>
-
-<NavLink to="/patients" style={navStyle}>
-<PawPrint size={22}/>
-<span>Patients</span>
-</NavLink>
-
-<NavLink to="/sedation" style={navStyle}>
-<Syringe size={22}/>
-<span>Sedation</span>
-</NavLink>
-
-<button
-onClick={()=>setShowMenu(!showMenu)}
-style={{
-border:"none",
-background:"transparent",
-display:"flex",
-flexDirection:"column",
-alignItems:"center",
-justifyContent:"center",
-minWidth:"70px",
-flex:1,
-cursor:"pointer",
-color:"#5b8fb9"
-}}
->
-<Menu size={22}/>
-<span style={{fontSize:"12px"}}>
-More
-</span>
-</button>
-
-</div>
-
-</>
-
-)
-
-}
-
 
 const navStyle=({isActive})=>({
-
-display:"flex",
-flexDirection:"column",
-alignItems:"center",
-justifyContent:"center",
-textDecoration:"none",
-fontSize:"clamp(10px,2vw,12px)",
-minWidth:"70px",
-padding:"6px 8px",
-color:isActive
-? "#2c3e50"
-: "#5b8fb9",
-fontWeight:isActive
-? "bold"
-: "normal",
-gap:"4px",
-whiteSpace:"nowrap",
-flex:1
-
+  display:"flex",
+  flexDirection:"column",
+  alignItems:"center",
+  justifyContent:"center",
+  textDecoration:"none",
+  fontSize:"clamp(10px,2vw,12px)",
+  minWidth:"70px",
+  padding:"6px 8px",
+  color:isActive ? "#2c3e50" : "#5b8fb9",
+  fontWeight:isActive ? "bold" : "normal",
+  gap:"4px",
+  whiteSpace:"nowrap",
+  flex:1
 });
 
-
 const menuStyle={
-
-display:"flex",
-alignItems:"center",
-gap:"10px",
-padding:"12px",
-textDecoration:"none",
-borderRadius:"10px",
-color:"#2c3e50",
-cursor:"pointer"
-
+  display:"flex",
+  alignItems:"center",
+  gap:"10px",
+  padding:"12px",
+  textDecoration:"none",
+  borderRadius:"10px",
+  color:"#2c3e50",
+  cursor:"pointer"
 };
-
 
 // ---------- Hardware Back Button ----------
 function BackButtonHandler(){
+  const navigate=useNavigate();
+  const location=useLocation();
+  const currentPathRef=useRef(location.pathname);
 
-const navigate=useNavigate();
-const location=useLocation();
+  useEffect(()=>{
+    currentPathRef.current=location.pathname;
+  },[location.pathname]);
 
-const currentPathRef=
-useRef(location.pathname);
+  useEffect(()=>{
+    const setupHardwareLink=async()=>{
+      return await CapacitorApp.addListener('backButton', ()=>{
+        const path=currentPathRef.current;
+        if(path==="/" || path==="/login"){
+          CapacitorApp.exitApp();
+        } else if(path.startsWith("/patient/")){
+          navigate("/patients");
+        } else if(path.startsWith("/client/")){
+          navigate("/clients");
+        } else {
+          navigate(-1);
+        }
+      });
+    };
 
-useEffect(()=>{
-currentPathRef.current=
-location.pathname;
-},[location.pathname]);
+    const initiationPromise=setupHardwareLink();
+    return ()=>{
+      initiationPromise.then(handler=>{
+        if(handler){ handler.remove(); }
+      });
+    };
+  },[navigate]);
 
-
-useEffect(()=>{
-
-const setupHardwareLink=
-async()=>{
-
-return await CapacitorApp.addListener(
-'backButton',
-()=>{
-
-const path=
-currentPathRef.current;
-
-if(
-path==="/" ||
-path==="/login"
-){
-CapacitorApp.exitApp();
+  return null;
 }
-else if(
-path.startsWith("/patient/")
-){
-navigate("/patients");
-}
-else if(
-path.startsWith("/client/")
-){
-navigate("/clients");
-}
-else{
-navigate(-1);
-}
-
-});
-
-};
-
-const initiationPromise=
-setupHardwareLink();
-
-return ()=>{
-
-initiationPromise.then(
-handler=>{
-
-if(handler){
-handler.remove();
-}
-
-});
-
-};
-
-},[navigate]);
-
-return null;
-
-}
-
 
 // ---------- App ----------
 export default function App(){
-
-return(
-
-<Router>
-
-<ScrollToTop/>
-
-<BackButtonHandler/>
-
-<Navbar/>
-
-<div style={{paddingBottom:"90px"}}>
-
-<Routes>
-
-<Route path="/login" element={<Login/>}/>
-<Route path="/" element={<ProtectedRoute><Home/></ProtectedRoute>}/>
-<Route path="/clients" element={<ProtectedRoute><Clients/></ProtectedRoute>}/>
-<Route path="/client/:id" element={<ProtectedRoute><ClientDetail/></ProtectedRoute>}/>
-<Route path="/patient/:id" element={<ProtectedRoute><PatientDetail/></ProtectedRoute>}/>
-<Route path="/patients" element={<ProtectedRoute><Patients/></ProtectedRoute>}/>
-<Route path="/sedation" element={<ProtectedRoute><Sedation/></ProtectedRoute>}/>
-<Route path="/sedation/:id" element={<ProtectedRoute><Sedation/></ProtectedRoute>}/>
-<Route path="/products" element={<ProtectedRoute><Products/></ProtectedRoute>}/>
-<Route path="/admin" element={<ProtectedRoute><AdminDashboard/></ProtectedRoute>}/>
-
-</Routes>
-
-</div>
-
-</Router>
-
-)
-
+  return(
+    <Router>
+      <ScrollToTop/>
+      <BackButtonHandler/>
+      <Navbar/>
+      <div style={{paddingBottom:"90px"}}>
+        <Routes>
+          <Route path="/login" element={<Login/>}/>
+          <Route path="/" element={<ProtectedRoute><Home/></ProtectedRoute>}/>
+          <Route path="/clients" element={<ProtectedRoute><Clients/></ProtectedRoute>}/>
+          <Route path="/client/:id" element={<ProtectedRoute><ClientDetail/></ProtectedRoute>}/>
+          <Route path="/patient/:id" element={<ProtectedRoute><PatientDetail/></ProtectedRoute>}/>
+          <Route path="/patients" element={<ProtectedRoute><Patients/></ProtectedRoute>}/>
+          <Route path="/sedation" element={<ProtectedRoute><Sedation/></ProtectedRoute>}/>
+          <Route path="/sedation/:id" element={<ProtectedRoute><Sedation/></ProtectedRoute>}/>
+          <Route path="/products" element={<ProtectedRoute><Products/></ProtectedRoute>}/>
+          <Route path="/library" element={<ProtectedRoute><Library/></ProtectedRoute>}/>
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard/></ProtectedRoute>}/>
+        </Routes>
+      </div>
+    </Router>
+  )
 }

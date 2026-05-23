@@ -156,6 +156,38 @@ export default function Home() {
     fetchEntries();
   }
 
+  // --- AUTOMATED MESSAGING & STATUS UPDATE ---
+  async function handleStatusUpdate(entry, newStatus) {
+    const { error } = await supabase.from("diary_entries").update({ status: newStatus }).eq("id", entry.id);
+    
+    if (error) {
+      setAlertMessage("Error updating status: " + error.message + " (Note: Make sure a 'status' text column exists in the diary_entries table in Supabase).");
+      return;
+    }
+
+    // Update Local States instantly
+    setViewEntry({ ...entry, status: newStatus });
+    setEntries(entries.map(e => e.id === entry.id ? { ...e, status: newStatus } : e));
+
+    // Construct automated message
+    const clientName = entry.clients?.name || "Client";
+    const phoneStr = entry.clients?.phone || entry.phone;
+    
+    if (phoneStr) {
+       let text = "";
+       if (newStatus === "Arrived") {
+         text = `Hi ${clientName}, I have just arrived for our appointment. - Dr Craig Bailey`;
+       } else if (newStatus === "Finished") {
+         text = `Hi ${clientName}, just letting you know the appointment is now complete. Thank you. - Dr Craig Bailey`;
+       }
+       
+       // Use standard SMS URI scheme (Intersects with default messaging apps like Signal, Messages, WhatsApp)
+       window.location.href = `sms:${phoneStr}?body=${encodeURIComponent(text)}`;
+    } else {
+       setSuccessMessage(`Appointment marked as ${newStatus}, but no phone number was found to send a message.`);
+    }
+  }
+
   function startEdit(entry) {
     setIsEditing(true); 
     setEditId(entry.id); 
@@ -283,6 +315,8 @@ export default function Home() {
                   {entry.entry_type}
                 </span>
                 {entry.time_range && <span style={{ color: "#666", fontSize: "14px" }}>{entry.time_range}</span>}
+                {entry.status === "Arrived" && <span style={{ color: "#27ae60", fontSize: "12px", fontWeight: "bold", marginLeft: "auto" }}>• Arrived</span>}
+                {entry.status === "Finished" && <span style={{ color: "#7f8c8d", fontSize: "12px", fontWeight: "bold", marginLeft: "auto" }}>• Finished</span>}
               </div>
               <strong style={{ fontSize: "18px", color: "#333", display: "flex", alignItems: "center", gap: "8px" }}>
                 {mainHeader}
@@ -331,6 +365,31 @@ export default function Home() {
                 <strong>Notes:</strong>
                 <p style={{ margin: "5px 0 0 0", whiteSpace: "pre-wrap", color: "#444" }}>{viewEntry.notes || "None"}</p>
               </div>
+            </div>
+
+            {/* --- STATUS & MESSAGING ACTIONS --- */}
+            <div style={{ marginTop: "15px", padding: "15px", background: viewEntry.status === "Finished" ? "#f8f9fb" : "#f0fdf4", borderRadius: "10px", border: viewEntry.status === "Finished" ? "1px solid #eee" : "1px solid #bbf7d0" }}>
+              <strong style={{ display: "block", marginBottom: "10px", color: viewEntry.status === "Finished" ? "#7f8c8d" : "#27ae60" }}>
+                Appointment Status: {viewEntry.status || "Scheduled"}
+              </strong>
+              
+              {(viewEntry.status !== "Arrived" && viewEntry.status !== "Finished") && (
+                <button onClick={() => handleStatusUpdate(viewEntry, "Arrived")} style={{ ...greenBtn, width: "100%", padding: "12px", fontSize: "14px" }}>
+                  📍 Mark as Arrived & Send Message
+                </button>
+              )}
+
+              {viewEntry.status === "Arrived" && (
+                <button onClick={() => handleStatusUpdate(viewEntry, "Finished")} style={{ ...blueBtn, width: "100%", padding: "12px", fontSize: "14px" }}>
+                  ✅ Mark as Finished & Send Message
+                </button>
+              )}
+
+              {viewEntry.status === "Finished" && (
+                <div style={{ color: "#7f8c8d", fontSize: "13px", fontStyle: "italic" }}>
+                  This appointment has been completed.
+                </div>
+              )}
             </div>
 
             {/* GOOGLE MAP EMBED */}

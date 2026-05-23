@@ -32,7 +32,8 @@ const greyBtn        = { background: "#95a5a6", color: "white", ...standardBtnPr
 const blueBtn        = { background: "#3498db", color: "white", ...standardBtnProps };
 const expandBtnStyle = { ...standardBtnProps, background: "#ecf0f1", color: "#2c3e50", width: "100%", marginTop: "10px", padding: "12px" };
 
-const inputStyle = { padding: "10px", borderRadius: "8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" };
+// UNIFORM INPUT STYLE
+const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 
 const SPECIES_OPTIONS = ["Dog", "Cat", "Rabbit", "Small Mammal", "Bird", "Reptile", "Equine"];
 const GENDER_OPTIONS = ["Male (Entire)", "Male (Neutered)", "Female (Entire)", "Female (Spayed)", "Unknown"];
@@ -238,28 +239,28 @@ export default function Clients() {
       
       <div className="card">
         <h3>Add New Client</h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <input placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-            <input placeholder="Surname" value={surname} onChange={(e) => setSurname(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+            <input placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={inputStyle} />
+            <input placeholder="Surname" value={surname} onChange={(e) => setSurname(e.target.value)} style={inputStyle} />
           </div>
-          <input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-          <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-          <input placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+          <input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
+          <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+          <input placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} style={inputStyle} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
-            <input placeholder="Postcode" value={postcode} onChange={(e) => setPostcode(e.target.value)} style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ccc" }} />
+            <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={inputStyle} />
+            <input placeholder="Postcode" value={postcode} onChange={(e) => setPostcode(e.target.value)} style={inputStyle} />
           </div>
-          <button onClick={addClient} style={primaryBlueBtn}>Add Client</button>
+          <button type="button" onClick={addClient} style={{ ...primaryBlueBtn, marginTop: "5px" }}>Add Client</button>
         </div>
       </div>
 
       <div className="card" style={{ marginTop: "20px" }}>
-        <input placeholder="Search name, phone, email, address..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box" }} />
+        <input placeholder="Search name, phone, email, address..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
       </div>
 
       <div style={{ marginTop: "20px", background: "#f8f9fb", padding: "20px", borderRadius: "20px" }}>
-        <h3 style={{ marginBottom: "20px" }}>Active Clients</h3>
+        <h3 style={{ marginBottom: "20px", marginTop: 0 }}>Active Clients</h3>
         
         {dispClients.map(c => (
           <div 
@@ -279,6 +280,7 @@ export default function Clients() {
             {isAdmin && (
               <div style={btnRow}>
                 <button 
+                  type="button"
                   onClick={(e) => { 
                     e.stopPropagation(); 
                     handleDeleteClick(c);
@@ -295,7 +297,7 @@ export default function Clients() {
         {filtered.length === 0 && <p style={{ textAlign: "center", color: "#666" }}>No clients found.</p>}
 
         {clients.length > 10 && !search.trim() && (
-          <button onClick={() => setExpandClients(!expandClients)} style={expandBtnStyle}>
+          <button type="button" onClick={() => setExpandClients(!expandClients)} style={expandBtnStyle}>
             {expandClients ? "Show Less" : `Show All (${clients.length})`}
           </button>
         )}
@@ -305,41 +307,48 @@ export default function Clients() {
       {newClient && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={closePetModal}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "440px", maxHeight: "90vh", overflowY: "auto", position: "relative", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
-            <button onClick={closePetModal} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
+            <button type="button" onClick={closePetModal} style={{ position: "absolute", top: "15px", right: "15px", background: "#5b8fb9", color: "white", border: "none", borderRadius: "50%", width: "30px", height: "30px", cursor: "pointer", fontWeight: "bold", display: "flex", alignItems: "center", justifyContent: "center" }}>X</button>
             
             <h2 style={{ marginTop: 0, color: "#27ae60", paddingRight: "30px" }}>Client Created!</h2>
             <p style={{ color: "#666", marginBottom: "20px", fontSize: "15px" }}>Would you like to register a pet for <strong>{newClient.fullName}</strong> now?</p>
             
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
               <input placeholder="Pet Name" value={petName} onChange={(e) => setPetName(e.target.value)} style={inputStyle} />
-              <input list="pet-species-options" placeholder="Species" value={petSpecies} onChange={(e) => setPetSpecies(e.target.value)} style={inputStyle} />
-              <datalist id="pet-species-options">{SPECIES_OPTIONS.map(s => <option key={s} value={s} />)}</datalist>
+              
+              <select value={petSpecies} onChange={(e) => setPetSpecies(e.target.value)} style={inputStyle}>
+                <option value="">-- Select Species --</option>
+                {SPECIES_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              
               <input placeholder="Weight (kg)" type="number" step="0.1" value={petWeight} onChange={(e) => setPetWeight(e.target.value)} style={inputStyle} />
 
-              <button type="button" onClick={() => setShowPetMoreInfo(!showPetMoreInfo)} style={{ ...primaryBlueBtn, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <button type="button" onClick={() => setShowPetMoreInfo(!showPetMoreInfo)} style={{ ...primaryBlueBtn, width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <span>{showPetMoreInfo ? "Hide additional information" : "Add more information"}</span>
                 <span>{showPetMoreInfo ? "^" : "v"}</span>
               </button>
 
               {showPetMoreInfo && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "12px", border: "1px solid #e1e7ec", borderRadius: "10px", background: "#f8f9fb" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0px", padding: "12px", border: "1px solid #e1e7ec", borderRadius: "10px", background: "#f8f9fb", marginBottom: "10px" }}>
                   <input placeholder="Breed" value={petBreed} onChange={(e) => setPetBreed(e.target.value)} style={inputStyle} />
                   <input placeholder="Colour" value={petColour} onChange={(e) => setPetColour(e.target.value)} style={inputStyle} />
+                  
+                  {/* GENDER SELECT */}
                   <select value={petGender} onChange={(e) => setPetGender(e.target.value)} style={inputStyle}>
-                    <option value="">Gender</option>
+                    <option value="">-- Select Gender --</option>
                     {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
+
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                     <input placeholder="Age (years)" type="number" min="0" value={petAgeYears} onChange={(e) => setPetAgeYears(e.target.value)} style={inputStyle} />
                     <input placeholder="Age (months)" type="number" min="0" max="11" value={petAgeMonths} onChange={(e) => setPetAgeMonths(e.target.value)} style={inputStyle} />
                   </div>
-                  <input placeholder="Microchip" value={petMicrochip} onChange={(e) => setPetMicrochip(e.target.value)} style={inputStyle} />
+                  <input placeholder="Microchip" value={petMicrochip} onChange={(e) => setPetMicrochip(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
                 </div>
               )}
               
               <div style={{ display: "flex", gap: "10px", marginTop: "10px", justifyContent: "center" }}>
-                <button onClick={addPet} style={greenBtn}>Save Pet</button>
-                <button onClick={handleSkip} style={yellowBtn}>Skip for now</button>
+                <button type="button" onClick={addPet} style={{ ...greenBtn, flex: 1 }}>Save Pet</button>
+                <button type="button" onClick={handleSkip} style={{ ...yellowBtn, flex: 1 }}>Skip for now</button>
               </div>
             </div>
           </div>
@@ -354,7 +363,7 @@ export default function Clients() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {successMessage}
             </p>
-            <button onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>
+            <button type="button" onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>
               OK
             </button>
           </div>
@@ -369,7 +378,7 @@ export default function Clients() {
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
               {alertMessage}
             </p>
-            <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
+            <button type="button" onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}
@@ -383,8 +392,8 @@ export default function Clients() {
               {confirmModal.message}
             </p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-              <button onClick={confirmModal.onConfirm} style={{ ...standardBtnProps, background: confirmModal.confirmColor || "#e74c3c", color: "white" }}>{confirmModal.confirmText || "Confirm"}</button>
-              <button onClick={() => setConfirmModal(null)} style={greyBtn}>Cancel</button>
+              <button type="button" onClick={confirmModal.onConfirm} style={{ ...standardBtnProps, background: confirmModal.confirmColor || "#e74c3c", color: "white" }}>{confirmModal.confirmText || "Confirm"}</button>
+              <button type="button" onClick={() => setConfirmModal(null)} style={greyBtn}>Cancel</button>
             </div>
           </div>
         </div>
