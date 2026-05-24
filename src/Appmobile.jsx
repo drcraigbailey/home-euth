@@ -84,6 +84,22 @@ function Navbar(){
   const location=useLocation();
   const [isAdmin,setIsAdmin]=useState(false);
   const [showMenu,setShowMenu]=useState(false);
+  
+  // Refs for click-outside detection
+  const menuRef = useRef(null);
+  const moreButtonRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (showMenu && 
+          menuRef.current && !menuRef.current.contains(event.target) && 
+          moreButtonRef.current && !moreButtonRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showMenu]);
 
   useEffect(()=>{
     async function checkAdmin(){
@@ -117,7 +133,7 @@ function Navbar(){
       </div>
 
       {showMenu && (
-        <div style={{position:"fixed", right:"15px", bottom:"90px", background:"white", borderRadius:"16px", padding:"10px", boxShadow:"0 5px 20px rgba(0,0,0,.15)", zIndex:2000, width:"180px"}}>
+        <div ref={menuRef} style={{position:"fixed", right:"15px", bottom:"90px", background:"white", borderRadius:"16px", padding:"10px", boxShadow:"0 5px 20px rgba(0,0,0,.15)", zIndex:2000, width:"180px"}}>
           <NavLink to="/products" style={{...menuStyle, color:"#5b8fb9"}} onClick={()=>setShowMenu(false)}>
             <Package size={18} color="#5b8fb9"/> Products
           </NavLink>
@@ -155,7 +171,7 @@ function Navbar(){
           <Syringe size={22}/>
           <span>Sedation</span>
         </NavLink>
-        <button onClick={()=>setShowMenu(!showMenu)} style={{border:"none", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minWidth:"70px", flex:1, cursor:"pointer", color:"#5b8fb9"}}>
+        <button ref={moreButtonRef} onClick={()=>setShowMenu(!showMenu)} style={{border:"none", background:"transparent", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minWidth:"70px", flex:1, cursor:"pointer", color:"#5b8fb9"}}>
           <Menu size={22}/>
           <span style={{fontSize:"12px"}}>More</span>
         </button>

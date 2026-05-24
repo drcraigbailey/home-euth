@@ -21,7 +21,6 @@ const btnStyle = { padding: "12px", borderRadius: "8px", border: "none", cursor:
 const inputStyle = { width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", boxSizing: "border-box", marginBottom: "10px" };
 const whiteShadowBox = { background: "white", padding: "15px", borderRadius: "12px", marginBottom: "15px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", border: "1px solid #eee" };
 
-// Updated properties to lock text to a single line (whiteSpace: "nowrap")
 const standardBtnProps = { 
   borderRadius: "8px", 
   border: "none", 
@@ -138,12 +137,29 @@ export default function PatientDetail() {
   const [searchInvoices, setSearchInvoices] = useState("");
   const [expandInvoices, setExpandInvoices] = useState(false);
 
-  // Tab 4: Consent
+  // Tab 4: Consent & Aftercare
+  const [subTabAftercare, setSubTabAftercare] = useState("aftercare"); 
+  const [isEditingAftercare, setIsEditingAftercare] = useState(true);
   const [consentHistory, setConsentHistory] = useState([]);
   const [consentName, setConsentName] = useState("");
   const sigPadRef = useRef(null);
   const [searchConsents, setSearchConsents] = useState("");
   const [expandConsents, setExpandConsents] = useState(false);
+
+  const [aftercareAshes, setAftercareAshes] = useState("");
+  const [aftercareNamePlate, setAftercareNamePlate] = useState("");
+  const [aftercareIncludeCremation, setAftercareIncludeCremation] = useState("");
+  const [aftercareReturnItems, setAftercareReturnItems] = useState("");
+  const [aftercareFurClippings, setAftercareFurClippings] = useState(false);
+  const [aftercareFurClippingsQty, setAftercareFurClippingsQty] = useState("");
+  const [aftercarePawPrints, setAftercarePawPrints] = useState(false);
+  const [aftercarePawPrintsQty, setAftercarePawPrintsQty] = useState("");
+
+  const [vetName, setVetName] = useState("");
+  const [vetPostcode, setVetPostcode] = useState("");
+  const [vetAddress, setVetAddress] = useState("");
+  const [vetEmail, setVetEmail] = useState("");
+  const [vetEmailTemplate, setVetEmailTemplate] = useState(""); 
 
   // Tab 5: Appointments
   const [profiles, setProfiles] = useState([]);
@@ -197,8 +213,6 @@ export default function PatientDetail() {
   }, [location.state]);
 
   // --- PDF BRANDING ENGINE ---
-
-  // 1. Helper to fetch logo and convert to base64 required by jsPDF
   async function getBase64ImageFromUrl(imageUrl) {
     try {
       const res = await fetch(imageUrl);
@@ -215,43 +229,19 @@ export default function PatientDetail() {
     }
   }
 
-  // 2. The unified Header engine
   async function drawReportHeader(doc, subtitle) {
     const base64Logo = await getBase64ImageFromUrl(logoImage);
-    
-    // Position the logo
-    if (base64Logo) {
-      doc.addImage(base64Logo, 'PNG', 14, 10, 20, 20); 
-    }
+    if (base64Logo) doc.addImage(base64Logo, 'PNG', 14, 10, 20, 20); 
 
-    // Company & Professional Name Setup
-    doc.setFontSize(22);
-    doc.setTextColor(44, 62, 80); // #2c3e50 (Slate)
-    doc.setFont("helvetica", "bold");
-    doc.text("SP Home Euthanasia", 38, 20);
-
-    doc.setFontSize(12);
-    doc.setTextColor(91, 143, 185); // #5b8fb9 (Primary Brand Blue)
-    doc.setFont("helvetica", "normal");
-    doc.text("Dr Craig Bailey", 38, 26);
-
-    doc.setFontSize(12);
-    doc.setTextColor(127, 140, 141); // #7f8c8d (Grey)
-    doc.text(subtitle, 38, 32);
-    
-    doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 38, 38);
-
-    doc.setTextColor(0, 0, 0); // Reset for standard text
-    return 50; // New Y-position for tables to start below the header
+    doc.setFontSize(22); doc.setTextColor(44, 62, 80); doc.setFont("helvetica", "bold"); doc.text("SP Home Euthanasia", 38, 20);
+    doc.setFontSize(12); doc.setTextColor(91, 143, 185); doc.setFont("helvetica", "normal"); doc.text("Dr Craig Bailey", 38, 26);
+    doc.setFontSize(12); doc.setTextColor(127, 140, 141); doc.text(subtitle, 38, 32);
+    doc.setFontSize(10); doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 38, 38);
+    doc.setTextColor(0, 0, 0); 
+    return 50; 
   }
 
-  // 3. Unified AutoTable Theme
-  const tableBrandTheme = {
-    headStyles: { fillColor: [91, 143, 185], textColor: [255, 255, 255], fontStyle: 'bold' },
-    styles: { textColor: [44, 62, 80] },
-    alternateRowStyles: { fillColor: [248, 249, 251] }
-  };
+  const tableBrandTheme = { headStyles: { fillColor: [91, 143, 185], textColor: [255, 255, 255], fontStyle: 'bold' }, styles: { textColor: [44, 62, 80] }, alternateRowStyles: { fillColor: [248, 249, 251] } };
 
   async function checkAdmin() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -262,9 +252,7 @@ export default function PatientDetail() {
       if (adminStatus) {
         const { data: allProfiles } = await supabase.from("profiles").select("*");
         setProfiles(allProfiles || []);
-      } else {
-        setProfiles([profile]);
-      }
+      } else setProfiles([profile]);
       setAptUserId(session.user.id);
     }
   }
@@ -272,387 +260,201 @@ export default function PatientDetail() {
   async function fetchPatient() {
     const { data } = await supabase.from("patients").select("*, clients(*)").eq("id", id).single();
     if (data) { 
-      setPatient(data); 
-      setEditData(data); 
-
+      setPatient(data); setEditData(data); 
       let parsedNotes = [];
       if (data.notes) {
-        try {
-          parsedNotes = JSON.parse(data.notes);
-          if (!Array.isArray(parsedNotes)) throw new Error("Not an array");
-        } catch (e) {
-          parsedNotes = [{ 
-            id: generateUUID(), 
-            date: data.created_at || new Date().toISOString(), 
-            text: data.notes 
-          }];
-        }
+        try { parsedNotes = JSON.parse(data.notes); if (!Array.isArray(parsedNotes)) throw new Error("Not an array"); } 
+        catch (e) { parsedNotes = [{ id: generateUUID(), date: data.created_at || new Date().toISOString(), text: data.notes }]; }
       }
       parsedNotes.sort((a, b) => new Date(b.date) - new Date(a.date));
       setNotesList(parsedNotes);
     }
   }
 
-  // --- FILE HANDLING ---
-  async function fetchFiles() {
-    const { data, error } = await supabase.storage.from("patient_documents").list(id);
-    if (data) setPatientFiles(data);
-  }
+  async function fetchFiles() { const { data } = await supabase.storage.from("patient_documents").list(id); if (data) setPatientFiles(data); }
 
   async function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
+    const file = event.target.files[0]; if (!file) return;
     setIsUploading(true);
-    const filePath = `${id}/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage.from("patient_documents").upload(filePath, file);
-    
+    const { error } = await supabase.storage.from("patient_documents").upload(`${id}/${Date.now()}_${file.name}`, file);
     setIsUploading(false);
-    if (error) {
-      setAlertMessage("Failed to upload file: " + error.message);
-    } else {
-      setSuccessMessage("File uploaded successfully!");
-      fetchFiles();
-    }
+    if (error) setAlertMessage("Failed to upload file: " + error.message);
+    else { setSuccessMessage("File uploaded successfully!"); fetchFiles(); }
   }
 
   async function viewFile(fileObj) {
     const fileName = typeof fileObj === 'string' ? fileObj : fileObj.name;
     const { data } = await supabase.storage.from("patient_documents").getPublicUrl(`${id}/${fileName}`);
-    
     if (data?.publicUrl) {
       const mimeType = fileObj.metadata?.mimetype || "";
-      const isImage = mimeType.startsWith("image/") || fileName.match(/\.(jpeg|jpg|gif|png|webp|heic|heif)$/i);
-      
-      if (isImage) {
-        setViewingImage(data.publicUrl);
-      } else {
-        window.open(data.publicUrl, "_blank");
-      }
+      if (mimeType.startsWith("image/") || fileName.match(/\.(jpeg|jpg|gif|png|webp|heic|heif)$/i)) setViewingImage(data.publicUrl);
+      else window.open(data.publicUrl, "_blank");
     }
   }
 
   function deleteFile(fileName) {
     setConfirmModal({
-      title: "Delete File?",
-      message: `Are you sure you want to delete ${fileName}?`,
-      confirmText: "Yes, Delete",
-      confirmColor: "#e74c3c",
-      onConfirm: async () => {
-        await supabase.storage.from("patient_documents").remove([`${id}/${fileName}`]);
-        fetchFiles();
-        setConfirmModal(null);
-      }
+      title: "Delete File?", message: `Are you sure you want to delete ${fileName}?`, confirmText: "Yes, Delete", confirmColor: "#e74c3c",
+      onConfirm: async () => { await supabase.storage.from("patient_documents").remove([`${id}/${fileName}`]); fetchFiles(); setConfirmModal(null); }
     });
   }
 
-  // --- EMAIL HANDLING ---
-  async function fetchTemplates() {
-    const { data } = await supabase.from("email_templates").select("*").order("name");
-    setEmailTemplates(data || []);
-  }
+  async function fetchTemplates() { const { data } = await supabase.from("email_templates").select("*").order("name"); setEmailTemplates(data || []); }
 
   function handleTemplateSelect(e) {
-    const tmplId = e.target.value;
-    setSelectedTemplate(tmplId);
-    
-    if (!tmplId) {
-      setEmailSubject("");
-      setEmailBody("");
-      return;
-    }
-
-    const tmpl = emailTemplates.find(t => String(t.id) === String(tmplId));
-    if (!tmpl) return;
-
-    const cName = patient?.clients?.name || "Client";
-    const pName = patient?.name || "your pet";
-    
+    const tmplId = e.target.value; setSelectedTemplate(tmplId);
+    if (!tmplId) { setEmailSubject(""); setEmailBody(""); return; }
+    const tmpl = emailTemplates.find(t => String(t.id) === String(tmplId)); if (!tmpl) return;
+    const cName = patient?.clients?.name || "Client"; const pName = patient?.name || "your pet";
     setEmailSubject(tmpl.subject.replace(/{patient_name}/g, pName).replace(/{client_name}/g, cName));
     setEmailBody(tmpl.body.replace(/{patient_name}/g, pName).replace(/{client_name}/g, cName));
   }
 
   function sendEmail() {
     const clientEmail = patient?.clients?.email;
-    if (!clientEmail) {
-      return setAlertMessage("This client does not have an email address saved. Please update their profile in the Clients tab.");
+    if (!clientEmail) return setAlertMessage("This client does not have an email address saved. Please update their profile in the Clients tab.");
+    window.location.href = `mailto:${clientEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+  }
+
+  async function fetchSedationHistory() { const { data } = await supabase.from("sedation_records").select("*").eq("patient_id", id).order("created_at", { ascending: false }); setSedationHistory(data || []); }
+
+  async function fetchConsentHistory() { 
+    const { data } = await supabase.from("consent_records").select("*").eq("patient_id", id).order("created_at", { ascending: false }); 
+    setConsentHistory(data || []); 
+
+    if (data && data.length > 0) {
+      const latestWithAftercare = data.find(c => c.aftercare_details);
+      if (latestWithAftercare) {
+        const ad = latestWithAftercare.aftercare_details;
+        setAftercareAshes(ad.ashes || "");
+        setAftercareNamePlate(ad.namePlate || "");
+        setAftercareIncludeCremation(ad.includeCremation || "");
+        setAftercareReturnItems(ad.returnItems || "");
+        setAftercareFurClippings(ad.furClippings || false);
+        setAftercareFurClippingsQty(ad.furClippingsQty || "");
+        setAftercarePawPrints(ad.pawPrints || false);
+        setAftercarePawPrintsQty(ad.pawPrintsQty || "");
+        setVetName(ad.vetName || "");
+        setVetPostcode(ad.vetPostcode || "");
+        setVetAddress(ad.vetAddress || "");
+        setVetEmail(ad.vetEmail || "");
+        setIsEditingAftercare(false); 
+      }
     }
-    const mailtoLink = `mailto:${clientEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-    window.location.href = mailtoLink;
   }
 
-  async function fetchSedationHistory() {
-    const { data } = await supabase.from("sedation_records").select("*").eq("patient_id", id).order("created_at", { ascending: false });
-    setSedationHistory(data || []);
-  }
+  async function fetchProducts() { const { data } = await supabase.from("products").select("*").order("name"); setAllProducts(data || []); }
+  async function fetchProcedures() { const { data } = await supabase.from("patient_procedures").select("*").eq("patient_id", id).order("created_at", { ascending: false }); setPatientProcedures(data || []); }
+  async function fetchAppointments() { const { data } = await supabase.from("diary_entries").select("*").eq("patient_id", id).order("date", { ascending: false }); setAppointments(data || []); }
+  async function fetchProtocols() { const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)"); setProtocols(data || []); }
+  async function fetchStock() { const { data } = await supabase.from("stock").select("*"); setStock(data || []); }
 
-  async function fetchConsentHistory() {
-    const { data } = await supabase.from("consent_records").select("*").eq("patient_id", id).order("created_at", { ascending: false });
-    setConsentHistory(data || []);
-  }
-
-  async function fetchProducts() {
-    const { data } = await supabase.from("products").select("*").order("name");
-    setAllProducts(data || []);
-  }
-
-  async function fetchProcedures() {
-    const { data } = await supabase.from("patient_procedures").select("*").eq("patient_id", id).order("created_at", { ascending: false });
-    setPatientProcedures(data || []);
-  }
-
-  async function fetchAppointments() {
-    const { data } = await supabase.from("diary_entries").select("*").eq("patient_id", id).order("date", { ascending: false });
-    setAppointments(data || []);
-  }
-
-  async function fetchProtocols() {
-    const { data } = await supabase.from("protocols").select("*, protocol_drugs (*)");
-    setProtocols(data || []);
-  }
-
-  async function fetchStock() {
-    const { data } = await supabase.from("stock").select("*");
-    setStock(data || []);
-  }
-
-  // --- PATIENT INFO ACTIONS ---
   async function updatePatient() {
     const payload = { ...editData, age_years: Number(editData.age_years) || null, age_months: Number(editData.age_months) || null, weight: Number(editData.weight) };
-    
-    delete payload.notes; 
-    delete payload.clients; 
-
+    delete payload.notes; delete payload.clients; 
     const { error } = await supabase.from("patients").update(payload).eq("id", id);
-    if (!error) { 
-      setEditMode(false); 
-      fetchPatient(); 
-      setSuccessMessage("Patient details saved successfully!"); 
-    } else {
-      setAlertMessage(error.message);
-    }
+    if (!error) { setEditMode(false); fetchPatient(); setSuccessMessage("Patient details saved successfully!"); } 
+    else setAlertMessage(error.message);
   }
 
   function toggleDeceased() {
     const newStatus = !patient.is_deceased;
-    if (!newStatus && !isAdmin) {
-      setAlertMessage("Only administrators can unmark a patient as deceased.");
-      return;
-    }
-    
+    if (!newStatus && !isAdmin) return setAlertMessage("Only administrators can unmark a patient as deceased.");
     if (newStatus) {
       setConfirmModal({
-        title: "Mark Deceased?",
-        message: `Are you sure you want to mark ${patient.name} as Deceased?`,
-        confirmText: "Yes, Mark Deceased",
-        confirmColor: "#e74c3c",
-        onConfirm: async () => {
-          const { error } = await supabase.from("patients").update({ is_deceased: true }).eq("id", id);
-          if (!error) {
-            setPatient(prev => ({ ...prev, is_deceased: true }));
-            fetchPatient();
-          }
-          setConfirmModal(null);
-        }
+        title: "Mark Deceased?", message: `Are you sure you want to mark ${patient.name} as Deceased?`, confirmText: "Yes, Mark Deceased", confirmColor: "#e74c3c",
+        onConfirm: async () => { await supabase.from("patients").update({ is_deceased: true }).eq("id", id); setPatient(prev => ({ ...prev, is_deceased: true })); fetchPatient(); setConfirmModal(null); }
       });
     } else {
-      supabase.from("patients").update({ is_deceased: false }).eq("id", id).then(({error}) => {
-        if (!error) {
-          setPatient(prev => ({ ...prev, is_deceased: false }));
-          fetchPatient();
-        }
-      });
+      supabase.from("patients").update({ is_deceased: false }).eq("id", id).then(({error}) => { if (!error) { setPatient(prev => ({ ...prev, is_deceased: false })); fetchPatient(); } });
     }
   }
 
   async function autoMarkDeceased() {
     const { error } = await supabase.from("patients").update({ is_deceased: true }).eq("id", id);
-    if (!error) {
-      setPatient(prev => ({ ...prev, is_deceased: true }));
-      fetchPatient();
-      setSuccessMessage("Euthanasia added to invoice. Patient has automatically been marked as Deceased. 🕊️");
-    }
+    if (!error) { setPatient(prev => ({ ...prev, is_deceased: true })); fetchPatient(); setSuccessMessage("Euthanasia added to invoice. Patient has automatically been marked as Deceased. 🕊️"); }
   }
 
-  // --- CLINICAL NOTES ACTIONS ---
   async function saveNotesToSupabase(updatedNotesArray) {
     const jsonString = JSON.stringify(updatedNotesArray);
     const { error } = await supabase.from("patients").update({ notes: jsonString }).eq("id", id);
-    if (error) {
-      setAlertMessage("Error saving notes: " + error.message);
-      return false;
-    }
-    setPatient(prev => ({ ...prev, notes: jsonString }));
-    return true;
+    if (error) { setAlertMessage("Error saving notes: " + error.message); return false; }
+    setPatient(prev => ({ ...prev, notes: jsonString })); return true;
   }
 
   async function addNote() {
     if (!newNoteText.trim()) return;
-    const newNote = { id: generateUUID(), date: new Date().toISOString(), text: newNoteText.trim() };
-    const updated = [newNote, ...notesList]; 
-    const success = await saveNotesToSupabase(updated);
-    if (success) {
-      setNotesList(updated);
-      setNewNoteText("");
-      setSuccessMessage("Clinical note saved successfully!");
-    }
+    const updated = [{ id: generateUUID(), date: new Date().toISOString(), text: newNoteText.trim() }, ...notesList]; 
+    if (await saveNotesToSupabase(updated)) { setNotesList(updated); setNewNoteText(""); setSuccessMessage("Clinical note saved successfully!"); }
   }
 
-  function startEditNote(note) {
-    setEditingNoteId(note.id);
-    setEditNoteText(note.text);
-  }
-
+  function startEditNote(note) { setEditingNoteId(note.id); setEditNoteText(note.text); }
   async function saveEditNote(noteId) {
     if (!editNoteText.trim()) return setAlertMessage("Note text cannot be empty.");
     const updated = notesList.map(n => n.id === noteId ? { ...n, text: editNoteText.trim() } : n);
-    const success = await saveNotesToSupabase(updated);
-    if (success) {
-      setNotesList(updated);
-      setEditingNoteId(null);
-      setSuccessMessage("Clinical note updated successfully!");
-    }
+    if (await saveNotesToSupabase(updated)) { setNotesList(updated); setEditingNoteId(null); setSuccessMessage("Clinical note updated successfully!"); }
   }
 
   function confirmDeleteNote(noteId) {
-    setConfirmModal({
-      title: "Delete Note?",
-      message: "Are you sure you want to permanently delete this clinical note?",
-      confirmText: "Yes, Delete",
-      confirmColor: "#e74c3c",
-      onConfirm: async () => {
-        const updated = notesList.filter(n => n.id !== noteId);
-        const success = await saveNotesToSupabase(updated);
-        if (success) {
-          setNotesList(updated);
-        }
-        setConfirmModal(null);
-      }
+    setConfirmModal({ title: "Delete Note?", message: "Are you sure you want to permanently delete this clinical note?", confirmText: "Yes, Delete", confirmColor: "#e74c3c",
+      onConfirm: async () => { const updated = notesList.filter(n => n.id !== noteId); if (await saveNotesToSupabase(updated)) setNotesList(updated); setConfirmModal(null); }
     });
   }
 
-  // --- DOSING ACTIONS ---
-  function getStockForDrug(drug) {
-    return stock.filter(s => normaliseDrugName(s.drug) === normaliseDrugName(drug) && s.total_ml > 0 && !s.is_archived);
-  }
+  function getStockForDrug(drug) { return stock.filter(s => normaliseDrugName(s.drug) === normaliseDrugName(drug) && s.total_ml > 0 && !s.is_archived); }
 
   function handleProtocolChange(e) {
-    const newId = e.target.value;
-    setProtocolId(newId);
-    if (!newId || !patient?.weight) {
-      setCalcResults([]);
-      return;
-    }
+    const newId = e.target.value; setProtocolId(newId);
+    if (!newId || !patient?.weight) return setCalcResults([]);
     const proto = protocols.find(p => String(p.id) === String(newId));
     if (proto && proto.protocol_drugs) {
       const calc = proto.protocol_drugs.map(d => {
         const normalised = normaliseDrugName(d.drug_name);
         const stockMatches = getStockForDrug(normalised);
-        const prefilledBatchId = stockMatches.length > 0 ? stockMatches[stockMatches.length - 1].id : "";
-
-        const calculatedVolume = (d.mg_per_kg && d.mg_per_ml && Number(d.mg_per_ml) > 0) 
-            ? Number(((d.mg_per_kg * patient.weight) / d.mg_per_ml).toFixed(2)) 
-            : 0;
-
-        return {
-          drug: normalised,
-          label: d.drug_name,
-          ml: calculatedVolume,
-          waste: 0.05,
-          batchId: prefilledBatchId,
-          batchName: ""
-        };
+        const calcVol = (d.mg_per_kg && d.mg_per_ml && Number(d.mg_per_ml) > 0) ? Number(((d.mg_per_kg * patient.weight) / d.mg_per_ml).toFixed(2)) : 0;
+        return { drug: normalised, label: d.drug_name, ml: calcVol, waste: 0.05, batchId: stockMatches.length > 0 ? stockMatches[stockMatches.length - 1].id : "", batchName: "" };
       });
       setCalcResults(calc);
     }
   }
 
-  function updateDose(i, val) {
-    const updated = [...calcResults];
-    updated[i].ml = val === "" ? "" : parseFloat(val) || 0;
-    setCalcResults(updated);
-  }
-
-  function updateWaste(i, val) {
-    const updated = [...calcResults];
-    updated[i].waste = val === "" ? "" : parseFloat(val) || 0;
-    setCalcResults(updated);
-  }
-
-  function updateBatch(i, val) {
-    const updated = [...calcResults];
-    updated[i].batchId = val;
-    setCalcResults(updated);
-  }
+  function updateDose(i, val) { const u = [...calcResults]; u[i].ml = val === "" ? "" : parseFloat(val) || 0; setCalcResults(u); }
+  function updateWaste(i, val) { const u = [...calcResults]; u[i].waste = val === "" ? "" : parseFloat(val) || 0; setCalcResults(u); }
+  function updateBatch(i, val) { const u = [...calcResults]; u[i].batchId = val; setCalcResults(u); }
 
   async function executeSaveDosing() {
-    const { error } = await supabase.from("sedation_records").insert([{ 
-      patient_id: id, 
-      protocol_id: protocolId || null, 
-      weight: patient.weight, 
-      results: calcResults 
-    }]);
-
+    const { error } = await supabase.from("sedation_records").insert([{ patient_id: id, protocol_id: protocolId || null, weight: patient.weight, results: calcResults }]);
     if (!error) {
       for (const r of calcResults) {
         const totalUsed = (parseFloat(r.ml) || 0) + (parseFloat(r.waste) || 0);
         if (r.batchId && totalUsed > 0) {
           const current = stock.find(s => String(s.id) === String(r.batchId));
-          if (current) {
-            await supabase.from("stock").update({ total_ml: Math.max(0, current.total_ml - totalUsed) }).eq("id", current.id);
-          }
+          if (current) await supabase.from("stock").update({ total_ml: Math.max(0, current.total_ml - totalUsed) }).eq("id", current.id);
         }
       }
-      setSuccessMessage("Doses successfully recorded and deducted from stock!");
-      setCalcResults([]);
-      setProtocolId("");
-      fetchStock(); 
-      fetchSedationHistory();
-    } else {
-      setAlertMessage("Error saving doses: " + error.message);
-    }
+      setSuccessMessage("Doses successfully recorded and deducted from stock!"); setCalcResults([]); setProtocolId(""); fetchStock(); fetchSedationHistory();
+    } else setAlertMessage("Error saving doses: " + error.message);
   }
 
   function saveDosing() {
-    if (!patient?.weight) {
-      return setAlertMessage("Please set the patient's weight in the Details tab before recording doses.");
-    }
-    
-    if (!protocolId || calcResults.length === 0) {
-      return setAlertMessage("Please select a Sedation Protocol first.");
-    }
-
+    if (!patient?.weight) return setAlertMessage("Please set the patient's weight in the Details tab before recording doses.");
+    if (!protocolId || calcResults.length === 0) return setAlertMessage("Please select a Sedation Protocol first.");
     const missingBatches = calcResults.some(r => !r.batchId);
-    
     setConfirmModal({
-      title: "Confirm Dosing",
-      message: missingBatches 
-        ? "Some drugs have no batch selected. Are you sure you want to record these doses and deduct from stock anyway?"
-        : "Are you sure you want to record these doses and deduct the amounts from your active stock?",
-      confirmText: "Yes, Record Doses",
-      confirmColor: "#27ae60",
-      onConfirm: () => {
-        setConfirmModal(null);
-        executeSaveDosing();
-      }
+      title: "Confirm Dosing", message: missingBatches ? "Some drugs have no batch selected. Are you sure you want to record these doses and deduct from stock anyway?" : "Are you sure you want to record these doses and deduct the amounts from your active stock?",
+      confirmText: "Yes, Record Doses", confirmColor: "#27ae60", onConfirm: () => { setConfirmModal(null); executeSaveDosing(); }
     });
   }
 
-  function startEditHistory(h) {
-    setEditingHistoryId(h.id);
-    const prefilled = (h.results || []).map(r => ({ ...r, waste: r.waste !== undefined ? r.waste : 0.05 }));
-    setEditHistoryResults(prefilled);
-  }
+  function startEditHistory(h) { setEditingHistoryId(h.id); setEditHistoryResults((h.results || []).map(r => ({ ...r, waste: r.waste !== undefined ? r.waste : 0.05 }))); }
 
   async function saveEditHistory(historyId) {
     const { data: original } = await supabase.from("sedation_records").select("*").eq("id", historyId).single();
     if (original) {
       for (let i = 0; i < editHistoryResults.length; i++) {
-        const oldR = original.results[i]; 
-        const newR = editHistoryResults[i];
+        const oldR = original.results[i]; const newR = editHistoryResults[i];
         if (oldR && oldR.batchId) {
-          const oldWaste = oldR.waste !== undefined ? parseFloat(oldR.waste) : 0;
-          const newWaste = newR.waste !== "" ? parseFloat(newR.waste) : 0;
+          const oldWaste = oldR.waste !== undefined ? parseFloat(oldR.waste) : 0; const newWaste = newR.waste !== "" ? parseFloat(newR.waste) : 0;
           const diff = ((parseFloat(oldR.ml) || 0) + oldWaste) - ((parseFloat(newR.ml) || 0) + newWaste); 
           if (diff !== 0) {
             const { data: currentStock } = await supabase.from("stock").select("total_ml").eq("id", oldR.batchId).single();
@@ -661,266 +463,179 @@ export default function PatientDetail() {
         }
       }
     }
-    const finalResultsToSave = editHistoryResults.map(r => ({ ...r, ml: parseFloat(r.ml) || 0, waste: r.waste !== "" ? parseFloat(r.waste) : 0 }));
-    await supabase.from("sedation_records").update({ results: finalResultsToSave }).eq("id", historyId);
+    await supabase.from("sedation_records").update({ results: editHistoryResults.map(r => ({ ...r, ml: parseFloat(r.ml) || 0, waste: r.waste !== "" ? parseFloat(r.waste) : 0 })) }).eq("id", historyId);
     setEditingHistoryId(null); fetchSedationHistory(); fetchStock();
   }
 
-  // --- PROCEDURES ACTIONS ---
   function checkEuthAndConsent(productId, notesText) {
     const prod = allProducts.find(p => String(p.id) === String(productId));
-    const isEuthProd = prod && (prod.name.toLowerCase().includes("euth") || prod.name.toLowerCase().includes("euthanasia"));
-    const isEuthNotes = (notesText || "").toLowerCase().includes("euth") || (notesText || "").toLowerCase().includes("euthanasia");
-    
-    const isEuth = isEuthProd || isEuthNotes;
-    const hasConsent = consentHistory && consentHistory.length > 0;
-
-    return { isEuth, hasConsent };
+    const isEuth = (prod && (prod.name.toLowerCase().includes("euth") || prod.name.toLowerCase().includes("euthanasia"))) || ((notesText || "").toLowerCase().includes("euth") || (notesText || "").toLowerCase().includes("euthanasia"));
+    return { isEuth, hasConsent: consentHistory && consentHistory.length > 0 };
   }
 
   function handleProductSelect(e) {
-    const prodId = e.target.value; 
-    setSelectedProductId(prodId);
+    const prodId = e.target.value; setSelectedProductId(prodId);
     const prod = allProducts.find(p => String(p.id) === String(prodId)); 
     if (prod) setProcedurePrice(prod.price);
   }
 
   async function addProcedure() {
     if (!selectedProductId) return setAlertMessage("Please select a procedure.");
-    
     const { isEuth, hasConsent } = checkEuthAndConsent(selectedProductId, procedureNotes);
+    if (isEuth && !hasConsent) return setShowConsentPrompt(true); 
     
-    if (isEuth && !hasConsent) {
-      setShowConsentPrompt(true); 
-      return; 
-    }
-
     const prod = allProducts.find(p => String(p.id) === String(selectedProductId));
-    const newInvoiceId = generateUUID(); 
-    const payload = { 
-      patient_id: id, 
-      product_id: selectedProductId, 
-      product_name: prod.name, 
-      price: Number(procedurePrice), 
-      notes: procedureNotes, 
-      is_paid: false,
-      invoice_id: newInvoiceId 
-    };
-    
-    const { error } = await supabase.from("patient_procedures").insert([payload]);
-    
-    if (!error) {      
-      setSelectedProductId(""); setProcedurePrice(""); setProcedureNotes(""); fetchProcedures(); 
-      if (isEuth && !patient.is_deceased) {
-        autoMarkDeceased();
-      }
-    }
+    const { error } = await supabase.from("patient_procedures").insert([{ patient_id: id, product_id: selectedProductId, product_name: prod.name, price: Number(procedurePrice), notes: procedureNotes, is_paid: false, invoice_id: generateUUID() }]);
+    if (!error) { setSelectedProductId(""); setProcedurePrice(""); setProcedureNotes(""); fetchProcedures(); if (isEuth && !patient.is_deceased) autoMarkDeceased(); }
   }
 
-  function startEditProcedure(proc) {
-    setEditingProcId(proc.id);
-    setEditProcPrice(proc.price);
-    setEditProcNotes(proc.notes || "");
-  }
-
+  function startEditProcedure(proc) { setEditingProcId(proc.id); setEditProcPrice(proc.price); setEditProcNotes(proc.notes || ""); }
   async function saveEditProcedure(procId) {
-    const { error } = await supabase
-      .from("patient_procedures")
-      .update({ price: Number(editProcPrice), notes: editProcNotes })
-      .eq("id", procId);
-    
-    if (!error) {
-      setEditingProcId(null);
-      fetchProcedures();
-    } else {
-      setAlertMessage("Error saving procedure: " + error.message);
-    }
+    const { error } = await supabase.from("patient_procedures").update({ price: Number(editProcPrice), notes: editProcNotes }).eq("id", procId);
+    if (!error) { setEditingProcId(null); fetchProcedures(); } else setAlertMessage("Error saving procedure: " + error.message);
   }
 
   async function saveInlineProcedure(targetInvoiceId) {
     if (!inlineProdId) return setAlertMessage("Select a product.");
-    
     const { isEuth, hasConsent } = checkEuthAndConsent(inlineProdId, inlineNotes);
+    if (isEuth && !hasConsent) return setShowConsentPrompt(true);
     
-    if (isEuth && !hasConsent) {
-      setShowConsentPrompt(true);
-      return; 
-    }
-
     const prod = allProducts.find(p => String(p.id) === String(inlineProdId));
-    const payload = { 
-      patient_id: id, 
-      product_id: inlineProdId, 
-      product_name: prod.name, 
-      price: Number(inlinePrice), 
-      notes: inlineNotes, 
-      is_paid: false,
-      invoice_id: targetInvoiceId === 'Legacy' ? null : targetInvoiceId 
-    };
-    
-    const { error } = await supabase.from("patient_procedures").insert([payload]);
-    
-    if (!error) { 
-      setAddingToInvId(null); setInlineProdId(""); setInlinePrice(""); setInlineNotes(""); fetchProcedures(); 
-      if (isEuth && !patient.is_deceased) {
-        autoMarkDeceased();
-      }
-    } else {
-      setAlertMessage("Error adding item: " + error.message);
-    }
+    const { error } = await supabase.from("patient_procedures").insert([{ patient_id: id, product_id: inlineProdId, product_name: prod.name, price: Number(inlinePrice), notes: inlineNotes, is_paid: false, invoice_id: targetInvoiceId === 'Legacy' ? null : targetInvoiceId }]);
+    if (!error) { setAddingToInvId(null); setInlineProdId(""); setInlinePrice(""); setInlineNotes(""); fetchProcedures(); if (isEuth && !patient.is_deceased) autoMarkDeceased(); } 
+    else setAlertMessage("Error adding item: " + error.message);
   }
 
   async function markInvoicePaid(invoiceId) {
-    if (invoiceId === 'Legacy') {
-      const { error } = await supabase.from("patient_procedures").update({ is_paid: true }).is("invoice_id", null).eq("patient_id", id);
-      if (!error) fetchProcedures();
-    } else {
-      const { error } = await supabase.from("patient_procedures").update({ is_paid: true }).eq("invoice_id", invoiceId);
-      if (!error) fetchProcedures();
-    }
+    if (invoiceId === 'Legacy') await supabase.from("patient_procedures").update({ is_paid: true }).is("invoice_id", null).eq("patient_id", id);
+    else await supabase.from("patient_procedures").update({ is_paid: true }).eq("invoice_id", invoiceId);
+    fetchProcedures();
   }
 
   function unmarkInvoicePaid(invoiceId) {
     if (!isAdmin) return setAlertMessage("Only administrators can unmark invoices as unpaid.");
-    
     setConfirmModal({
-      title: "Unmark Invoice",
-      message: "Are you sure you want to unmark this entire invoice as unpaid?",
-      confirmText: "Yes, Unmark",
-      confirmColor: "#f39c12",
+      title: "Unmark Invoice", message: "Are you sure you want to unmark this entire invoice as unpaid?", confirmText: "Yes, Unmark", confirmColor: "#f39c12",
       onConfirm: async () => {
-        if (invoiceId === 'Legacy') {
-          const { error } = await supabase.from("patient_procedures").update({ is_paid: false }).is("invoice_id", null).eq("patient_id", id);
-          if (!error) fetchProcedures();
-        } else {
-          const { error } = await supabase.from("patient_procedures").update({ is_paid: false }).eq("invoice_id", invoiceId);
-          if (!error) fetchProcedures();
-        }
-        setConfirmModal(null);
+        if (invoiceId === 'Legacy') await supabase.from("patient_procedures").update({ is_paid: false }).is("invoice_id", null).eq("patient_id", id);
+        else await supabase.from("patient_procedures").update({ is_paid: false }).eq("invoice_id", invoiceId);
+        fetchProcedures(); setConfirmModal(null);
       }
     });
   }
 
   async function downloadSpecificInvoice(inv) {
     try {
-      const doc = new jsPDF();
-      
-      let yPos = await drawReportHeader(doc, "Invoice");
-
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
+      const doc = new jsPDF(); let yPos = await drawReportHeader(doc, "Invoice");
+      doc.setFontSize(10); doc.setTextColor(0, 0, 0);
       doc.text(`Date: ${new Date(inv.date).toLocaleDateString('en-GB')}`, 14, yPos); yPos += 6;
       doc.text(`Client: ${patient?.clients?.name || ""} ${patient?.clients?.surname || ""}`, 14, yPos); yPos += 6;
       doc.text(`Patient: ${patient?.name || ""}`, 14, yPos); yPos += 10;
-
-      const procCols = ["Item / Procedure", "Notes", "Price"];
-      const procRows = inv.procedures.map(p => [
-        p.product_name, 
-        p.notes || "", 
-        `£${Number(p.price).toFixed(2)}`
-      ]);
-      
-      autoTable(doc, { 
-        ...tableBrandTheme,
-        head: [procCols], 
-        body: procRows, 
-        startY: yPos 
-      });
+      autoTable(doc, { ...tableBrandTheme, head: [["Item / Procedure", "Notes", "Price"]], body: inv.procedures.map(p => [p.product_name, p.notes || "", `£${Number(p.price).toFixed(2)}`]), startY: yPos });
       
       const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFont("helvetica", "bold");
-      doc.text(`Total: £${inv.total.toFixed(2)}`, 14, finalY);
+      doc.setFont("helvetica", "bold"); doc.text(`Total: £${inv.total.toFixed(2)}`, 14, finalY);
       doc.setTextColor(inv.due > 0 ? 231 : 39, inv.due > 0 ? 76 : 174, inv.due > 0 ? 60 : 96); 
       doc.text(`Amount Due: £${inv.due.toFixed(2)}`, 14, finalY + 8);
 
       const fileName = `Invoice_${patient?.name || "Patient"}_${new Date(inv.date).toISOString().split('T')[0]}.pdf`;
-
       if (Capacitor.isNativePlatform()) {
-        const pdfBase64 = doc.output('datauristring').split(',')[1];
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: pdfBase64,
-          directory: Directory.Cache,
-        });
-        await Share.share({
-          title: fileName,
-          url: savedFile.uri,
-        });
-      } else {
-        doc.save(fileName);
-      }
-
-    } catch (error) {
-      console.error(error);
-      setAlertMessage("Error generating specific invoice.");
-    }
+        const savedFile = await Filesystem.writeFile({ path: fileName, data: doc.output('datauristring').split(',')[1], directory: Directory.Cache });
+        await Share.share({ title: fileName, url: savedFile.uri });
+      } else doc.save(fileName);
+    } catch (error) { setAlertMessage("Error generating specific invoice."); }
   }
 
-  // --- CONSENT & APPOINTMENTS ACTIONS ---
+  // --- NEW AFTERCARE SAVE FUNCTION (Isolated) ---
+  async function saveAftercareOnly() {
+    const aftercarePayload = {
+      ashes: aftercareAshes,
+      namePlate: aftercareNamePlate,
+      includeCremation: aftercareIncludeCremation,
+      returnItems: aftercareReturnItems,
+      furClippings: aftercareFurClippings,
+      furClippingsQty: aftercareFurClippings ? aftercareFurClippingsQty : 0,
+      pawPrints: aftercarePawPrints,
+      pawPrintsQty: aftercarePawPrints ? aftercarePawPrintsQty : 0,
+      vetName, vetPostcode, vetAddress, vetEmail
+    };
+
+    const latest = consentHistory.find(c => c.aftercare_details);
+    if (latest) {
+      await supabase.from("consent_records").update({ aftercare_details: aftercarePayload }).eq("id", latest.id);
+    } else {
+      await supabase.from("consent_records").insert([{ patient_id: id, name: "Aftercare Preferences", signature: "", aftercare_details: aftercarePayload }]);
+    }
+    
+    setIsEditingAftercare(false);
+    setSuccessMessage("Aftercare details saved successfully!");
+    fetchConsentHistory();
+  }
+
+  // --- VET EMAIL FUNCTION ---
+  function handleEmailVet() {
+    if (!vetEmail) return setAlertMessage("Please provide a Vet Email address in the settings first.");
+    if (!vetEmailTemplate) return setAlertMessage("Please select an email template from the dropdown.");
+
+    const tmpl = emailTemplates.find(t => String(t.id) === String(vetEmailTemplate));
+    if (!tmpl) return;
+
+    const cName = patient?.clients?.name || "Client";
+    const pName = patient?.name || "your pet";
+    const vName = vetName || "Veterinary Colleague";
+
+    const subject = tmpl.subject.replace(/{patient_name}/g, pName).replace(/{client_name}/g, cName).replace(/{vet_name}/g, vName).replace(/{vet_email}/g, vetEmail);
+    const body = tmpl.body.replace(/{patient_name}/g, pName).replace(/{client_name}/g, cName).replace(/{vet_name}/g, vName).replace(/{vet_email}/g, vetEmail);
+
+    window.location.href = `mailto:${vetEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
   async function saveConsent(andSedate = false) {
     if (!consentName) return setAlertMessage("Please enter signatory name.");
     if (!sigPadRef.current || sigPadRef.current.isEmpty()) return setAlertMessage("Please provide a signature.");
-    const { error } = await supabase.from("consent_records").insert([{ patient_id: id, name: consentName, signature: sigPadRef.current.toDataURL() }]);
+
+    const aftercarePayload = {
+      ashes: aftercareAshes, namePlate: aftercareNamePlate, includeCremation: aftercareIncludeCremation, returnItems: aftercareReturnItems,
+      furClippings: aftercareFurClippings, furClippingsQty: aftercareFurClippings ? aftercareFurClippingsQty : 0,
+      pawPrints: aftercarePawPrints, pawPrintsQty: aftercarePawPrints ? aftercarePawPrintsQty : 0,
+      vetName, vetPostcode, vetAddress, vetEmail
+    };
+
+    const { error } = await supabase.from("consent_records").insert([{ patient_id: id, name: consentName, signature: sigPadRef.current.toDataURL(), aftercare_details: aftercarePayload }]);
+
     if (!error) {
-      sigPadRef.current.clear(); setConsentName(""); fetchConsentHistory();
-      setSuccessMessage("Consent saved successfully!");
+      sigPadRef.current.clear(); setConsentName(""); 
+      fetchConsentHistory();
+      setSuccessMessage("Consent & Aftercare saved successfully!");
       if (andSedate) setActiveTab("dosing");
-    }
+    } else setAlertMessage("Failed to save: " + error.message);
   }
 
   function deleteConsent(consentId) {
     setConfirmModal({
-      title: "Delete Consent",
-      message: "Are you sure you want to delete this consent record?",
-      confirmText: "Yes, Delete",
-      confirmColor: "#e74c3c",
-      onConfirm: async () => {
-        await supabase.from("consent_records").delete().eq("id", consentId);
-        fetchConsentHistory();
-        setConfirmModal(null);
-      }
+      title: "Delete Record", message: "Are you sure you want to delete this consent and aftercare record?", confirmText: "Yes, Delete", confirmColor: "#e74c3c",
+      onConfirm: async () => { await supabase.from("consent_records").delete().eq("id", consentId); fetchConsentHistory(); setConfirmModal(null); }
     });
   }
 
   async function saveAppointment() {
     if (!aptDate || !aptUserId) return setAlertMessage("Date and User are required");
-    
     const combinedTime = (aptStartTime && aptEndTime) ? `${aptStartTime} - ${aptEndTime}` : (aptStartTime || aptEndTime || "");
-    
     const payload = { user_id: aptUserId, date: aptDate, time_range: combinedTime, entry_type: aptType, client_id: patient?.client_id || null, patient_id: id, title: aptTitle, notes: aptNotes };
-    if (isEditingApt) {
-      await supabase.from("diary_entries").update(payload).eq("id", editAptId);
-      setSuccessMessage("Appointment updated successfully!");
-    } else {
-      await supabase.from("diary_entries").insert([payload]);
-      setSuccessMessage("Appointment added to diary successfully!");
-    }
+    if (isEditingApt) { await supabase.from("diary_entries").update(payload).eq("id", editAptId); setSuccessMessage("Appointment updated successfully!"); } 
+    else { await supabase.from("diary_entries").insert([payload]); setSuccessMessage("Appointment added to diary successfully!"); }
     resetAptForm(); fetchAppointments();
   }
 
   function deleteAppointment(aptId) {
-    setConfirmModal({
-      title: "Delete Appointment",
-      message: "Are you sure you want to delete this appointment?",
-      confirmText: "Yes, Delete",
-      confirmColor: "#e74c3c",
-      onConfirm: async () => {
-        await supabase.from("diary_entries").delete().eq("id", aptId);
-        fetchAppointments();
-        setConfirmModal(null);
-      }
-    });
+    setConfirmModal({ title: "Delete Appointment", message: "Are you sure you want to delete this appointment?", confirmText: "Yes, Delete", confirmColor: "#e74c3c", onConfirm: async () => { await supabase.from("diary_entries").delete().eq("id", aptId); fetchAppointments(); setConfirmModal(null); } });
   }
 
   function startEditApt(apt) {
     setIsEditingApt(true); setEditAptId(apt.id); setAptUserId(apt.user_id); setAptDate(apt.date); 
-    
     const times = apt.time_range ? apt.time_range.split(" - ") : ["", ""];
-    setAptStartTime(times[0] || "");
-    setAptEndTime(times[1] || "");
-
-    setAptType(apt.entry_type || "Consultation"); setAptTitle(apt.title || ""); setAptNotes(apt.notes || "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setAptStartTime(times[0] || ""); setAptEndTime(times[1] || "");
+    setAptType(apt.entry_type || "Consultation"); setAptTitle(apt.title || ""); setAptNotes(apt.notes || ""); window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetAptForm() { setIsEditingApt(false); setEditAptId(null); setAptStartTime(""); setAptEndTime(""); setAptType("Consultation"); setAptTitle(""); setAptNotes(""); }
@@ -941,32 +656,16 @@ export default function PatientDetail() {
   // --- FILTER & LIMIT DERIVATIONS ---
   const filteredNotes = notesList.filter(n => n.text.toLowerCase().includes(searchNotes.toLowerCase()));
   const dispNotes = (expandNotes || searchNotes.trim()) ? filteredNotes : filteredNotes.slice(0, 10);
-
-  const filteredSedations = sedationHistory.filter(h => 
-    (h.results || []).some(r => (r.label || r.drug || "").toLowerCase().includes(searchSedations.toLowerCase())) ||
-    new Date(h.created_at).toLocaleDateString('en-GB').includes(searchSedations)
-  );
+  const filteredSedations = sedationHistory.filter(h => (h.results || []).some(r => (r.label || r.drug || "").toLowerCase().includes(searchSedations.toLowerCase())) || new Date(h.created_at).toLocaleDateString('en-GB').includes(searchSedations));
   const dispSedations = (expandSedations || searchSedations.trim()) ? filteredSedations : filteredSedations.slice(0, 10);
-
-  const filteredInvoices = invoiceList.filter(inv => 
-    new Date(inv.date).toLocaleDateString('en-GB').includes(searchInvoices) ||
-    inv.procedures.some(p => (p.product_name || "").toLowerCase().includes(searchInvoices.toLowerCase()))
-  );
+  const filteredInvoices = invoiceList.filter(inv => new Date(inv.date).toLocaleDateString('en-GB').includes(searchInvoices) || inv.procedures.some(p => (p.product_name || "").toLowerCase().includes(searchInvoices.toLowerCase())));
   const dispInvoices = (expandInvoices || searchInvoices.trim()) ? filteredInvoices : filteredInvoices.slice(0, 10);
-
   const filteredConsents = consentHistory.filter(c => (c.name || "").toLowerCase().includes(searchConsents.toLowerCase()));
   const dispConsents = (expandConsents || searchConsents.trim()) ? filteredConsents : filteredConsents.slice(0, 10);
-
-  const filteredAppointments = appointments.filter(a => 
-    (a.title || "").toLowerCase().includes(searchAppointments.toLowerCase()) ||
-    (a.entry_type || "").toLowerCase().includes(searchAppointments.toLowerCase()) ||
-    new Date(a.date).toLocaleDateString('en-GB').includes(searchAppointments)
-  );
+  const filteredAppointments = appointments.filter(a => (a.title || "").toLowerCase().includes(searchAppointments.toLowerCase()) || (a.entry_type || "").toLowerCase().includes(searchAppointments.toLowerCase()) || new Date(a.date).toLocaleDateString('en-GB').includes(searchAppointments));
   const dispAppointments = (expandAppointments || searchAppointments.trim()) ? filteredAppointments : filteredAppointments.slice(0, 10);
-
   const filteredFiles = patientFiles.filter(f => (f.name || "").toLowerCase().includes(searchFiles.toLowerCase()));
   const dispFiles = (expandFiles || searchFiles.trim()) ? filteredFiles : filteredFiles.slice(0, 10);
-
 
   if (isLoading) {
     return (
@@ -994,29 +693,13 @@ export default function PatientDetail() {
         )}
       </div>
 
-      {/* ================= SUB-NAVIGATION TABS WITH DIRECTIONAL ARROWS WITHIN FRAME ================= */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: "20px", background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px" }}>
         <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none" }}>&lt;</span>
-        <div className="patient-tabs-scrollbox" style={{ 
-          display: "flex", 
-          gap: "10px", 
-          flex: 1,
-          padding: "10px 0", 
-          overflowX: "auto", 
-          whiteSpace: "nowrap" 
-        }}>
+        <div className="patient-tabs-scrollbox" style={{ display: "flex", gap: "10px", flex: 1, padding: "10px 0", overflowX: "auto", whiteSpace: "nowrap" }}>
           {TABS.map(tab => (
             <button 
               key={tab.id} 
-              style={{ 
-                ...btnStyle, 
-                padding: "12px 20px", 
-                background: 'transparent', 
-                color: activeTab === tab.id ? '#5b8fb9' : '#7f8c8d', 
-                borderBottom: activeTab === tab.id ? '3px solid #5b8fb9' : '3px solid transparent',
-                borderRadius: "0",
-                transition: "all 0.2s ease"
-              }} 
+              style={{ ...btnStyle, padding: "12px 20px", background: 'transparent', color: activeTab === tab.id ? '#5b8fb9' : '#7f8c8d', borderBottom: activeTab === tab.id ? '3px solid #5b8fb9' : '3px solid transparent', borderRadius: "0", transition: "all 0.2s ease" }} 
               onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
@@ -1026,15 +709,7 @@ export default function PatientDetail() {
         <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingLeft: "5px", userSelect: "none" }}>&gt;</span>
       </div>
 
-      <style>{`
-        .patient-tabs-scrollbox::-webkit-scrollbar {
-          display: none;
-        }
-        .patient-tabs-scrollbox {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+      <style>{`.patient-tabs-scrollbox::-webkit-scrollbar { display: none; } .patient-tabs-scrollbox { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
 
       {/* ================= TAB 1: DETAILS & CLINICAL NOTES ================= */}
       {activeTab === "details" && (
@@ -1048,9 +723,7 @@ export default function PatientDetail() {
                     {patient?.is_deceased ? "Unmark Deceased" : "Mark Deceased"}
                   </button>
                 )}
-                <button className="patient-action-btn" onClick={() => setEditMode(true)} style={{ ...blueBtn, flex: 1 }}>
-                  Edit
-                </button>
+                <button className="patient-action-btn" onClick={() => setEditMode(true)} style={{ ...blueBtn, flex: 1 }}>Edit</button>
               </div>
             ) : (
               <button onClick={() => { setEditMode(false); fetchPatient(); }} style={yellowBtn}>Cancel</button>
@@ -1070,79 +743,49 @@ export default function PatientDetail() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <input placeholder="Name" value={editData.name} onChange={(e) => setEditData({...editData, name: e.target.value})} style={inputStyle} />
-              
               <select value={editData.species} onChange={(e) => setEditData({...editData, species: e.target.value, breed: ""})} style={inputStyle}>
                 <option value="">-- Select Species --</option>
                 {SPECIES_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-
               <select value={editData.breed} onChange={(e) => setEditData({...editData, breed: e.target.value})} style={inputStyle}>
                 <option value="">-- Select Breed --</option>
                 {activeBreeds.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
-
               <select value={editData.colour} onChange={(e) => setEditData({...editData, colour: e.target.value})} style={inputStyle}>
                 <option value="">-- Select Colour --</option>
                 {COMMON_COLOURS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-
               <select value={editData.gender} onChange={(e) => setEditData({...editData, gender: e.target.value})} style={inputStyle}>
                 <option value="">-- Select Gender --</option>
                 {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
-
               <input placeholder="Microchip" value={editData.microchip} onChange={(e) => setEditData({...editData, microchip: e.target.value})} style={inputStyle} />
-              
               <div style={{ display: "flex", gap: "10px" }}>
                 <input placeholder="Age (Yrs)" type="number" value={editData.age_years || ""} onChange={(e) => setEditData({...editData, age_years: e.target.value})} style={inputStyle} />
                 <input placeholder="Age (Mos)" type="number" value={editData.age_months || ""} onChange={(e) => setEditData({...editData, age_months: e.target.value})} style={inputStyle} />
               </div>
-
               <input placeholder="Weight (kg)" type="number" step="0.01" value={editData.weight || ""} onChange={(e) => setEditData({...editData, weight: e.target.value})} style={inputStyle} />
-              
               <button onClick={updatePatient} style={{ ...greenBtn, width: "100%" }}>Save Changes</button>
             </div>
           )}
 
-          {/* --- CLINICAL NOTES SECTION --- */}
           <div style={{ marginTop: "30px", borderTop: "2px solid #eee", paddingTop: "20px" }}>
             <h3 style={{ color: "#2c3e50", marginBottom: "15px", marginTop: 0 }}>Clinical Notes</h3>
-
             <div style={{ background: "#f8f9fb", padding: "15px", borderRadius: "10px", marginBottom: "20px", border: "1px solid #eee" }}>
-              <textarea 
-                rows={3} 
-                placeholder="Write a new note..." 
-                value={newNoteText} 
-                onChange={e => setNewNoteText(e.target.value)} 
-                style={{ ...inputStyle, marginBottom: "10px" }} 
-              />
+              <textarea rows={3} placeholder="Write a new note..." value={newNoteText} onChange={e => setNewNoteText(e.target.value)} style={{ ...inputStyle, marginBottom: "10px" }} />
               <button onClick={addNote} style={blueBtn}>Save Note</button>
             </div>
-
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {notesList.length > 0 && (
-                <input 
-                  placeholder="Search clinical notes..." 
-                  value={searchNotes} 
-                  onChange={(e) => setSearchNotes(e.target.value)} 
-                  style={{ ...inputStyle, marginBottom: "10px" }} 
-                />
-              )}
-
+              {notesList.length > 0 && <input placeholder="Search clinical notes..." value={searchNotes} onChange={(e) => setSearchNotes(e.target.value)} style={{ ...inputStyle, marginBottom: "10px" }} />}
               {dispNotes.map(note => (
                 <div key={note.id} style={{ background: "white", padding: "15px", borderRadius: "10px", border: "1px solid #eee", boxShadow: "0 2px 5px rgba(0,0,0,0.02)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", borderBottom: "1px solid #f1f1f1", paddingBottom: "8px" }}>
-                    <span style={{ fontSize: "13px", color: "#7f8c8d", fontWeight: "bold" }}>
-                      {new Date(note.date).toLocaleString('en-GB')}
-                    </span>
+                    <span style={{ fontSize: "13px", color: "#7f8c8d", fontWeight: "bold" }}>{new Date(note.date).toLocaleString('en-GB')}</span>
                     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                       <button onClick={() => startEditNote(note)} style={{ ...blueBtn, minWidth: "60px", padding: "6px 12px" }}>Edit</button>
-                      {isAdmin && (
-                        <button onClick={() => confirmDeleteNote(note.id)} style={{ ...redBtn, minWidth: "60px", padding: "6px 12px" }}>Delete</button>
-                      )}
+                      {isAdmin && <button onClick={() => confirmDeleteNote(note.id)} style={{ ...redBtn, minWidth: "60px", padding: "6px 12px" }}>Delete</button>}
                     </div>
                   </div>
-                  
                   {editingNoteId === note.id ? (
                     <div>
                       <textarea rows={3} value={editNoteText} onChange={e => setEditNoteText(e.target.value)} style={{ ...inputStyle, marginBottom: "10px" }} />
@@ -1152,20 +795,12 @@ export default function PatientDetail() {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ whiteSpace: "pre-wrap", color: "#333", fontSize: "15px", lineHeight: "1.5" }}>
-                      {note.text}
-                    </div>
+                    <div style={{ whiteSpace: "pre-wrap", color: "#333", fontSize: "15px", lineHeight: "1.5" }}>{note.text}</div>
                   )}
                 </div>
               ))}
-              
               {notesList.length === 0 && <p style={{ color: "#666", textAlign: "center", fontSize: "14px", marginTop: "10px" }}>No clinical notes recorded yet.</p>}
-              
-              {notesList.length > 10 && !searchNotes.trim() && (
-                <button onClick={() => setExpandNotes(!expandNotes)} style={expandBtnStyle}>
-                  {expandNotes ? "Show Less" : `Show All (${notesList.length})`}
-                </button>
-              )}
+              {notesList.length > 10 && !searchNotes.trim() && <button onClick={() => setExpandNotes(!expandNotes)} style={expandBtnStyle}>{expandNotes ? "Show Less" : `Show All (${notesList.length})`}</button>}
             </div>
           </div>
         </div>
@@ -1205,36 +840,21 @@ export default function PatientDetail() {
             </div>
           ))}
 
-          <button onClick={saveDosing} style={{ ...greenBtn, width: "100%" }}>
-            Record Doses & Deduct from Stock
-          </button>
+          <button onClick={saveDosing} style={{ ...greenBtn, width: "100%" }}>Record Doses & Deduct from Stock</button>
           
           {sedationHistory.length > 0 && (
             <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "15px", marginTop: "30px", border: "1px solid #eee" }}>
               <h3 style={{ marginTop: 0, marginBottom: "15px", color: "#2c3e50" }}>Dosing History</h3>
-              
-              <input 
-                placeholder="Search history..." 
-                value={searchSedations} 
-                onChange={(e) => setSearchSedations(e.target.value)} 
-                style={{ ...inputStyle, marginBottom: "15px" }} 
-              />
-
+              <input placeholder="Search history..." value={searchSedations} onChange={(e) => setSearchSedations(e.target.value)} style={{ ...inputStyle, marginBottom: "15px" }} />
               {dispSedations.map(h => {
                 const isOlderThan48h = (new Date() - new Date(h.created_at)) > (48 * 60 * 60 * 1000);
                 const canEdit = isAdmin || !isOlderThan48h;
-
                 return (
                   <div key={h.id} style={{ ...whiteShadowBox, marginBottom: "10px", padding: "15px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "10px" }}>
-                      <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold" }}>
-                        {new Date(h.created_at).toLocaleString('en-GB')}
-                      </span>
-                      <span style={{ fontSize: "13px", color: "#3498db", fontWeight: "bold" }}>
-                        Weight: {h.weight} kg
-                      </span>
+                      <span style={{ fontSize: "13px", color: "#666", fontWeight: "bold" }}>{new Date(h.created_at).toLocaleString('en-GB')}</span>
+                      <span style={{ fontSize: "13px", color: "#3498db", fontWeight: "bold" }}>Weight: {h.weight} kg</span>
                     </div>
-                    
                     {editingHistoryId === h.id ? (
                       <>
                         {editHistoryResults.map((r, i) => (
@@ -1267,16 +887,11 @@ export default function PatientDetail() {
                           </div>
                         ))}
                         <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-                          {canEdit && (
-                            <button onClick={() => startEditHistory(h)} style={{ ...blueBtn, flex: 1 }}>Edit Amounts</button>
-                          )}
+                          {canEdit && <button onClick={() => startEditHistory(h)} style={{ ...blueBtn, flex: 1 }}>Edit Amounts</button>}
                           {isAdmin && (
                             <button onClick={() => {
                               setConfirmModal({
-                                title: "Confirm Deletion",
-                                message: "Are you sure you want to delete this dosing calculation? This will return all recorded drug volumes back into stock inventory.",
-                                confirmText: "Yes, Delete",
-                                confirmColor: "#e74c3c",
+                                title: "Confirm Deletion", message: "Are you sure you want to delete this dosing calculation? This will return all recorded drug volumes back into stock inventory.", confirmText: "Yes, Delete", confirmColor: "#e74c3c",
                                 onConfirm: async () => {
                                   const { data: original } = await supabase.from("sedation_records").select("*").eq("id", h.id).single();
                                   if (original && original.results) {
@@ -1288,10 +903,7 @@ export default function PatientDetail() {
                                       }
                                     }
                                   }
-                                  await supabase.from("sedation_records").delete().eq("id", h.id);
-                                  fetchSedationHistory(); 
-                                  fetchStock();
-                                  setConfirmModal(null);
+                                  await supabase.from("sedation_records").delete().eq("id", h.id); fetchSedationHistory(); fetchStock(); setConfirmModal(null);
                                 }
                               });
                             }} style={{ ...redBtn, flex: 1 }}>Delete Record</button>
@@ -1302,12 +914,7 @@ export default function PatientDetail() {
                   </div>
                 );
               })}
-
-              {sedationHistory.length > 10 && !searchSedations.trim() && (
-                <button onClick={() => setExpandSedations(!expandSedations)} style={expandBtnStyle}>
-                  {expandSedations ? "Show Less" : `Show All (${sedationHistory.length})`}
-                </button>
-              )}
+              {sedationHistory.length > 10 && !searchSedations.trim() && <button onClick={() => setExpandSedations(!expandSedations)} style={expandBtnStyle}>{expandSedations ? "Show Less" : `Show All (${sedationHistory.length})`}</button>}
             </div>
           )}
         </div>
@@ -1318,12 +925,10 @@ export default function PatientDetail() {
         <>
           <div className="card">
             <h3 style={{ margin: "0 0 15px 0", color: "#2c3e50" }}>Start New Invoice</h3>
-
             <select value={selectedProductId} onChange={handleProductSelect} style={inputStyle}>
               <option value="">-- Select Initial Procedure --</option>
               {allProducts.map(p => <option key={p.id} value={p.id}>{p.name} (£{p.price})</option>)}
             </select>
-            
             {selectedProductId && (
               <div style={{ display: "flex", gap: "10px" }}>
                 <input type="number" step="0.01" placeholder="Price (£)" value={procedurePrice} onChange={e => setProcedurePrice(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
@@ -1334,57 +939,27 @@ export default function PatientDetail() {
           </div>
 
           <div style={{ marginTop: "20px" }}>
-            {invoiceList.length > 0 && (
-              <input 
-                placeholder="Search invoices..." 
-                value={searchInvoices} 
-                onChange={(e) => setSearchInvoices(e.target.value)} 
-                style={{ ...inputStyle, marginBottom: "15px" }} 
-              />
-            )}
+            {invoiceList.length > 0 && <input placeholder="Search invoices..." value={searchInvoices} onChange={(e) => setSearchInvoices(e.target.value)} style={{ ...inputStyle, marginBottom: "15px" }} />}
             {invoiceList.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No invoices yet.</p>}
             
             {dispInvoices.map(inv => (
-              <div 
-                key={inv.id} 
-                id={`invoice-${inv.id}`} 
-                style={{ 
-                  background: highlightedInvoice === inv.id ? "#fff9e6" : "#f8f9fb", 
-                  border: highlightedInvoice === inv.id ? "2px solid #f39c12" : "1px solid transparent",
-                  padding: "20px", 
-                  borderRadius: "20px", 
-                  marginBottom: "20px",
-                  transition: "all 0.3s ease"
-                }}
-              >
+              <div key={inv.id} id={`invoice-${inv.id}`} style={{ background: highlightedInvoice === inv.id ? "#fff9e6" : "#f8f9fb", border: highlightedInvoice === inv.id ? "2px solid #f39c12" : "1px solid transparent", padding: "20px", borderRadius: "20px", marginBottom: "20px", transition: "all 0.3s ease" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "15px" }}>
                   <div>
                     <h3 style={{ margin: 0 }}>Invoice</h3>
-                    <div style={{ fontSize: "12px", color: "#7f8c8d", marginTop: "4px" }}>
-                      Created: {new Date(inv.date).toLocaleDateString()}
-                    </div>
+                    <div style={{ fontSize: "12px", color: "#7f8c8d", marginTop: "4px" }}>Created: {new Date(inv.date).toLocaleDateString()}</div>
                   </div>
                   <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px" }}>
                     <div style={{ fontSize: "14px", color: "#7f8c8d" }}>Total: £{inv.total.toFixed(2)}</div>
-                    <div style={{ fontSize: "18px", fontWeight: "bold", color: inv.due > 0 ? "#e74c3c" : "#27ae60", marginBottom: "5px" }}>
-                      Due: £{inv.due.toFixed(2)}
-                    </div>
-
-                    <button onClick={() => downloadSpecificInvoice(inv)} style={blueBtn}>
-                      Download Invoice PDF
-                    </button>
-
+                    <div style={{ fontSize: "18px", fontWeight: "bold", color: inv.due > 0 ? "#e74c3c" : "#27ae60", marginBottom: "5px" }}>Due: £{inv.due.toFixed(2)}</div>
+                    <button onClick={() => downloadSpecificInvoice(inv)} style={blueBtn}>Download Invoice PDF</button>
                     {inv.total > 0 && inv.due > 0 && <button onClick={() => markInvoicePaid(inv.id)} style={greenBtn}>Mark Paid</button>}
-                    
-                    {inv.total > 0 && inv.due === 0 && isAdmin && (
-                      <button onClick={() => unmarkInvoicePaid(inv.id)} style={greyBtn}>Unmark Invoice</button>
-                    )}
+                    {inv.total > 0 && inv.due === 0 && isAdmin && <button onClick={() => unmarkInvoicePaid(inv.id)} style={greyBtn}>Unmark Invoice</button>}
                   </div>
                 </div>
                 
                 {inv.procedures.map(proc => (
                   <div key={proc.id} style={{ background: proc.is_paid ? "#f0fdf4" : "white", padding: "12px", borderRadius: "12px", marginBottom: "8px", border: proc.is_paid ? "1px solid #bbf7d0" : "1px solid #eee", opacity: proc.is_paid ? 0.7 : 1 }}>
-                    
                     {editingProcId === proc.id ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                         <strong style={{ fontSize: "15px", color: "#333" }}>{proc.product_name}</strong>
@@ -1405,43 +980,25 @@ export default function PatientDetail() {
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                           <strong style={{ fontSize: "15px" }}>£{Number(proc.price).toFixed(2)}</strong>
-                          
-                          {/* ONLY SHOW EDIT/DELETE IF NOT PAID */}
                           {!proc.is_paid && (
                             <>
                               <button onClick={() => startEditProcedure(proc)} style={{ ...blueBtn, minWidth: "60px" }}>Edit</button>
                               <button onClick={() => {
-                                setConfirmModal({
-                                  title: "Confirm Deletion",
-                                  message: `Are you sure you want to remove ${proc.product_name} from this invoice?`,
-                                  confirmText: "Yes, Delete",
-                                  confirmColor: "#e74c3c",
-                                  onConfirm: async () => {
-                                    await supabase.from("patient_procedures").delete().eq("id", proc.id);
-                                    fetchProcedures();
-                                    setConfirmModal(null);
-                                  }
-                                });
+                                setConfirmModal({ title: "Confirm Deletion", message: `Are you sure you want to remove ${proc.product_name} from this invoice?`, confirmText: "Yes, Delete", confirmColor: "#e74c3c", onConfirm: async () => { await supabase.from("patient_procedures").delete().eq("id", proc.id); fetchProcedures(); setConfirmModal(null); } });
                               }} style={{ ...redBtn, minWidth: "40px" }}>X</button>
                             </>
                           )}
-
                         </div>
                       </div>
                     )}
                   </div>
                 ))}
 
-                {/* ONLY ALLOW ADDING NEW ITEMS IF THERE IS A BALANCE DUE */}
                 {inv.due > 0 && (
                   addingToInvId === inv.id ? (
                     <div style={{ marginTop: "10px", padding: "12px", background: "white", borderRadius: "12px", border: "2px dashed #bdc3c7" }}>
                       <strong style={{ display: "block", marginBottom: "10px", fontSize: "14px", color: "#2c3e50" }}>Add Item to this Invoice</strong>
-                      <select value={inlineProdId} onChange={e => {
-                          setInlineProdId(e.target.value);
-                          const p = allProducts.find(x => String(x.id) === String(e.target.value));
-                          if(p) setInlinePrice(p.price);
-                      }} style={inputStyle}>
+                      <select value={inlineProdId} onChange={e => { setInlineProdId(e.target.value); const p = allProducts.find(x => String(x.id) === String(e.target.value)); if(p) setInlinePrice(p.price); }} style={inputStyle}>
                         <option value="">-- Select Product --</option>
                         {allProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
@@ -1462,71 +1019,191 @@ export default function PatientDetail() {
                     </button>
                   )
                 )}
-
               </div>
             ))}
-
-            {invoiceList.length > 10 && !searchInvoices.trim() && (
-              <button onClick={() => setExpandInvoices(!expandInvoices)} style={expandBtnStyle}>
-                {expandInvoices ? "Show Less" : `Show All (${invoiceList.length})`}
-              </button>
-            )}
+            {invoiceList.length > 10 && !searchInvoices.trim() && <button onClick={() => setExpandInvoices(!expandInvoices)} style={expandBtnStyle}>{expandInvoices ? "Show Less" : `Show All (${invoiceList.length})`}</button>}
           </div>
         </>
       )}
 
-      {/* ================= TAB 4: CONSENT ================= */}
+      {/* ================= TAB 4: CONSENT & AFTERCARE (WITH SUB-TABS) ================= */}
       {activeTab === "consent" && (
-        <>
-          <div className="card">
-            <h3>Euthanasia Consent</h3>
-            <div style={{ fontSize: "14px", marginBottom: "15px", background: "#fdf3f2", borderLeft: "4px solid #e74c3c", padding: "15px", borderRadius: "5px", lineHeight: "1.5" }}>
-              <strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Owner/Authorised Agent Declaration and Consent</strong>
-              <p style={{ marginTop: 0 }}>I certify that I am the owner or the authorised agent of the owner of the above-described animal, and I have the legal authority to consent to its euthanasia. I authorize the veterinary team to humanely end the animal's life.</p>
-              <p>I confirm that, to the best of my knowledge, this animal has not bitten any person or animal in the last 15 days, nor has it been exposed to rabies.</p>
-              <strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Liability Release</strong>
-              <p style={{ marginBottom: 0 }}>I hereby release the veterinary practice, the attending veterinary surgeon, and staff from any and all liability related to the performance of this euthanasia.</p>
-            </div>
-            <input placeholder="Signatory Full Name" value={consentName} onChange={(e) => setConsentName(e.target.value)} style={inputStyle} />
-            <div style={{ border: "1px solid #ccc", borderRadius: "10px", marginTop: "10px", background: "white" }}>
-              <SignatureCanvas penColor="black" canvasProps={{ width: 300, height: 150, className: "sigCanvas" }} ref={sigPadRef} />
-            </div>
-            <div style={{ display: "flex", gap: "10px", marginTop: "15px", justifyContent: "center" }}>
-              <button className="consent-action-btn" onClick={() => sigPadRef.current.clear()} style={{ ...greyBtn, flex: 1, minWidth: 0 }}>Clear</button>
-              <button className="consent-action-btn" onClick={() => saveConsent(false)} style={{ ...blueBtn, flex: 1, minWidth: 0 }}>Save</button>
-              <button className="consent-action-btn consent-long-action-btn" onClick={() => saveConsent(true)} style={{ ...greenBtn, flex: 1, minWidth: 0, padding: "8px 8px" }}>Save & Sedate</button>
-            </div>
+        <div className="card">
+          
+          {/* SUB-NAVIGATION FOR AFTERCARE VS CONSENT */}
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+            <button 
+              onClick={() => setSubTabAftercare("aftercare")}
+              style={{ ...btnStyle, flex: 1, padding: "10px", background: subTabAftercare === "aftercare" ? "#5b8fb9" : "#ecf0f1", color: subTabAftercare === "aftercare" ? "white" : "#2c3e50" }}
+            >
+              Aftercare Form
+            </button>
+            <button 
+              onClick={() => setSubTabAftercare("consent")}
+              style={{ ...btnStyle, flex: 1, padding: "10px", background: subTabAftercare === "consent" ? "#5b8fb9" : "#ecf0f1", color: subTabAftercare === "consent" ? "white" : "#2c3e50" }}
+            >
+              Consent Form
+            </button>
           </div>
 
-          {consentHistory.length > 0 && (
-            <div className="card" style={{ marginTop: "20px" }}>
-              <h3>Consent History</h3>
-              
-              <input 
-                placeholder="Search consent forms..." 
-                value={searchConsents} 
-                onChange={(e) => setSearchConsents(e.target.value)} 
-                style={{ ...inputStyle, marginBottom: "15px" }} 
-              />
+          {/* ================= AFTERCARE SUB-TAB ================= */}
+          {subTabAftercare === "aftercare" && (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+                <h3 style={{ margin: 0 }}>Aftercare Preferences</h3>
+                {!isEditingAftercare && (
+                  <button onClick={() => setIsEditingAftercare(true)} style={blueBtn}>Edit Details</button>
+                )}
+              </div>
 
-              {dispConsents.map(c => (
-                <div key={c.id} style={{ marginBottom: "15px", padding: "15px", background: "#f8f9fb", borderRadius: "10px", border: "1px solid #eee" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <strong>{c.name}</strong><span style={{ fontSize: "12px", color: "#666" }}>{new Date(c.created_at).toLocaleString()}</span>
+              {!isEditingAftercare ? (
+                // --- VIEW MODE ---
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px", background: "#f8f9fb", padding: "15px", borderRadius: "10px", border: "1px solid #eee" }}>
+                    <p style={{margin: "5px 0"}}><strong>Ashes:</strong> {aftercareAshes || "N/A"}</p>
+                    <p style={{margin: "5px 0"}}><strong>Name Plate:</strong> {aftercareNamePlate || "N/A"}</p>
+                    <p style={{margin: "5px 0"}}><strong>Include in Cremation:</strong> {aftercareIncludeCremation || "N/A"}</p>
+                    <p style={{margin: "5px 0"}}><strong>Return Items:</strong> {aftercareReturnItems || "N/A"}</p>
+                    <p style={{margin: "5px 0"}}><strong>Fur Clippings:</strong> {aftercareFurClippings ? `Yes (Qty: ${aftercareFurClippingsQty})` : "No"}</p>
+                    <p style={{margin: "5px 0"}}><strong>Paw Prints:</strong> {aftercarePawPrints ? `Yes (Qty: ${aftercarePawPrintsQty})` : "No"}</p>
                   </div>
-                  <img src={c.signature} alt="signature" style={{ marginTop: "15px", border: "1px solid #ccc", background: "white", borderRadius: "5px", width: "100%", maxWidth: "300px" }} />
-                  <button style={{ ...redBtn, marginTop: "15px", width: "100%" }} onClick={() => deleteConsent(c.id)}>Delete</button>
-                </div>
-              ))}
 
-              {consentHistory.length > 10 && !searchConsents.trim() && (
-                <button onClick={() => setExpandConsents(!expandConsents)} style={expandBtnStyle}>
-                  {expandConsents ? "Show Less" : `Show All (${consentHistory.length})`}
-                </button>
+                  <h4 style={{ borderBottom: "1px solid #eee", paddingBottom: "5px", color: "#5b8fb9", marginTop: "20px" }}>Owner's Veterinary Surgeon Details</h4>
+                  
+                  <div style={{ background: "#f8f9fb", padding: "15px", borderRadius: "10px", border: "1px solid #eee", marginBottom: "15px" }}>
+                    <p style={{margin: "5px 0"}}><strong>Practice Name:</strong> {vetName || "N/A"}</p>
+                    <p style={{margin: "5px 0"}}><strong>Address:</strong> {vetAddress || "N/A"}</p>
+                    <p style={{margin: "5px 0"}}><strong>Postcode:</strong> {vetPostcode || "N/A"}</p>
+                    <p style={{margin: "5px 0"}}><strong>Email:</strong> {vetEmail || "N/A"}</p>
+                  </div>
+
+                  {/* VET EMAIL BUTTON */}
+                  <div style={{ background: "#fff9e6", padding: "15px", borderRadius: "10px", border: "1px solid #f1c40f" }}>
+                    <h5 style={{ margin: "0 0 10px 0", color: "#d35400" }}>Notify Vet Practice</h5>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                      <select value={vetEmailTemplate} onChange={e => setVetEmailTemplate(e.target.value)} style={{ ...inputStyle, marginBottom: 0, flex: 1, minWidth: "200px" }}>
+                        <option value="">-- Select Template --</option>
+                        {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                      <button onClick={handleEmailVet} style={{ ...blueBtn, flex: "none" }}>📧 Email Vet</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                // --- EDIT MODE ---
+                <div>
+                  <input placeholder="Details on Ashes (e.g. Return Home, Scatter at crematorium)" value={aftercareAshes} onChange={e => setAftercareAshes(e.target.value)} style={inputStyle} />
+                  <input placeholder="Name Plate Details (Exact spelling)" value={aftercareNamePlate} onChange={e => setAftercareNamePlate(e.target.value)} style={inputStyle} />
+                  <input placeholder="Items to include in cremation (e.g. blanket, toy)" value={aftercareIncludeCremation} onChange={e => setAftercareIncludeCremation(e.target.value)} style={inputStyle} />
+                  <input placeholder="Items to be returned to owner (e.g. collar)" value={aftercareReturnItems} onChange={e => setAftercareReturnItems(e.target.value)} style={inputStyle} />
+
+                  <div style={{ display: "flex", gap: "15px", marginBottom: "15px", alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#f8f9fb", padding: "10px", borderRadius: "8px", border: "1px solid #eee", flex: 1 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: "bold", color: "#2c3e50", flex: 1, margin: 0, cursor: "pointer" }}>
+                        <input type="checkbox" checked={aftercareFurClippings} onChange={e => setAftercareFurClippings(e.target.checked)} style={{ width: "16px", height: "16px" }} />
+                        Provide Fur Clippings
+                      </label>
+                      {aftercareFurClippings && (
+                        <input type="number" placeholder="Qty" value={aftercareFurClippingsQty} onChange={e => setAftercareFurClippingsQty(e.target.value)} style={{ ...inputStyle, width: "70px", marginBottom: 0, padding: "6px" }} />
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#f8f9fb", padding: "10px", borderRadius: "8px", border: "1px solid #eee", flex: 1 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: "bold", color: "#2c3e50", flex: 1, margin: 0, cursor: "pointer" }}>
+                        <input type="checkbox" checked={aftercarePawPrints} onChange={e => setAftercarePawPrints(e.target.checked)} style={{ width: "16px", height: "16px" }} />
+                        Provide Paw Prints
+                      </label>
+                      {aftercarePawPrints && (
+                        <input type="number" placeholder="Qty" value={aftercarePawPrintsQty} onChange={e => setAftercarePawPrintsQty(e.target.value)} style={{ ...inputStyle, width: "70px", marginBottom: 0, padding: "6px" }} />
+                      )}
+                    </div>
+                  </div>
+
+                  <h4 style={{ borderBottom: "1px solid #eee", paddingBottom: "5px", color: "#5b8fb9", marginTop: "20px" }}>Owner's Veterinary Surgeon Details</h4>
+                  
+                  {/* --- DIRECT RCVS LINK --- */}
+                  <div style={{ background: "#f8f9fb", padding: "15px", borderRadius: "10px", border: "1px solid #eee", marginBottom: "15px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                    <div>
+                      <strong style={{ color: "#2c3e50", fontSize: "14px", display: "block", marginBottom: "4px" }}>Search RCVS Directory</strong>
+                      <span style={{ fontSize: "12px", color: "#7f8c8d" }}>Opens in a new tab to find practice details.</span>
+                    </div>
+                    <a 
+                      href="https://findavet.rcvs.org.uk/home/" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ ...blueBtn, textDecoration: "none" }}
+                    >
+                      Open Find a Vet ↗
+                    </a>
+                  </div>
+                  
+                  <input placeholder="Vet Practice Name" value={vetName} onChange={e => setVetName(e.target.value)} style={inputStyle} />
+                  <input placeholder="Postcode" value={vetPostcode} onChange={e => setVetPostcode(e.target.value)} style={inputStyle} />
+                  <textarea placeholder="Vet Full Address" rows={2} value={vetAddress} onChange={e => setVetAddress(e.target.value)} style={{...inputStyle, minHeight: "60px"}} />
+                  <input type="email" placeholder="Vet Email Address" value={vetEmail} onChange={e => setVetEmail(e.target.value)} style={inputStyle} />
+
+                  <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
+                    <button onClick={saveAftercareOnly} style={{ ...greenBtn, flex: 1 }}>Save Aftercare Details</button>
+                    <button onClick={() => { setIsEditingAftercare(false); fetchConsentHistory(); }} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
+                  </div>
+                </div>
               )}
-            </div>
+            </>
           )}
-        </>
+
+          {/* ================= CONSENT SUB-TAB ================= */}
+          {subTabAftercare === "consent" && (
+            <>
+              <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Owner Authorisation</h3>
+              
+              <div style={{ fontSize: "14px", marginBottom: "15px", background: "#fdf3f2", borderLeft: "4px solid #e74c3c", padding: "15px", borderRadius: "5px", lineHeight: "1.5" }}>
+                <strong style={{ display: "block", color: "#c0392b" }}>Owner/Authorised Agent Declaration and Consent</strong>
+                <p style={{ marginTop: 0 }}>I certify that I am the owner or the authorised agent of the owner of the above-described animal, and I have the legal authority to consent to its euthanasia. I authorize the veterinary team to humanely end the animal's life.</p>
+                <p>I confirm that, to the best of my knowledge, this animal has not bitten any person or animal in the last 15 days, nor has it been exposed to rabies.</p>
+                <strong style={{ display: "block", marginTop: "10px", color: "#c0392b" }}>Liability Release</strong>
+                <p style={{ marginBottom: 0 }}>I hereby release the veterinary practice, the attending veterinary surgeon, and staff from any and all liability related to the performance of this euthanasia.</p>
+              </div>
+
+              <input placeholder="Signatory Full Name" value={consentName} onChange={(e) => setConsentName(e.target.value)} style={inputStyle} />
+              
+              <div style={{ border: "1px solid #ccc", borderRadius: "10px", marginTop: "10px", background: "white" }}>
+                <SignatureCanvas penColor="black" canvasProps={{ width: 300, height: 150, className: "sigCanvas" }} ref={sigPadRef} />
+              </div>
+              
+              <div style={{ display: "flex", gap: "10px", marginTop: "15px", justifyContent: "center" }}>
+                <button className="consent-action-btn" onClick={() => sigPadRef.current.clear()} style={{ ...greyBtn, flex: 1, minWidth: 0 }}>Clear</button>
+                <button className="consent-action-btn" onClick={() => saveConsent(false)} style={{ ...blueBtn, flex: 1, minWidth: 0 }}>Save Consent</button>
+                <button className="consent-action-btn consent-long-action-btn" onClick={() => saveConsent(true)} style={{ ...greenBtn, flex: 1, minWidth: 0, padding: "8px 8px" }}>Save & Sedate</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* CONSENT HISTORY (Appears on both sub-tabs, but only showing if there is a history to view) */}
+      {activeTab === "consent" && consentHistory.length > 0 && (
+        <div className="card" style={{ marginTop: "20px" }}>
+          <h3>Historical Records</h3>
+          
+          <input placeholder="Search forms..." value={searchConsents} onChange={(e) => setSearchConsents(e.target.value)} style={{ ...inputStyle, marginBottom: "15px" }} />
+
+          {dispConsents.filter(c => c.signature).map(c => (
+            <div key={c.id} style={{ marginBottom: "15px", padding: "15px", background: "#f8f9fb", borderRadius: "10px", border: "1px solid #eee" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <strong style={{ fontSize: "16px", color: "#333" }}>{c.name || "Consent Record"}</strong>
+                <span style={{ fontSize: "12px", color: "#666" }}>{new Date(c.created_at).toLocaleString()}</span>
+              </div>
+              
+              <img src={c.signature} alt="signature" style={{ marginTop: "15px", border: "1px solid #ccc", background: "white", borderRadius: "5px", width: "100%", maxWidth: "300px" }} />
+              
+              <button style={{ ...redBtn, marginTop: "15px", width: "100%" }} onClick={() => deleteConsent(c.id)}>Delete Record</button>
+            </div>
+          ))}
+
+          {consentHistory.length > 10 && !searchConsents.trim() && (
+            <button onClick={() => setExpandConsents(!expandConsents)} style={expandBtnStyle}>{expandConsents ? "Show Less" : `Show All (${consentHistory.length})`}</button>
+          )}
+        </div>
       )}
 
       {/* ================= TAB 5: APPOINTMENTS ================= */}
@@ -1534,17 +1211,14 @@ export default function PatientDetail() {
         <>
           <div className="card" style={{ border: isEditingApt ? "2px solid #f39c12" : "none" }}>
             <h3 style={{ marginTop: 0 }}>{isEditingApt ? "Edit Appointment" : "Schedule Appointment"}</h3>
-            
             <div style={{ display: "flex", gap: "10px" }}>
               <input type="date" value={aptDate} onChange={e => setAptDate(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-              
               <div style={{ display: "flex", gap: "5px", flex: 1 }}>
                 <input type="time" value={aptStartTime} onChange={e => setAptStartTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
                 <span style={{ display: "flex", alignItems: "center", marginBottom: "10px", fontWeight: "bold", color: "#95a5a6" }}>-</span>
                 <input type="time" value={aptEndTime} onChange={e => setAptEndTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
               </div>
             </div>
-
             <div style={{ display: "flex", gap: "10px" }}>
               <select value={aptType} onChange={e => setAptType(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
                 <option value="Working Status">Working Status</option>
@@ -1558,25 +1232,14 @@ export default function PatientDetail() {
             <input placeholder="Custom Title (Optional)" value={aptTitle} onChange={e => setAptTitle(e.target.value)} style={inputStyle} />
             <textarea placeholder="Notes / Details..." rows={2} value={aptNotes} onChange={e => setAptNotes(e.target.value)} style={inputStyle} />
             <div style={{ display: "flex", gap: "10px", marginTop: "10px", justifyContent: "center" }}>
-              <button onClick={saveAppointment} style={{ ...greenBtn, flex: 1 }}>
-                {isEditingApt ? "Update Appointment" : "Add to Diary"}
-              </button>
+              <button onClick={saveAppointment} style={{ ...greenBtn, flex: 1 }}>{isEditingApt ? "Update Appointment" : "Add to Diary"}</button>
               {isEditingApt && <button onClick={resetAptForm} style={{ ...redBtn, flex: 1 }}>Cancel</button>}
             </div>
           </div>
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Appointment History</h3>
-            
-            {appointments.length > 0 && (
-              <input 
-                placeholder="Search appointments..." 
-                value={searchAppointments} 
-                onChange={(e) => setSearchAppointments(e.target.value)} 
-                style={{ ...inputStyle, marginBottom: "15px" }} 
-              />
-            )}
-
+            {appointments.length > 0 && <input placeholder="Search appointments..." value={searchAppointments} onChange={(e) => setSearchAppointments(e.target.value)} style={{ ...inputStyle, marginBottom: "15px" }} />}
             {appointments.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No appointments found.</p>}
             
             {dispAppointments.map(apt => {
@@ -1603,12 +1266,7 @@ export default function PatientDetail() {
                 </div>
               );
             })}
-
-            {appointments.length > 10 && !searchAppointments.trim() && (
-              <button onClick={() => setExpandAppointments(!expandAppointments)} style={expandBtnStyle}>
-                {expandAppointments ? "Show Less" : `Show All (${appointments.length})`}
-              </button>
-            )}
+            {appointments.length > 10 && !searchAppointments.trim() && <button onClick={() => setExpandAppointments(!expandAppointments)} style={expandBtnStyle}>{expandAppointments ? "Show Less" : `Show All (${appointments.length})`}</button>}
           </div>
         </>
       )}
@@ -1618,74 +1276,34 @@ export default function PatientDetail() {
         <>
           <div className="card">
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Upload Document</h3>
-            <p style={{ fontSize: "14px", color: "#7f8c8d", marginTop: 0, marginBottom: "15px" }}>
-              Upload PDFs, images, or records related to this patient.
-            </p>
-            
-            <label 
-              htmlFor="patient-file-upload" 
-              style={{ 
-                ...blueBtn, 
-                display: "inline-block", 
-                textAlign: "center",
-                width: "100%", 
-                marginBottom: isUploading ? "10px" : "15px",
-                opacity: isUploading ? 0.7 : 1
-              }}
-            >
+            <label htmlFor="patient-file-upload" style={{ ...blueBtn, display: "inline-block", textAlign: "center", width: "100%", marginBottom: isUploading ? "10px" : "15px", opacity: isUploading ? 0.7 : 1 }}>
               {isUploading ? "Uploading..." : "Click to Select File or Image to Upload"}
             </label>
-
-            <input 
-              id="patient-file-upload"
-              type="file" 
-              onChange={handleFileUpload} 
-              disabled={isUploading}
-              style={{ display: "none" }} 
-            />
+            <input id="patient-file-upload" type="file" onChange={handleFileUpload} disabled={isUploading} style={{ display: "none" }} />
             {isUploading && <div style={{ color: "#3498db", fontWeight: "bold", fontSize: "14px", textAlign: "center" }}>Uploading...</div>}
           </div>
 
           <div style={{ background: "#f8f9fb", padding: "20px", borderRadius: "20px", marginTop: "20px" }}>
             <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Attached Files</h3>
-            
-            {patientFiles.length > 0 && (
-              <input 
-                placeholder="Search files..." 
-                value={searchFiles} 
-                onChange={(e) => setSearchFiles(e.target.value)} 
-                style={{ ...inputStyle, marginBottom: "15px" }} 
-              />
-            )}
-
+            {patientFiles.length > 0 && <input placeholder="Search files..." value={searchFiles} onChange={(e) => setSearchFiles(e.target.value)} style={{ ...inputStyle, marginBottom: "15px" }} />}
             {patientFiles.length === 0 && <p style={{ color: "#666", textAlign: "center" }}>No files uploaded yet.</p>}
             
             {dispFiles.map(file => {
               const displayName = file.name.split('_').slice(1).join('_') || file.name; 
-              
               return (
                 <div key={file.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: "10px" }}>
                     <strong style={{ fontSize: "14px", color: "#2c3e50" }}>{displayName}</strong>
-                    <div style={{ fontSize: "12px", color: "#7f8c8d", marginTop: "4px" }}>
-                      {(file.metadata?.size / 1024).toFixed(1)} KB • {new Date(file.created_at).toLocaleDateString()}
-                    </div>
+                    <div style={{ fontSize: "12px", color: "#7f8c8d", marginTop: "4px" }}>{(file.metadata?.size / 1024).toFixed(1)} KB • {new Date(file.created_at).toLocaleDateString()}</div>
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button onClick={() => viewFile(file)} style={blueBtn}>View</button>
-                    {isAdmin && (
-                      <button onClick={() => deleteFile(file.name)} style={redBtn}>Delete</button>
-                    )}
+                    {isAdmin && <button onClick={() => deleteFile(file.name)} style={redBtn}>Delete</button>}
                   </div>
                 </div>
               );
             })}
-
-            {patientFiles.length > 10 && !searchFiles.trim() && (
-              <button onClick={() => setExpandFiles(!expandFiles)} style={expandBtnStyle}>
-                {expandFiles ? "Show Less" : `Show All (${patientFiles.length})`}
-              </button>
-            )}
+            {patientFiles.length > 10 && !searchFiles.trim() && <button onClick={() => setExpandFiles(!expandFiles)} style={expandBtnStyle}>{expandFiles ? "Show Less" : `Show All (${patientFiles.length})`}</button>}
           </div>
         </>
       )}
@@ -1694,7 +1312,6 @@ export default function PatientDetail() {
       {activeTab === "emails" && (
         <div className="card">
           <h3 style={{ marginTop: 0, marginBottom: "15px" }}>Email Client</h3>
-          
           <div style={{ marginBottom: "20px" }}>
             <label style={{ fontSize: "14px", fontWeight: "bold", color: "#2c3e50", display: "block", marginBottom: "5px" }}>Client Email Address:</label>
             <div style={{ padding: "10px", background: "#f8f9fb", border: "1px solid #ccc", borderRadius: "8px", color: patient?.clients?.email ? "#2c3e50" : "#e74c3c", fontWeight: patient?.clients?.email ? "normal" : "bold" }}>
@@ -1705,34 +1322,16 @@ export default function PatientDetail() {
           <label style={{ fontSize: "14px", fontWeight: "bold", color: "#2c3e50", display: "block", marginBottom: "5px" }}>Choose Template:</label>
           <select value={selectedTemplate} onChange={handleTemplateSelect} style={inputStyle}>
             <option value="">-- Start Blank or Select Template --</option>
-            {emailTemplates.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
+            {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
 
           <label style={{ fontSize: "14px", fontWeight: "bold", color: "#2c3e50", display: "block", marginBottom: "5px", marginTop: "10px" }}>Subject:</label>
-          <input 
-            value={emailSubject} 
-            onChange={(e) => setEmailSubject(e.target.value)} 
-            placeholder="Email Subject" 
-            style={inputStyle} 
-          />
+          <input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Email Subject" style={inputStyle} />
 
           <label style={{ fontSize: "14px", fontWeight: "bold", color: "#2c3e50", display: "block", marginBottom: "5px", marginTop: "10px" }}>Message Body:</label>
-          <textarea 
-            rows={8} 
-            value={emailBody} 
-            onChange={(e) => setEmailBody(e.target.value)} 
-            placeholder="Type your message here..." 
-            style={{ ...inputStyle, fontFamily: "inherit" }} 
-          />
+          <textarea rows={8} value={emailBody} onChange={(e) => setEmailBody(e.target.value)} placeholder="Type your message here..." style={{ ...inputStyle, fontFamily: "inherit" }} />
 
-          <button onClick={sendEmail} style={{ ...blueBtn, width: "100%" }}>
-            Open Draft in Default Mail App
-          </button>
-          <p style={{ fontSize: "12px", color: "#7f8c8d", textAlign: "center", marginTop: "10px" }}>
-            This will open your device's default email client (e.g., Outlook, Apple Mail) so you can review the message before sending.
-          </p>
+          <button onClick={sendEmail} style={{ ...blueBtn, width: "100%" }}>Open Draft in Default Mail App</button>
         </div>
       )}
 
@@ -1741,12 +1340,8 @@ export default function PatientDetail() {
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setSuccessMessage("")}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
             <h2 style={{ color: "#27ae60", marginTop: 0 }}>✓ Success</h2>
-            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
-              {successMessage}
-            </p>
-            <button onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>
-              OK
-            </button>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>{successMessage}</p>
+            <button onClick={() => setSuccessMessage("")} style={{ ...greenBtn, width: "100%" }}>OK</button>
           </div>
         </div>
       )}
@@ -1756,9 +1351,7 @@ export default function PatientDetail() {
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
             <h2 style={{ color: "#f39c12", marginTop: 0 }}>⚠️ Notice</h2>
-            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
-              {alertMessage}
-            </p>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>{alertMessage}</p>
             <button onClick={() => setAlertMessage("")} style={{ ...blueBtn, width: "100%" }}>OK</button>
           </div>
         </div>
@@ -1769,9 +1362,7 @@ export default function PatientDetail() {
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setConfirmModal(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
             <h2 style={{ color: confirmModal.confirmColor || "#e74c3c", marginTop: 0 }}>⚠️ {confirmModal.title}</h2>
-            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>
-              {confirmModal.message}
-            </p>
+            <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "25px", lineHeight: "1.5" }}>{confirmModal.message}</p>
             <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
               <button onClick={confirmModal.onConfirm} style={{ ...standardBtnProps, background: confirmModal.confirmColor || "#e74c3c", color: "white", flex: 1 }}>{confirmModal.confirmText || "Confirm"}</button>
               <button onClick={() => setConfirmModal(null)} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
@@ -1787,7 +1378,7 @@ export default function PatientDetail() {
             <h2 style={{ color: "#e74c3c", marginTop: 0 }}>⚠️ Consent Required</h2>
             <p style={{ color: "#2c3e50", fontSize: "16px", marginBottom: "20px", lineHeight: "1.5" }}>A signed Euthanasia Consent form must be completed before this procedure can be added to the invoice.</p>
             <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-              <button onClick={() => { setShowConsentPrompt(false); setActiveTab("consent"); window.scrollTo(0,0); }} style={{ ...blueBtn, flex: 1 }}>Go to Form</button>
+              <button onClick={() => { setShowConsentPrompt(false); setActiveTab("consent"); setSubTabAftercare("consent"); window.scrollTo(0,0); }} style={{ ...blueBtn, flex: 1 }}>Go to Form</button>
               <button onClick={() => setShowConsentPrompt(false)} style={{ ...greyBtn, flex: 1 }}>Cancel</button>
             </div>
           </div>
@@ -1798,24 +1389,8 @@ export default function PatientDetail() {
       {viewingImage && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.85)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "15px" }} onClick={() => setViewingImage(null)}>
           <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center" }} onClick={e => e.stopPropagation()}>
-            
-            <button onClick={() => setViewingImage(null)} style={{ position: "absolute", top: "10px", right: "10px", background: "white", color: "#333", border: "none", borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontWeight: "bold", fontSize: "16px", zIndex: 2, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>
-              X
-            </button>
-            
-            <img 
-              src={viewingImage} 
-              alt="Patient Document" 
-              style={{ 
-                maxWidth: "90vw",
-                maxHeight: "85vh",
-                width: "auto",
-                height: "auto",
-                objectFit: "contain",
-                borderRadius: "8px",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.4)"
-              }} 
-            />
+            <button onClick={() => setViewingImage(null)} style={{ position: "absolute", top: "10px", right: "10px", background: "white", color: "#333", border: "none", borderRadius: "50%", width: "36px", height: "36px", cursor: "pointer", fontWeight: "bold", fontSize: "16px", zIndex: 2, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.3)" }}>X</button>
+            <img src={viewingImage} alt="Patient Document" style={{ maxWidth: "90vw", maxHeight: "85vh", width: "auto", height: "auto", objectFit: "contain", borderRadius: "8px", boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }} />
           </div>
         </div>
       )}
@@ -1828,7 +1403,7 @@ const TABS = [
   { id: "details", label: "Details" },
   { id: "dosing", label: "Dosing Calc" },
   { id: "procedures", label: "Procedures" },
-  { id: "consent", label: "Consent" },
+  { id: "consent", label: "Consent & Aftercare" },
   { id: "appointments", label: "Appointments" },
   { id: "files", label: "Files" },
   { id: "emails", label: "Emails/SMS" }

@@ -177,40 +177,26 @@ export default function Home() {
     let text = "";
 
     if (newStatus === "Arrived") {
-      text = `📍 Arrived
-
-Client: ${clientName}
-Pet: ${patientName}
-
-Dr Craig Bailey has arrived.`;
+      text = `📍 Arrived\n\nClient: ${clientName}\nPet: ${patientName}\n\nDr Craig Bailey has arrived.`;
     } else if (newStatus === "Finished") {
-      text = `✅ Appointment Complete
-
-Client: ${clientName}
-Pet: ${patientName}
-
-Appointment completed.`;
+      text = `✅ Appointment Complete\n\nClient: ${clientName}\nPet: ${patientName}\n\nAppointment completed.`;
     }
 
-    // Send to Telegram
+    // Send to WhatsApp via CallMeBot
     try {
-      await fetch(
-        "https://api.telegram.org/bot8527824436:AAGJnUfyk89_rGi_PH5jnFygqv0WbErE30s/sendMessage",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            chat_id: "6664259551",
-            text
-          })
-        }
-      );
-      setSuccessMessage(`Appointment marked as ${newStatus} and notification sent to Telegram.`);
+      // Added the '+' and URL encoded it so it doesn't break the web link
+      const phone = encodeURIComponent("+447897895436"); 
+      const apiKey = "4828681"; 
+      
+      const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(text)}&apikey=${apiKey}`;
+      
+      // Tell the browser to ignore CORS restrictions for this one-way outgoing ping
+      await fetch(url, { mode: 'no-cors' });
+      
+      setSuccessMessage(`Appointment marked as ${newStatus} and WhatsApp notification sent.`);
     } catch (err) {
-      console.error("Telegram API Error:", err);
-      setAlertMessage(`Appointment marked as ${newStatus}, but the Telegram notification failed to send.`);
+      console.error("WhatsApp API Error:", err);
+      setAlertMessage(`Appointment marked as ${newStatus}, but the WhatsApp notification failed to send.`);
     }
   }
 
@@ -426,7 +412,7 @@ Appointment completed.`;
                         width="100%" 
                         height="200" 
                         frameBorder="0" 
-                        src={`https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY&q=${encodeURIComponent(addr)}`} 
+                        src={`https://maps.google.com/maps?q=${encodeURIComponent(addr)}&output=embed`} 
                         title="map"
                       ></iframe>
                     </div>

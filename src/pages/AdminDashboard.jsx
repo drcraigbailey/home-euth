@@ -114,15 +114,20 @@ export default function AdminDashboard() {
   const [protoMgMl, setProtoMgMl] = useState("");
   const [expandProtocols, setExpandProtocols] = useState(false);
 
+  // --- TEMPLATES & SMS STATES ---
   const [templatesList, setTemplatesList] = useState([]);
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [editTemplateId, setEditTemplateId] = useState(null);
+  const [templateType, setTemplateType] = useState("Client Email");
   const [templateName, setTemplateName] = useState("");
   const [templateSubject, setTemplateSubject] = useState("");
   const [templateBody, setTemplateBody] = useState("");
   const [templateToDelete, setTemplateToDelete] = useState(null);
   const [searchTemplates, setSearchTemplates] = useState("");
   const [expandTemplates, setExpandTemplates] = useState(false);
+
+  const [smsArrivedNumber, setSmsArrivedNumber] = useState("");
+  const [smsFinishedNumber, setSmsFinishedNumber] = useState("");
 
   const [expensesList, setExpensesList] = useState([]);
   const [expDesc, setExpDesc] = useState("");
@@ -147,9 +152,13 @@ export default function AdminDashboard() {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       setCurrentUserId(session.user.id);
-      const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", session.user.id).single();
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
       if (profile?.is_admin) {
         setIsAdmin(true);
+        // Load SMS Numbers from Admin Profile
+        setSmsArrivedNumber(profile.sms_arrived || "");
+        setSmsFinishedNumber(profile.sms_finished || "");
+
         await Promise.all([
           fetchReports(), fetchProducts(), fetchStock(), fetchProtocols(), fetchTemplates(), fetchProfiles(), fetchExpenses()
         ]);
@@ -691,16 +700,37 @@ export default function AdminDashboard() {
     setProtocolToDelete(null); fetchProtocols();
   }
 
+  async function saveSmsSettings() {
+    if (!currentUserId) return;
+    const { error } = await supabase.from("profiles").update({ 
+      sms_arrived: smsArrivedNumber, 
+      sms_finished: smsFinishedNumber 
+    }).eq("id", currentUserId);
+
+    if (!error) {
+      setSuccessMessage("SMS Notification numbers saved successfully!");
+    } else {
+      setAlertMessage("Failed to save SMS numbers: " + error.message);
+    }
+  }
+
   async function saveTemplate() {
     if (!templateName || !templateSubject || !templateBody) return setAlertMessage("Name, Subject, and Body are required.");
-    const payload = { name: templateName, subject: templateSubject, body: templateBody };
+    const payload = { 
+      name: templateName, 
+      subject: templateSubject, 
+      body: templateBody,
+      template_type: templateType 
+    };
+    
     if (isEditingTemplate) await supabase.from("email_templates").update(payload).eq("id", editTemplateId);
     else await supabase.from("email_templates").insert([payload]);
+    
     setIsEditingTemplate(false); setEditTemplateId(null); setTemplateName(""); setTemplateSubject(""); setTemplateBody(""); fetchTemplates();
   }
 
   function startEditTemplate(t) {
-    setIsEditingTemplate(true); setEditTemplateId(t.id); setTemplateName(t.name); setTemplateSubject(t.subject); setTemplateBody(t.body);
+    setIsEditingTemplate(true); setEditTemplateId(t.id); setTemplateType(t.template_type || "Client Email"); setTemplateName(t.name); setTemplateSubject(t.subject); setTemplateBody(t.body);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -790,7 +820,7 @@ export default function AdminDashboard() {
     { id: "products", label: "Products" },
     { id: "stock", label: "Stock" },
     { id: "protocols", label: "Protocols" },
-    { id: "templates", label: "Email Templates" }
+    { id: "templates", label: "Emails/SMS" }
   ];
 
   return (
@@ -1396,18 +1426,27 @@ export default function AdminDashboard() {
 
       {activeTab === "templates" && (
         <>
+          {/* EMAIL TEMPLATES */}
           <div className="card" style={{ marginBottom: "20px", border: isEditingTemplate ? "2px solid #f39c12" : "none" }}>
-            <h3 style={{ marginTop: 0 }}>{isEditingTemplate ? "Edit Template" : "Add New Template"}</h3>
+            <h3 style={{ marginTop: 0 }}>{isEditingTemplate ? "Edit Email Template" : "Add New Email Template"}</h3>
             <p style={{ fontSize: "13px", color: "#7f8c8d", marginTop: 0, marginBottom: "15px" }}>
-              Use <strong>{'{patient_name}'}</strong> and <strong>{'{client_name}'}</strong> as placeholders in your subject and body. They will be auto-filled in the patient's file.
+              Available placeholders: <strong>{'{patient_name}'}</strong>, <strong>{'{client_name}'}</strong>, <strong>{'{vet_name}'}</strong>, and <strong>{'{vet_email}'}</strong>.
             </p>
-            <input placeholder="Template Name (e.g., Sympathy Card)" value={templateName} onChange={e => setTemplateName(e.target.value)} style={inputStyle} />
+            
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <select value={templateType} onChange={e => setTemplateType(e.target.value)} style={{...inputStyle, flex: 1, minWidth: "150px"}}>
+                <option value="Client Email">Client Email</option>
+                <option value="Vet Notification">Vet Notification (Euthanasia)</option>
+              </select>
+              <input placeholder="Template Name (e.g., Sympathy Card)" value={templateName} onChange={e => setTemplateName(e.target.value)} style={{...inputStyle, flex: 2, minWidth: "200px"}} />
+            </div>
+            
             <input placeholder="Email Subject" value={templateSubject} onChange={e => setTemplateSubject(e.target.value)} style={inputStyle} />
             <textarea placeholder="Email Body..." value={templateBody} onChange={e => setTemplateBody(e.target.value)} style={{...inputStyle, fontFamily: "inherit", minHeight: "100px"}} rows={6} />
             
             <div style={btnRow}>
               <button onClick={saveTemplate} style={{...greenBtn, flex: 1}}>{isEditingTemplate ? "Update Template" : "Save Template"}</button>
-              {isEditingTemplate && <button onClick={() => {setIsEditingTemplate(false); setEditTemplateId(null); setTemplateName(""); setTemplateSubject(""); setTemplateBody("");}} style={{...redBtn, flex: 1}}>Cancel</button>}
+              {isEditingTemplate && <button onClick={() => {setIsEditingTemplate(false); setEditTemplateId(null); setTemplateType("Client Email"); setTemplateName(""); setTemplateSubject(""); setTemplateBody("");}} style={{...redBtn, flex: 1}}>Cancel</button>}
             </div>
           </div>
 
@@ -1427,7 +1466,12 @@ export default function AdminDashboard() {
             {dispTemplates.map(t => (
               <div key={t.id} style={{ ...whiteShadowBox, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ flex: 1, paddingRight: "15px" }}>
-                  <strong style={{ fontSize: "18px", display: "block", color: "#333", marginBottom: "5px" }}>{t.name}</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "5px" }}>
+                    <strong style={{ fontSize: "18px", color: "#333" }}>{t.name}</strong>
+                    <span style={{ fontSize: "12px", background: t.template_type === "Vet Notification" ? "#e8daef" : "#eef2f4", color: t.template_type === "Vet Notification" ? "#8e44ad" : "#5b8fb9", padding: "4px 8px", borderRadius: "10px", fontWeight: "bold" }}>
+                      {t.template_type || "Client Email"}
+                    </span>
+                  </div>
                   <div style={{ fontSize: "14px", color: "#2c3e50", fontWeight: "bold", marginBottom: "5px" }}>Subject: {t.subject}</div>
                   <div style={{ color: "#7f8c8d", fontSize: "13px", whiteSpace: "pre-wrap", background: "#f0f2f5", padding: "10px", borderRadius: "8px" }}>{t.body}</div>
                 </div>

@@ -74,6 +74,10 @@ export default function Home() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
 
+  // --- NEW SMS CONFIG STATES ---
+  const [smsArrivedNum, setSmsArrivedNum] = useState("");
+  const [smsFinishedNum, setSmsFinishedNum] = useState("");
+
   useEffect(() => {
     async function loadInitialData() {
       setIsLoading(true);
@@ -104,6 +108,13 @@ export default function Home() {
         setProfiles(allProfiles || []);
       } else {
         setProfiles([profile]);
+      }
+
+      // Fetch the Central SMS Notification Numbers configured by the Admin
+      const { data: adminProfiles } = await supabase.from("profiles").select("sms_arrived, sms_finished").eq("is_admin", true).limit(1);
+      if (adminProfiles && adminProfiles.length > 0) {
+        setSmsArrivedNum(adminProfiles[0].sms_arrived || "");
+        setSmsFinishedNum(adminProfiles[0].sms_finished || "");
       }
     }
   }
@@ -163,7 +174,7 @@ export default function Home() {
     const { error } = await supabase.from("diary_entries").update({ status: newStatus }).eq("id", entry.id);
     
     if (error) {
-      setAlertMessage("Error updating status: " + error.message);
+      setAlertMessage("Error updating status: " + error.message + " (Note: Make sure a 'status' text column exists in the diary_entries table in Supabase).");
       return;
     }
 
@@ -171,46 +182,27 @@ export default function Home() {
     setViewEntry({ ...entry, status: newStatus });
     setEntries(entries.map(e => e.id === entry.id ? { ...e, status: newStatus } : e));
 
-    const clientName = `${entry.clients?.name || ""} ${entry.clients?.surname || ""}`.trim() || "Client";
+    // Construct automated message using Admin-Configured Numbers
+    const clientName = entry.clients?.name || "Client";
+    const clientSurname = entry.clients?.surname || "";
     const patientName = entry.patients?.name || "Unknown Pet";
     
     let text = "";
-
+    let targetPhone = "";
+    
     if (newStatus === "Arrived") {
-      text = `📍 Arrived
-
-Client: ${clientName}
-Pet: ${patientName}
-
-Dr Craig Bailey has arrived.`;
+       targetPhone = smsArrivedNum;
+       text = `[Alert] A team member has ARRIVED for the appointment with ${clientName} ${clientSurname} (Pet: ${patientName}).`;
     } else if (newStatus === "Finished") {
-      text = `✅ Appointment Complete
-
-Client: ${clientName}
-Pet: ${patientName}
-
-Appointment completed.`;
+       targetPhone = smsFinishedNum;
+       text = `[Alert] A team member has FINISHED the appointment with ${clientName} ${clientSurname} (Pet: ${patientName}).`;
     }
-
-    // Send to Telegram
-    try {
-      await fetch(
-        "https://api.telegram.org/bot8527824436:AAGJnUfyk89_rGi_PH5jnFygqv0WbErE30s/sendMessage",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            chat_id: "6664259551",
-            text
-          })
-        }
-      );
-      setSuccessMessage(`Appointment marked as ${newStatus} and notification sent to Telegram.`);
-    } catch (err) {
-      console.error("Telegram API Error:", err);
-      setAlertMessage(`Appointment marked as ${newStatus}, but the Telegram notification failed to send.`);
+    
+    if (targetPhone) {
+       // Use standard SMS URI scheme
+       window.location.href = `sms:${targetPhone}?body=${encodeURIComponent(text)}`;
+    } else {
+       setSuccessMessage(`Appointment marked as ${newStatus}. (No SMS alert sent because the notification number is not set in the Admin Dashboard).`);
     }
   }
 
@@ -324,6 +316,7 @@ Appointment completed.`;
           const isEuth = entry.entry_type === "Euthanasia";
           const isConsult = entry.entry_type === "Consultation";
           
+          // Apply orange to Euth, theme blue to Consult, and grey to anything else (Working Status)
           const badgeColor = isEuth ? "#f39c12" : isConsult ? "#5b8fb9" : "#95a5a6";
           
           let mainHeader = entry.title || "Untitled Entry";
@@ -355,6 +348,7 @@ Appointment completed.`;
         })}
       </div>
 
+      {/* POP-UP MODAL FOR DIARY DETAILS */}
       {viewEntry && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setViewEntry(null)}>
           <div style={{ background: "white", padding: "20px", borderRadius: "15px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflowY: "auto", position: "relative" }} onClick={e => e.stopPropagation()}>
@@ -391,6 +385,7 @@ Appointment completed.`;
               </div>
             </div>
 
+            {/* --- STATUS & MESSAGING ACTIONS --- */}
             <div style={{ marginTop: "15px", padding: "15px", background: viewEntry.status === "Finished" ? "#f8f9fb" : "#f0fdf4", borderRadius: "10px", border: viewEntry.status === "Finished" ? "1px solid #eee" : "1px solid #bbf7d0" }}>
               <strong style={{ display: "block", marginBottom: "10px", color: viewEntry.status === "Finished" ? "#7f8c8d" : "#27ae60" }}>
                 Appointment Status: {viewEntry.status || "Scheduled"}
@@ -415,6 +410,7 @@ Appointment completed.`;
               )}
             </div>
 
+            {/* GOOGLE MAP EMBED */}
             {(() => {
               const addr = viewEntry.clients?.address ? `${viewEntry.clients.address}, ${viewEntry.clients.city || ''} ${viewEntry.clients.postcode || ''}` : viewEntry.address;
               if (addr) {
@@ -426,7 +422,7 @@ Appointment completed.`;
                         width="100%" 
                         height="200" 
                         frameBorder="0" 
-                        src={`https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY&q=${encodeURIComponent(addr)}`} 
+                        src={`https://maps.google.com/maps?q=${encodeURIComponent(addr)}&output=embed`} 
                         title="map"
                       ></iframe>
                     </div>
@@ -454,6 +450,7 @@ Appointment completed.`;
         </div>
       )}
 
+      {/* POP-UP MODAL FOR DIARY DETAILS DELETION */}
       {entryToDelete && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 99999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setEntryToDelete(null)}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
@@ -469,6 +466,7 @@ Appointment completed.`;
         </div>
       )}
 
+      {/* ================= SUCCESS MODAL ================= */}
       {successMessage && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setSuccessMessage("")}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
@@ -483,6 +481,7 @@ Appointment completed.`;
         </div>
       )}
 
+      {/* ================= GENERIC ALERT MODAL ================= */}
       {alertMessage && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", zIndex: 999999, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }} onClick={() => setAlertMessage("")}>
           <div style={{ background: "white", padding: "25px", borderRadius: "15px", width: "100%", maxWidth: "400px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }} onClick={e => e.stopPropagation()}>
