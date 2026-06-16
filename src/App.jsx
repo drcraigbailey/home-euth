@@ -16,6 +16,7 @@ import ClientDetail from "./pages/ClientDetail";
 import PatientDetail from "./pages/PatientDetail";
 import Sedation from "./pages/Sedation";
 import Products from "./pages/Products"; 
+import Library from "./pages/Library";
 import AdminDashboard from "./pages/AdminDashboard";
 
 // --- GLOBAL UNIFORM STYLING CONSTANTS ---
@@ -84,7 +85,7 @@ function Navbar() {
       <nav className="header-nav" style={{ position: "relative", width: "100%" }}>
         <div className="nav-container-inner" style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
           
-          <div style={{ display: "flex", alignItems: "center", flex: 1, background: "white", borderRadius: "15px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", padding: "0 10px", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
             <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none", flexShrink: 0 }}>&lt;</span>
             
             <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center", flex: 1, padding: "10px 0", minWidth: 0 }}>
@@ -93,6 +94,7 @@ function Navbar() {
               <NavLink to="/patients" className="nav-item">Patients</NavLink> 
               <NavLink to="/sedation" className="nav-item">Sedation</NavLink>
               <NavLink to="/products" className="nav-item">Products</NavLink>
+              <NavLink to="/library" className="nav-item">Library</NavLink>
               {isAdmin && <NavLink to="/admin" className="nav-item" style={{ color: "#e74c3c" }}>Admin</NavLink>}
             </div>
 
@@ -181,6 +183,7 @@ export default function App() {
         <Route path="/sedation" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
         <Route path="/sedation/:id" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+        <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
       </Routes>
     </Router>
