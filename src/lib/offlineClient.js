@@ -21,6 +21,8 @@ const OFFLINE_WRITE_TABLES = new Set([
 
 const REMOTE_READ_TIMEOUT_MS = 3500;
 const BACKGROUND_REFRESH_TIMEOUT_MS = 6000;
+const BACKGROUND_REFRESH_COOLDOWN_MS = 30000;
+const backgroundRefreshTimes = new Map();
 
 function offlineError(message, code = "OFFLINE_UNAVAILABLE") {
   return { message, code, details: "", hint: "" };
@@ -38,6 +40,14 @@ function isNetworkError(error) {
   if (!error) return false;
   const message = `${error.message || ""} ${error.details || ""}`.toLowerCase();
   return !isNetworkOnline() || ["failed to fetch", "fetch failed", "network", "timeout", "load failed", "abort"].some((text) => message.includes(text));
+}
+
+function safeJson(value) {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 async function awaitRemoteWithTimeout(builder, timeoutMs) {
@@ -288,8 +298,18 @@ class OfflineQueryBuilder {
     return this.executeOffline();
   }
 
+  backgroundRefreshKey() {
+    return `${this.table}:${safeJson({ filters: this.filters, orders: this.orders, range: this.rangeValue, limit: this.limitValue, singleMode: this.singleMode })}`;
+  }
+
   refreshRemoteInBackground() {
     if (!isNetworkOnline()) return;
+    const key = this.backgroundRefreshKey();
+    const now = Date.now();
+    const lastRefresh = backgroundRefreshTimes.get(key) || 0;
+    if (now - lastRefresh < BACKGROUND_REFRESH_COOLDOWN_MS) return;
+    backgroundRefreshTimes.set(key, now);
+
     setTimeout(async () => {
       try {
         const result = await awaitRemoteWithTimeout(this.remoteBuilder, BACKGROUND_REFRESH_TIMEOUT_MS);
