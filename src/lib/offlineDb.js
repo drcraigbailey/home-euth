@@ -63,9 +63,28 @@ function scopeTable(userId, table) {
   return `${userId}:${table}`;
 }
 
-function emitChange() {
+function stableJson(value) {
+  if (value === undefined) return "__undefined__";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function recordMeaning(record) {
+  if (!record) return "__missing__";
+  return stableJson({
+    data: record.data,
+    updatedAt: record.updatedAt || null,
+    dirty: Boolean(record.dirty),
+    deleted: Boolean(record.deleted),
+  });
+}
+
+function emitChange(detail = {}) {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("offline-data-changed"));
+    window.dispatchEvent(new CustomEvent("offline-data-changed", { detail }));
   }
 }
 
@@ -98,11 +117,13 @@ export async function cacheRecords(userId, table, rows, { replace = false } = {}
   const transaction = db.transaction(RECORDS_STORE, "readwrite");
   const store = transaction.objectStore(RECORDS_STORE);
   const now = new Date().toISOString();
+  let changed = false;
 
   if (replace) {
     for (const oldRecord of existing) {
       if (!incomingIds.has(String(oldRecord.id)) && !oldRecord.dirty) {
         store.delete(oldRecord.key);
+        changed = true;
       }
     }
   }
@@ -111,7 +132,7 @@ export async function cacheRecords(userId, table, rows, { replace = false } = {}
     const oldRecord = existingById.get(String(data.id));
     if (oldRecord?.dirty) continue;
     const mergedData = oldRecord ? { ...oldRecord.data, ...data } : data;
-    store.put({
+    const nextRecord = {
       key: recordKey(userId, table, data.id),
       scopeTable: scopeTable(userId, table),
       userId,
@@ -119,13 +140,19 @@ export async function cacheRecords(userId, table, rows, { replace = false } = {}
       id: data.id,
       data: mergedData,
       updatedAt: data.updated_at || oldRecord?.updatedAt || null,
-      cachedAt: now,
+      cachedAt: oldRecord?.cachedAt || now,
       dirty: false,
       deleted: false,
-    });
+    };
+
+    if (recordMeaning(oldRecord) !== recordMeaning(nextRecord)) {
+      store.put({ ...nextRecord, cachedAt: now });
+      changed = true;
+    }
   }
+
   await transactionDone(transaction);
-  emitChange();
+  if (changed) emitChange({ kind: "records", table });
 }
 
 export async function insertLocalRecords(userId, table, rows) {
@@ -148,7 +175,7 @@ export async function insertLocalRecords(userId, table, rows) {
     });
   }
   await transactionDone(transaction);
-  emitChange();
+  emitChange({ kind: "records", table });
 }
 
 export async function updateLocalRecords(userId, table, predicate, patch, { dirty = true } = {}) {
@@ -158,19 +185,24 @@ export async function updateLocalRecords(userId, table, predicate, patch, { dirt
   const transaction = db.transaction(RECORDS_STORE, "readwrite");
   const store = transaction.objectStore(RECORDS_STORE);
   const now = new Date().toISOString();
+  let changed = false;
   for (const record of matches) {
     const data = { ...record.data, ...patch };
-    store.put({
+    const nextRecord = {
       ...record,
       data,
       updatedAt: data.updated_at || record.updatedAt || null,
       cachedAt: now,
       dirty,
       deleted: false,
-    });
+    };
+    if (recordMeaning(record) !== recordMeaning(nextRecord)) {
+      store.put(nextRecord);
+      changed = true;
+    }
   }
   await transactionDone(transaction);
-  if (matches.length) emitChange();
+  if (changed) emitChange({ kind: "records", table });
   return matches;
 }
 
@@ -182,7 +214,7 @@ export async function removeLocalRecords(userId, table, predicate) {
   const store = transaction.objectStore(RECORDS_STORE);
   for (const record of matches) store.delete(record.key);
   await transactionDone(transaction);
-  if (matches.length) emitChange();
+  if (matches.length) emitChange({ kind: "records", table });
 }
 
 export async function enqueueMutation(item) {
@@ -219,7 +251,7 @@ export async function enqueueMutation(item) {
   const transaction = db.transaction(QUEUE_STORE, "readwrite");
   transaction.objectStore(QUEUE_STORE).put(queueItem);
   await transactionDone(transaction);
-  emitChange();
+  emitChange({ kind: "queue", table: item.table });
   return queueItem;
 }
 
@@ -254,15 +286,16 @@ export async function updateQueueItem(id, patch) {
   const transaction = db.transaction(QUEUE_STORE, "readwrite");
   transaction.objectStore(QUEUE_STORE).put({ ...item, ...patch, updatedAt: new Date().toISOString() });
   await transactionDone(transaction);
-  emitChange();
+  emitChange({ kind: "queue", table: item.table });
 }
 
 export async function removeQueueItem(id) {
+  const item = await getQueueItem(id);
   const db = await openDatabase();
   const transaction = db.transaction(QUEUE_STORE, "readwrite");
   transaction.objectStore(QUEUE_STORE).delete(id);
   await transactionDone(transaction);
-  emitChange();
+  emitChange({ kind: "queue", table: item?.table });
 }
 
 function replaceValue(value, oldId, newId) {
@@ -310,7 +343,7 @@ export async function reconcileOfflineId(userId, table, oldId, remoteRecord) {
   }
 
   await transactionDone(transaction);
-  emitChange();
+  emitChange({ kind: "records", table });
 }
 
 export async function setMeta(userId, name, value) {
@@ -319,7 +352,7 @@ export async function setMeta(userId, name, value) {
   const transaction = db.transaction(META_STORE, "readwrite");
   transaction.objectStore(META_STORE).put({ key: `${userId}:${name}`, userId, name, value });
   await transactionDone(transaction);
-  emitChange();
+  emitChange({ kind: "meta", name });
 }
 
 export async function getMeta(userId, name) {
@@ -339,4 +372,3 @@ export async function getOfflineStatus(userId) {
     conflictCount: queue.filter((item) => item.status === "conflict").length,
   };
 }
-
