@@ -30,13 +30,20 @@ function formatSyncTime(value) {
 function getSyncButtonState({ online, status, syncState }) {
   const pendingCount = Number(status?.pendingCount || 0);
   const conflictCount = Number(status?.conflictCount || 0);
-  const hasLocalWork = pendingCount > 0 || conflictCount > 0;
 
-  if (hasLocalWork || syncState.lastError) {
+  if (pendingCount > 0 || syncState.lastError) {
     return {
       label: "Needs sync",
       background: "#c62828",
-      title: "New offline data or sync conflicts need syncing/reviewing.",
+      title: "New offline data needs syncing.",
+    };
+  }
+
+  if (conflictCount > 0) {
+    return {
+      label: "Review needed",
+      background: "#b45309",
+      title: "Sync is complete, but one or more safety/conflict items need manual review.",
     };
   }
 
@@ -144,7 +151,7 @@ export default function OfflineStatusBanner() {
         <strong>{online ? "Online" : "Offline mode: showing saved data"}</strong>
         {!online && <span>Changes will sync when back online.</span>}
         <span>Last synced: {formatSyncTime(status.lastSyncedAt)}</span>
-        <span>Pending: {status.pendingCount}</span>
+        <span>Pending sync: {status.pendingCount}</span>
         {status.conflictCount > 0 && <strong style={{ color: "#b45309" }}>Needs review: {status.conflictCount}</strong>}
         {syncState.lastError && online && <span title={syncState.lastError}>Sync incomplete</span>}
         <button
