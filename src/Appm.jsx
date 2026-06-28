@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabase";
 import Loader from "./Loader";
 import OfflineStatusBanner from "./components/OfflineStatusBanner";
+import companyLogo from "./assets/logo.png";
 
 import { App as CapacitorApp } from "@capacitor/app";
 
@@ -98,6 +99,41 @@ function ProtectedRoute({children}) {
   }
 
   return children;
+}
+
+function BrandBar() {
+  const location = useLocation();
+  if(location.pathname === "/login") return null;
+
+  return (
+    <div style={{
+      position: "sticky",
+      top: 0,
+      zIndex: 999,
+      background: "rgba(255,255,255,.97)",
+      borderBottom: "1px solid rgba(91,143,185,.18)",
+      boxShadow: "0 4px 16px rgba(47,65,83,.08)",
+      padding: "calc(8px + env(safe-area-inset-top, 0px)) 14px 8px",
+      backdropFilter: "blur(12px)"
+    }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "10px",
+        minHeight: "44px"
+      }}>
+        <img
+          src={companyLogo}
+          alt="SP Home Euthanasia logo"
+          style={{ width: "38px", height: "38px", objectFit: "contain", borderRadius: "9px", flexShrink: 0 }}
+        />
+        <strong style={{ color: DARK, fontSize: "19px", lineHeight: 1.15, textAlign: "center" }}>
+          SP Home Euthanasia
+        </strong>
+      </div>
+    </div>
+  );
 }
 
 // ---------- Bottom mobile navbar ----------
@@ -284,8 +320,9 @@ export default function Appm(){
     <Router>
       <ScrollToTop />
       <BackButtonHandler />
+      <BrandBar />
       <OfflineStatusBanner />
-      <div style={{ paddingTop: "20px", paddingBottom: "20px" }}>
+      <div style={{ paddingTop: "16px", paddingBottom: "20px" }}>
         <Routes>
           <Route path="/login" element={<Login/>}/>
           <Route path="/" element={<ProtectedRoute><Home/></ProtectedRoute>}/>
