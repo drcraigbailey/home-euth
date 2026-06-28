@@ -19,14 +19,45 @@ const OFFLINE_WRITE_TABLES = new Set([
   "diary_entries",
 ]);
 
+const REMOTE_READ_TIMEOUT_MS = 3500;
+const BACKGROUND_REFRESH_TIMEOUT_MS = 6000;
+
 function offlineError(message, code = "OFFLINE_UNAVAILABLE") {
   return { message, code, details: "", hint: "" };
+}
+
+function timeoutError(timeoutMs) {
+  return offlineError(`The remote request took longer than ${Math.round(timeoutMs / 1000)} seconds, so cached data was used instead.`, "REMOTE_TIMEOUT");
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError" || `${error?.message || ""}`.toLowerCase().includes("abort");
 }
 
 function isNetworkError(error) {
   if (!error) return false;
   const message = `${error.message || ""} ${error.details || ""}`.toLowerCase();
-  return !isNetworkOnline() || ["failed to fetch", "fetch failed", "network", "timeout", "load failed"].some((text) => message.includes(text));
+  return !isNetworkOnline() || ["failed to fetch", "fetch failed", "network", "timeout", "load failed", "abort"].some((text) => message.includes(text));
+}
+
+async function awaitRemoteWithTimeout(builder, timeoutMs) {
+  if (typeof AbortController === "undefined" || typeof builder?.abortSignal !== "function") {
+    return Promise.race([
+      builder,
+      new Promise((_, reject) => setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs)),
+    ]);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await builder.abortSignal(controller.signal);
+  } catch (error) {
+    if (isAbortError(error)) throw timeoutError(timeoutMs);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function currentUserId(client) {
@@ -213,9 +244,10 @@ class OfflineQueryBuilder {
   }
 
   async execute() {
+    if (this.operation === "select") return this.executeSelect();
     if (isNetworkOnline()) {
       try {
-        const result = await this.remoteBuilder;
+        const result = await awaitRemoteWithTimeout(this.remoteBuilder, REMOTE_READ_TIMEOUT_MS);
         if (!result.error) {
           await this.handleRemoteSuccess(result).catch(() => {});
           return result;
@@ -226,6 +258,46 @@ class OfflineQueryBuilder {
       }
     }
     return this.executeOffline();
+  }
+
+  async executeSelect() {
+    const userId = await currentUserId(this.client);
+    if (userId) {
+      const cachedRecords = await getCachedRecords(userId, this.table).catch(() => []);
+      if (cachedRecords.length > 0) {
+        const cachedResult = await this.readOffline(userId, cachedRecords);
+        if (!cachedResult.error || cachedResult.error.code === "OFFLINE_RECORD_NOT_FOUND") {
+          this.refreshRemoteInBackground();
+          return { ...cachedResult, cacheFirst: true };
+        }
+      }
+    }
+
+    if (isNetworkOnline()) {
+      try {
+        const result = await awaitRemoteWithTimeout(this.remoteBuilder, REMOTE_READ_TIMEOUT_MS);
+        if (!result.error) {
+          await this.handleRemoteSuccess(result).catch(() => {});
+          return result;
+        }
+        if (!isNetworkError(result.error)) return result;
+      } catch (error) {
+        if (!isNetworkError(error)) throw error;
+      }
+    }
+    return this.executeOffline();
+  }
+
+  refreshRemoteInBackground() {
+    if (!isNetworkOnline()) return;
+    setTimeout(async () => {
+      try {
+        const result = await awaitRemoteWithTimeout(this.remoteBuilder, BACKGROUND_REFRESH_TIMEOUT_MS);
+        if (!result.error) await this.handleRemoteSuccess(result).catch(() => {});
+      } catch {
+        // Cache-first reads should stay quick. The status banner/background sync reports wider sync issues.
+      }
+    }, 0);
   }
 
   async handleRemoteSuccess(result) {
@@ -273,9 +345,9 @@ class OfflineQueryBuilder {
     return this.queueOfflineMutation(userId);
   }
 
-  async readOffline(userId) {
+  async readOffline(userId, providedRecords = null) {
     try {
-      const records = await getCachedRecords(userId, this.table);
+      const records = providedRecords || await getCachedRecords(userId, this.table);
       const matches = applyLocalQuery(records, this.filters, this.orders, this.rangeValue, this.limitValue);
       if (this.singleMode === "single") {
         if (matches.length !== 1) {
@@ -346,4 +418,3 @@ export function createOfflineSupabaseClient(client) {
     },
   });
 }
-
