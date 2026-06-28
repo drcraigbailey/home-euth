@@ -189,8 +189,8 @@ async function fetchTableChanges({ table, select }, lastSyncedAt) {
   return { ...result, incremental };
 }
 
-async function pullLatest(userId) {
-  const lastSyncedAt = await getMeta(userId, "lastSyncedAt");
+async function pullLatest(userId, { forceFull = false } = {}) {
+  const lastSyncedAt = forceFull ? null : await getMeta(userId, "lastSyncedAt");
   const results = await Promise.all(SYNC_TABLES.map(async (tableConfig) => {
     const { table } = tableConfig;
     const { data, error, incremental } = await fetchTableChanges(tableConfig, lastSyncedAt);
@@ -205,22 +205,22 @@ async function pullLatest(userId) {
   return results;
 }
 
-async function performSync() {
+async function performSync({ forceFull = false } = {}) {
   if (!isNetworkOnline()) throw new Error("The device is offline.");
   const { data, error } = await rawSupabase.auth.getSession();
   if (error || !data?.session?.user) throw new Error("A signed-in session is required before syncing.");
   const userId = data.session.user.id;
   await pushPendingQueue(userId);
-  await pullLatest(userId);
+  await pullLatest(userId, { forceFull });
   const syncedAt = new Date().toISOString();
   await setMeta(userId, "lastSyncedAt", syncedAt);
   return { userId, syncedAt, ...(await getOfflineStatus(userId)) };
 }
 
-export function synchronizeOfflineData() {
+export function synchronizeOfflineData(options = {}) {
   if (activeSync) return activeSync;
   publish({ isSyncing: true, lastError: "" });
-  activeSync = performSync()
+  activeSync = performSync(options)
     .then((result) => {
       publish({ isSyncing: false, lastError: "" });
       return result;
