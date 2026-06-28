@@ -5,10 +5,73 @@ import { getOfflineStatus } from "../lib/offlineDb";
 import { isNetworkOnline, subscribeToNetworkStatus } from "../lib/networkStatus";
 import { subscribeToSyncState, synchronizeOfflineData } from "../lib/offlineSync";
 
+const syncButtonBaseStyle = {
+  borderRadius: "8px",
+  border: "none",
+  cursor: "pointer",
+  fontWeight: "bold",
+  padding: "8px 14px",
+  fontSize: "12px",
+  boxSizing: "border-box",
+  display: "inline-block",
+  textAlign: "center",
+  minWidth: "100px",
+  width: "auto",
+  color: "white",
+  transition: "background 160ms ease, opacity 160ms ease, transform 160ms ease",
+};
+
 function formatSyncTime(value) {
   if (!value) return "Not yet synced";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "Not yet synced" : date.toLocaleString();
+}
+
+function getSyncButtonState({ online, status, syncState }) {
+  const pendingCount = Number(status?.pendingCount || 0);
+  const conflictCount = Number(status?.conflictCount || 0);
+  const hasLocalWork = pendingCount > 0 || conflictCount > 0;
+
+  if (hasLocalWork || syncState.lastError) {
+    return {
+      label: online ? "Needs sync" : "Needs sync",
+      background: "#c62828",
+      title: "New offline data or sync conflicts need syncing/reviewing.",
+    };
+  }
+
+  if (syncState.isSyncing) {
+    return {
+      label: "Syncing…",
+      background: "#f9a825",
+      color: "#1f2933",
+      title: "Sync currently in progress.",
+    };
+  }
+
+  if (!online) {
+    return {
+      label: "Offline",
+      background: "#f9a825",
+      color: "#1f2933",
+      title: "Offline. Saved changes will sync when back online.",
+    };
+  }
+
+  if (!status.lastSyncedAt) {
+    return {
+      label: "Sync now",
+      background: "#f9a825",
+      color: "#1f2933",
+      title: "This device has not synced yet.",
+    };
+  }
+
+  return {
+    label: "Up to date",
+    background: "#2e7d32",
+    title: "Local data is up to date.",
+  };
 }
 
 export default function OfflineStatusBanner() {
@@ -70,8 +133,11 @@ export default function OfflineStatusBanner() {
 
   if (location.pathname === "/login" || !userId) return null;
 
+  const buttonState = getSyncButtonState({ online, status, syncState });
   const background = online ? "#eef6fb" : "#fff7df";
   const color = online ? "#3f6f93" : "#8a6518";
+  const syncButtonDisabled = syncState.isSyncing || !online;
+
   return (
     <div role="status" aria-live="polite" style={{ background, color, borderBottom: `1px solid ${online ? "#c9dfed" : "#ead59b"}`, padding: "7px 16px", fontSize: "12px" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: "8px 14px" }}>
@@ -81,18 +147,22 @@ export default function OfflineStatusBanner() {
         <span>Pending: {status.pendingCount}</span>
         {status.conflictCount > 0 && <strong style={{ color: "#b45309" }}>Needs review: {status.conflictCount}</strong>}
         {syncState.lastError && online && <span title={syncState.lastError}>Sync incomplete</span>}
-        {online && (
-          <button
-            type="button"
-            onClick={syncNow}
-            disabled={syncState.isSyncing}
-            style={{ background: "#5b8fb9", color: "white", border: 0, borderRadius: "6px", padding: "5px 10px", fontWeight: "bold", cursor: syncState.isSyncing ? "default" : "pointer", opacity: syncState.isSyncing ? 0.65 : 1 }}
-          >
-            {syncState.isSyncing ? "Syncing…" : "Sync now"}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={syncNow}
+          disabled={syncButtonDisabled}
+          title={buttonState.title}
+          style={{
+            ...syncButtonBaseStyle,
+            background: buttonState.background,
+            color: buttonState.color || "white",
+            cursor: syncButtonDisabled ? "default" : "pointer",
+            opacity: syncButtonDisabled ? 0.8 : 1,
+          }}
+        >
+          {buttonState.label}
+        </button>
       </div>
     </div>
   );
 }
-
