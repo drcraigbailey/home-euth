@@ -33,6 +33,10 @@ import Library from "./pages/Library";
 import AdminDashboard from "./pages/AdminDashboard";
 import Settings from "./pages/Settings";
 
+const BLUE = "#5b8fb9";
+const DARK = "#2c3e50";
+const RED = "#e74c3c";
+
 // ---------- Scroll to top ----------
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -79,7 +83,7 @@ function ProtectedRoute({children}) {
         <p
         style={{
           marginTop:"15px",
-          color:"#5b8fb9",
+          color:BLUE,
           fontWeight:"bold"
         }}
         >
@@ -96,7 +100,7 @@ function ProtectedRoute({children}) {
   return children;
 }
 
-// ---------- Navbar ----------
+// ---------- Bottom mobile navbar ----------
 function Navbar(){
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -127,97 +131,127 @@ function Navbar(){
     return null;
   }
 
+  const moreActive = ["/products", "/library", "/settings", "/admin"].some((path) => location.pathname.startsWith(path));
+
   return(
-    <div style={{
-      position: "sticky",
-      top: 0,
-      background: "white",
-      zIndex: 1000,
-      borderBottom: "1px solid #eee",
-      width: "100%"
-    }}>
-      <div style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: "10px 0",
-        overflowX: "auto",
-        whiteSpace: "nowrap",
-        WebkitOverflowScrolling: "touch"
-      }}>
-        <div style={{ display: "flex", gap: "15px", alignItems: "center", padding: "0 10px" }}>
-          <NavLink to="/" end style={navStyle}><HomeIcon size={18}/><span>Home</span></NavLink>
-          <NavLink to="/clients" style={navStyle}><Users size={18}/><span>Clients</span></NavLink>
-          <NavLink to="/patients" style={navStyle}><PawPrint size={18}/><span>Patients</span></NavLink>
-          <NavLink to="/sedation" style={navStyle}><Syringe size={18}/><span>Sedation</span></NavLink>
-          
-          <button onClick={()=>setShowMenu(!showMenu)} style={menuButtonStyle}>
-            <Menu size={20}/>
-          </button>
-        </div>
-      </div>
+    <>
+      <style>{`
+        body { padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+      `}</style>
 
       {showMenu && (
         <div style={{
-          position: "absolute",
-          right: "10px",
-          top: "50px",
+          position: "fixed",
+          right: "12px",
+          bottom: "calc(86px + env(safe-area-inset-bottom, 0px))",
           background: "white",
-          borderRadius: "12px",
+          borderRadius: "18px",
           padding: "10px",
-          boxShadow: "0 5px 20px rgba(0,0,0,.15)",
+          boxShadow: "0 10px 35px rgba(0,0,0,.18)",
           zIndex: 2000,
-          width: "175px"
+          width: "210px"
         }}>
-          <NavLink to="/products" style={menuItemStyle} onClick={()=>setShowMenu(false)}><Package size={18}/>Products</NavLink>
-          <NavLink to="/library" style={menuItemStyle} onClick={()=>setShowMenu(false)}><BookOpen size={18}/>Library</NavLink>
-          <NavLink to="/settings" style={menuItemStyle} onClick={()=>setShowMenu(false)}><SettingsIcon size={18}/>Settings</NavLink>
+          <NavLink to="/products" style={menuItemStyle} onClick={()=>setShowMenu(false)}><Package size={20}/>Products</NavLink>
+          <NavLink to="/library" style={menuItemStyle} onClick={()=>setShowMenu(false)}><BookOpen size={20}/>Library</NavLink>
+          <NavLink to="/settings" style={menuItemStyle} onClick={()=>setShowMenu(false)}><SettingsIcon size={20}/>Settings</NavLink>
           {isAdmin && (
-            <NavLink to="/admin" style={{...menuItemStyle, color:"#e74c3c", fontWeight:"bold"}} onClick={()=>setShowMenu(false)}>
-              <Shield size={18} color="#e74c3c"/>Admin
+            <NavLink to="/admin" style={{...menuItemStyle, color:RED, fontWeight:"bold"}} onClick={()=>setShowMenu(false)}>
+              <Shield size={20} color={RED}/>Admin
             </NavLink>
           )}
           <button onClick={logout} style={{...menuItemStyle, width:"100%", border:"none", background:"transparent"}}>
-            <LogOut size={18}/>Logout
+            <LogOut size={20}/>Logout
           </button>
         </div>
       )}
-    </div>
+
+      <nav style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: "calc(76px + env(safe-area-inset-bottom, 0px))",
+        padding: "8px 8px calc(7px + env(safe-area-inset-bottom, 0px))",
+        background: "rgba(255,255,255,.97)",
+        borderTop: "1px solid rgba(91,143,185,.22)",
+        boxShadow: "0 -8px 24px rgba(47,65,83,.12)",
+        zIndex: 1000,
+        display: "grid",
+        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        alignItems: "center",
+        gap: "2px",
+        boxSizing: "border-box",
+        overflow: "hidden"
+      }}>
+        <BottomNavLink to="/" end icon={<HomeIcon size={25}/>} label="Home" onClick={()=>setShowMenu(false)} />
+        <BottomNavLink to="/clients" icon={<Users size={25}/>} label="Clients" onClick={()=>setShowMenu(false)} />
+        <BottomNavLink to="/patients" icon={<PawPrint size={25}/>} label="Patients" onClick={()=>setShowMenu(false)} />
+        <BottomNavLink to="/sedation" icon={<Syringe size={25}/>} label="Sedation" onClick={()=>setShowMenu(false)} />
+        <button onClick={()=>setShowMenu(!showMenu)} style={bottomButtonStyle(showMenu || moreActive)}>
+          <Menu size={26}/>
+          <span>More</span>
+        </button>
+      </nav>
+    </>
   )
 }
 
-const navStyle = ({isActive}) => ({
-  display: "flex",
-  alignItems: "center",
+function BottomNavLink({ to, end, icon, label, onClick }) {
+  return (
+    <NavLink to={to} end={end} onClick={onClick} style={({isActive}) => bottomLinkStyle(isActive)}>
+      {icon}
+      <span>{label}</span>
+    </NavLink>
+  );
+}
+
+const bottomLinkStyle = (isActive) => ({
+  minWidth: 0,
   textDecoration: "none",
-  fontSize: "14px",
-  padding: "6px 8px",
-  color: isActive ? "#2c3e50" : "#5b8fb9",
+  color: isActive ? DARK : BLUE,
   fontWeight: isActive ? "bold" : "normal",
-  gap: "6px",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "3px",
+  fontSize: "12px",
+  lineHeight: 1.05,
+  overflow: "hidden",
   whiteSpace: "nowrap"
 });
 
-const menuButtonStyle = {
+const bottomButtonStyle = (active) => ({
+  minWidth: 0,
   border: "none",
   background: "transparent",
+  color: active ? DARK : BLUE,
+  fontWeight: active ? "bold" : "normal",
   display: "flex",
+  flexDirection: "column",
   alignItems: "center",
+  justifyContent: "center",
+  gap: "3px",
+  fontSize: "12px",
+  lineHeight: 1.05,
   cursor: "pointer",
-  color: "#5b8fb9",
-  padding: "6px"
-};
+  padding: 0,
+  overflow: "hidden",
+  whiteSpace: "nowrap"
+});
 
 const menuItemStyle = {
   display: "flex",
   alignItems: "center",
-  gap: "10px",
-  padding: "12px",
+  gap: "12px",
+  padding: "13px 12px",
   textDecoration: "none",
-  borderRadius: "10px",
-  color: "#2c3e50",
+  borderRadius: "12px",
+  color: DARK,
   cursor: "pointer",
-  fontSize: "14px"
+  fontSize: "15px",
+  textAlign: "left",
+  boxSizing: "border-box"
 };
 
 // ---------- Hardware Back Button ----------
@@ -250,7 +284,6 @@ export default function Appm(){
     <Router>
       <ScrollToTop />
       <BackButtonHandler />
-      <Navbar />
       <OfflineStatusBanner />
       <div style={{ paddingTop: "20px", paddingBottom: "20px" }}>
         <Routes>
@@ -268,6 +301,7 @@ export default function Appm(){
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard/></ProtectedRoute>}/>
         </Routes>
       </div>
+      <Navbar />
     </Router>
   )
 }
