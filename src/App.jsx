@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabase";
 import Loader from "./Loader"; 
 import OfflineStatusBanner from "./components/OfflineStatusBanner";
-import AppMobileMenu from "./AppMobile";
+import AppMobileMenu from "./appm";
 
 // --- CAPACITOR HARDWARE APP LINK ---
 import { App as CapacitorApp } from "@capacitor/app";
