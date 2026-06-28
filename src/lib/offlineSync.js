@@ -1,6 +1,7 @@
 import { rawSupabase } from "../supabase";
 import {
   cacheRecords,
+  getMeta,
   getOfflineStatus,
   getQueueItem,
   getQueueItems,
@@ -35,6 +36,8 @@ const INSERT_ORDER = {
   patient_procedures: 30,
   diary_entries: 30,
 };
+
+const SYNC_REQUEST_TIMEOUT_MS = 7000;
 
 let activeSync = null;
 let syncState = { isSyncing: false, lastError: "" };
@@ -72,6 +75,39 @@ function remoteMatchesBase(remote, baseData, baseUpdatedAt) {
   });
 }
 
+function isAbortError(error) {
+  return error?.name === "AbortError" || `${error?.message || ""}`.toLowerCase().includes("abort");
+}
+
+function timeoutError(timeoutMs) {
+  return new Error(`Sync request timed out after ${Math.round(timeoutMs / 1000)} seconds.`);
+}
+
+async function awaitQueryWithTimeout(query, timeoutMs = SYNC_REQUEST_TIMEOUT_MS) {
+  if (typeof AbortController === "undefined" || typeof query?.abortSignal !== "function") {
+    return Promise.race([
+      query,
+      new Promise((_, reject) => setTimeout(() => reject(timeoutError(timeoutMs)), timeoutMs)),
+    ]);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await query.abortSignal(controller.signal);
+  } catch (error) {
+    if (isAbortError(error)) throw timeoutError(timeoutMs);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isMissingUpdatedAtError(error) {
+  const message = `${error?.message || ""} ${error?.details || ""}`.toLowerCase();
+  return error?.code === "42703" || (message.includes("updated_at") && message.includes("column"));
+}
+
 async function markConflict(item, reason) {
   await updateQueueItem(item.id, {
     status: "conflict",
@@ -85,7 +121,7 @@ async function syncInsert(item) {
   const payload = stripLocalId(item.payload);
   let result;
   try {
-    result = await rawSupabase.from(item.table).insert([payload]).select().single();
+    result = await awaitQueryWithTimeout(rawSupabase.from(item.table).insert([payload]).select().single());
   } catch (error) {
     await markConflict(item, `The create request had an uncertain outcome (${error.message}). Review it before retrying to avoid a duplicate.`);
     return;
@@ -99,7 +135,7 @@ async function syncInsert(item) {
 }
 
 async function syncUpdate(item) {
-  const { data: remote, error: readError } = await rawSupabase.from(item.table).select("*").eq("id", item.recordId).maybeSingle();
+  const { data: remote, error: readError } = await awaitQueryWithTimeout(rawSupabase.from(item.table).select("*").eq("id", item.recordId).maybeSingle());
   if (readError) {
     await updateQueueItem(item.id, { status: "pending", reason: readError.message, attempts: (item.attempts || 0) + 1 });
     return;
@@ -108,7 +144,7 @@ async function syncUpdate(item) {
     await markConflict(item, "The remote record changed after it was cached. Review both versions before applying this edit.");
     return;
   }
-  const { data, error } = await rawSupabase.from(item.table).update(item.payload).eq("id", item.recordId).select().single();
+  const { data, error } = await awaitQueryWithTimeout(rawSupabase.from(item.table).update(item.payload).eq("id", item.recordId).select().single());
   if (error) {
     await updateQueueItem(item.id, { status: "pending", reason: error.message, attempts: (item.attempts || 0) + 1 });
     return;
@@ -140,15 +176,30 @@ async function pushPendingQueue(userId) {
   }
 }
 
+async function fetchTableChanges({ table, select }, lastSyncedAt) {
+  const incremental = Boolean(lastSyncedAt);
+  let query = rawSupabase.from(table).select(select);
+  if (incremental) query = query.gte("updated_at", lastSyncedAt);
+
+  const result = await awaitQueryWithTimeout(query);
+  if (result.error && incremental && isMissingUpdatedAtError(result.error)) {
+    const fallback = await awaitQueryWithTimeout(rawSupabase.from(table).select(select));
+    return { ...fallback, incremental: false };
+  }
+  return { ...result, incremental };
+}
+
 async function pullLatest(userId) {
-  const results = await Promise.all(SYNC_TABLES.map(async ({ table, select }) => {
-    const { data, error } = await rawSupabase.from(table).select(select);
+  const lastSyncedAt = await getMeta(userId, "lastSyncedAt");
+  const results = await Promise.all(SYNC_TABLES.map(async (tableConfig) => {
+    const { table } = tableConfig;
+    const { data, error, incremental } = await fetchTableChanges(tableConfig, lastSyncedAt);
     if (error) throw new Error(`${table}: ${error.message}`);
-    await cacheRecords(userId, table, data || [], { replace: true });
-    return table;
+    await cacheRecords(userId, table, data || [], { replace: !incremental });
+    return `${table}:${incremental ? "incremental" : "full"}`;
   }));
 
-  const { data: profile, error: profileError } = await rawSupabase.from("profiles").select("*").eq("id", userId).single();
+  const { data: profile, error: profileError } = await awaitQueryWithTimeout(rawSupabase.from("profiles").select("*").eq("id", userId).single());
   if (profileError) throw new Error(`profiles: ${profileError.message}`);
   await cacheRecords(userId, "profiles", profile, { replace: true });
   return results;
@@ -183,4 +234,3 @@ export function synchronizeOfflineData() {
     });
   return activeSync;
 }
-
