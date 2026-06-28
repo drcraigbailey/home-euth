@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabase";
 import Loader from "./Loader"; 
 import OfflineStatusBanner from "./components/OfflineStatusBanner";
+import AppMobileMenu from "./AppMobile";
 
 // --- CAPACITOR HARDWARE APP LINK ---
 import { App as CapacitorApp } from "@capacitor/app";
@@ -23,22 +24,14 @@ import Settings from "./pages/Settings";
 
 const MENU_PREF_KEY = "sp-home-menu-style";
 
-function getSavedMenuStyle() {
-  if (typeof window === "undefined") return "app";
-  return window.localStorage.getItem(MENU_PREF_KEY) || "app";
+function normaliseMenuStyle(value) {
+  if (value === "mobile" || value === "app1") return "mobile";
+  return "web";
 }
 
-function navLinkStyle({ isActive }) {
-  return {
-    color: isActive ? "#1f4f6d" : "#5b8fb9",
-    background: isActive ? "#e6f0f7" : "transparent",
-    borderRadius: "8px",
-    padding: "8px 10px",
-    textDecoration: "none",
-    fontWeight: "bold",
-    fontSize: "13px",
-    whiteSpace: "nowrap",
-  };
+function getSavedMenuStyle() {
+  if (typeof window === "undefined") return "web";
+  return normaliseMenuStyle(window.localStorage.getItem(MENU_PREF_KEY));
 }
 
 function getNavItems(isAdmin) {
@@ -88,7 +81,7 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-function AppMenu({ navItems, logout }) {
+function WebMenu({ navItems, logout }) {
   return (
     <div className="app-header" style={{ position: "relative" }}>
       <nav className="header-nav" style={{ position: "relative", width: "100%" }}>
@@ -116,30 +109,6 @@ function AppMenu({ navItems, logout }) {
   );
 }
 
-function App1Menu({ navItems, logout }) {
-  return (
-    <div className="app-header" style={{ background: "#f8fbfd", borderBottom: "1px solid #d6e6f1", padding: "10px 12px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", maxWidth: "1200px", margin: "0 auto" }}>
-        <strong style={{ color: "#2f5f7f", fontSize: "15px", whiteSpace: "nowrap" }}>SP Home Euth</strong>
-        <button onClick={logout} className="logout-btn-minimal" style={{ flexShrink: 0 }}>Logout</button>
-      </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", maxWidth: "1200px", margin: "10px auto 0" }}>
-        {navItems.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} style={({ isActive }) => ({
-            ...navLinkStyle({ isActive }),
-            border: "1px solid #d6e6f1",
-            background: isActive ? "#dcecf5" : "white",
-            color: item.admin ? "#e74c3c" : (isActive ? "#1f4f6d" : "#3f6f93"),
-            boxShadow: isActive ? "0 2px 8px rgba(91,143,185,0.22)" : "0 1px 4px rgba(0,0,0,0.05)",
-          })}>
-            {item.label}
-          </NavLink>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function Navbar() {
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -158,7 +127,7 @@ function Navbar() {
 
   useEffect(() => {
     function handleMenuStyleChange(event) {
-      setMenuStyle(event?.detail?.menuStyle || getSavedMenuStyle());
+      setMenuStyle(normaliseMenuStyle(event?.detail?.menuStyle || getSavedMenuStyle()));
     }
     window.addEventListener("menu-style-changed", handleMenuStyleChange);
     window.addEventListener("storage", handleMenuStyleChange);
@@ -176,8 +145,8 @@ function Navbar() {
   if (location.pathname === "/login") return null;
 
   const navItems = getNavItems(isAdmin);
-  if (menuStyle === "app1") return <App1Menu navItems={navItems} logout={logout} />;
-  return <AppMenu navItems={navItems} logout={logout} />;
+  if (menuStyle === "mobile") return <AppMobileMenu navItems={navItems} logout={logout} />;
+  return <WebMenu navItems={navItems} logout={logout} />;
 }
 
 // FIXED: Native Hardware Back Button Link with Single-Instance Listener Protection
