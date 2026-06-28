@@ -32,9 +32,14 @@ const buttonStyle = {
   minWidth: "110px",
 };
 
+function normaliseMenuStyle(value) {
+  if (value === "mobile" || value === "app1") return "mobile";
+  return "web";
+}
+
 function getInitialMenuStyle() {
-  if (typeof window === "undefined") return "app";
-  return window.localStorage.getItem(MENU_PREF_KEY) || "app";
+  if (typeof window === "undefined") return "web";
+  return normaliseMenuStyle(window.localStorage.getItem(MENU_PREF_KEY));
 }
 
 export default function Settings() {
@@ -57,33 +62,33 @@ export default function Settings() {
 
         <div style={optionStyle}>
           <div>
-            <strong style={{ color: "#2f5f7f" }}>App.jsx menu</strong>
+            <strong style={{ color: "#2f5f7f" }}>Web</strong>
             <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: "13px" }}>
-              The current horizontal scroll menu.
+              Uses the current App.jsx horizontal menu.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => setMenuStyle("app")}
-            style={{ ...buttonStyle, background: menuStyle === "app" ? "#5b8fb9" : "#e5edf4", color: menuStyle === "app" ? "white" : "#2f5f7f" }}
+            onClick={() => setMenuStyle("web")}
+            style={{ ...buttonStyle, background: menuStyle === "web" ? "#5b8fb9" : "#e5edf4", color: menuStyle === "web" ? "white" : "#2f5f7f" }}
           >
-            {menuStyle === "app" ? "Selected" : "Use this"}
+            {menuStyle === "web" ? "Selected" : "Use this"}
           </button>
         </div>
 
         <div style={optionStyle}>
           <div>
-            <strong style={{ color: "#2f5f7f" }}>App1.jsx menu</strong>
+            <strong style={{ color: "#2f5f7f" }}>Mobile</strong>
             <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: "13px" }}>
-              Alternative compact menu using the same app sections.
+              Uses the AppMobile.jsx compact mobile menu.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => setMenuStyle("app1")}
-            style={{ ...buttonStyle, background: menuStyle === "app1" ? "#5b8fb9" : "#e5edf4", color: menuStyle === "app1" ? "white" : "#2f5f7f" }}
+            onClick={() => setMenuStyle("mobile")}
+            style={{ ...buttonStyle, background: menuStyle === "mobile" ? "#5b8fb9" : "#e5edf4", color: menuStyle === "mobile" ? "white" : "#2f5f7f" }}
           >
-            {menuStyle === "app1" ? "Selected" : "Use this"}
+            {menuStyle === "mobile" ? "Selected" : "Use this"}
           </button>
         </div>
       </div>
