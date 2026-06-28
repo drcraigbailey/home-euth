@@ -34,7 +34,7 @@ function getSyncButtonState({ online, status, syncState }) {
 
   if (hasLocalWork || syncState.lastError) {
     return {
-      label: online ? "Needs sync" : "Needs sync",
+      label: "Needs sync",
       background: "#c62828",
       title: "New offline data or sync conflicts need syncing/reviewing.",
     };
@@ -86,10 +86,10 @@ export default function OfflineStatusBanner() {
     if (id) setStatus(await getOfflineStatus(id));
   }, [userId]);
 
-  const syncNow = useCallback(async () => {
+  const syncNow = useCallback(async ({ forceFull = false } = {}) => {
     if (!isNetworkOnline() || !userId) return;
     try {
-      await synchronizeOfflineData();
+      await synchronizeOfflineData({ forceFull });
     } catch {
       // The shared sync state supplies a concise, non-blocking error below.
     }
@@ -149,7 +149,7 @@ export default function OfflineStatusBanner() {
         {syncState.lastError && online && <span title={syncState.lastError}>Sync incomplete</span>}
         <button
           type="button"
-          onClick={syncNow}
+          onClick={() => syncNow({ forceFull: true })}
           disabled={syncButtonDisabled}
           title={buttonState.title}
           style={{
