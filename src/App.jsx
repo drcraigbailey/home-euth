@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, NavLink, useLocation, Navigate,
 import { useEffect, useState, useRef } from "react"; 
 import { supabase } from "./supabase";
 import Loader from "./Loader"; 
+import OfflineStatusBanner from "./components/OfflineStatusBanner";
 
 // --- CAPACITOR HARDWARE APP LINK ---
 import { App as CapacitorApp } from "@capacitor/app";
@@ -173,6 +174,7 @@ export default function App() {
       <ScrollToTop /> {/* <--- FORCES SCROLL TO TOP ON PAGE CHANGE */}
       <BackButtonHandler />
       <Navbar /> 
+      <OfflineStatusBanner />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />

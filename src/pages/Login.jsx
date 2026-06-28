@@ -3,6 +3,7 @@ import { useState } from "react";
 import { supabase } from "../supabase";
 import { useNavigate } from "react-router-dom";
 import Loader from "../Loader"; // <-- 1. Import Loader
+import { isNetworkOnline } from "../lib/networkStatus";
 
 // Import the image directly
 import logoImage from "../assets/logo.png";
@@ -26,6 +27,10 @@ export default function Login() {
   const [alertMessage, setAlertMessage] = useState("");
 
   async function handleLogin() {
+    if (!isNetworkOnline()) {
+      setAlertMessage("Login requires an internet connection. If you have signed in on this device before, return to the app while your saved session is still valid.");
+      return;
+    }
     setIsLoading(true); // <-- 3. Start loading when button is clicked
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setIsLoading(false); // <-- 4. Stop loading once Supabase responds
@@ -54,6 +59,7 @@ export default function Login() {
       <div style={{ textAlign: "center", marginBottom: "30px", position: "relative", zIndex: 1 }}>
         <h1 style={{ color: "#2c3e50", margin: "0 0 8px 0", fontSize: "32px", fontWeight: "700" }}>Welcome</h1>
         <p style={{ color: "#7f8c8d", fontSize: "16px", margin: 0 }}>Please sign in to continue</p>
+        {!isNetworkOnline() && <p style={{ color: "#9a6b16", fontSize: "13px", margin: "10px 0 0" }}>You are offline. A new login requires internet access.</p>}
       </div>
 
       {/* Main Login Card - Utilizing index.css .card class */}

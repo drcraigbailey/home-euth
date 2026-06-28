@@ -1,0 +1,8 @@
+{
+  "name": "SP Home Euth",
+  "short_name": "Home Euth",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f9fb",
+  "theme_color": "#5b8fb9"
+}

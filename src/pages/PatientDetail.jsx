@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../supabase";
+import { isNetworkOnline } from "../lib/networkStatus";
 import SignatureCanvas from "react-signature-canvas";
 import Loader from "../Loader"; 
 import { jsPDF } from "jspdf";
@@ -423,16 +424,21 @@ export default function PatientDetail() {
   function updateBatch(i, val) { const u = [...calcResults]; u[i].batchId = val; setCalcResults(u); }
 
   async function executeSaveDosing() {
-    const { error } = await supabase.from("sedation_records").insert([{ patient_id: id, protocol_id: protocolId || null, weight: patient.weight, results: calcResults }]);
+    const { error, offline } = await supabase.from("sedation_records").insert([{ patient_id: id, protocol_id: protocolId || null, weight: patient.weight, results: calcResults }]).select().single();
     if (!error) {
-      for (const r of calcResults) {
-        const totalUsed = (parseFloat(r.ml) || 0) + (parseFloat(r.waste) || 0);
-        if (r.batchId && totalUsed > 0) {
-          const current = stock.find(s => String(s.id) === String(r.batchId));
-          if (current) await supabase.from("stock").update({ total_ml: Math.max(0, current.total_ml - totalUsed) }).eq("id", current.id);
+      if (!offline && isNetworkOnline()) {
+        for (const r of calcResults) {
+          const totalUsed = (parseFloat(r.ml) || 0) + (parseFloat(r.waste) || 0);
+          if (r.batchId && totalUsed > 0) {
+            const current = stock.find(s => String(s.id) === String(r.batchId));
+            if (current) await supabase.from("stock").update({ total_ml: Math.max(0, current.total_ml - totalUsed) }).eq("id", current.id);
+          }
         }
+        setSuccessMessage("Doses successfully recorded and deducted from stock!");
+      } else {
+        setSuccessMessage("Doses saved offline. The stock adjustment is marked Needs review and will not be deducted twice.");
       }
-      setSuccessMessage("Doses successfully recorded and deducted from stock!"); setCalcResults([]); setProtocolId(""); fetchStock(); fetchSedationHistory();
+      setCalcResults([]); setProtocolId(""); fetchStock(); fetchSedationHistory();
     } else setAlertMessage("Error saving doses: " + error.message);
   }
 
