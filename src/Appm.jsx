@@ -1,8 +1,9 @@
-// App.jsx
+// Appm.jsx
 import { BrowserRouter as Router, Routes, Route, NavLink, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "./supabase";
 import Loader from "./Loader";
+import OfflineStatusBanner from "./components/OfflineStatusBanner";
 
 import { App as CapacitorApp } from "@capacitor/app";
 
@@ -14,7 +15,9 @@ import {
   Menu,
   LogOut,
   Shield,
-  Package
+  Package,
+  BookOpen,
+  Settings as SettingsIcon
 } from "lucide-react";
 
 // pages
@@ -26,8 +29,9 @@ import ClientDetail from "./pages/ClientDetail";
 import PatientDetail from "./pages/PatientDetail";
 import Sedation from "./pages/Sedation";
 import Products from "./pages/Products";
+import Library from "./pages/Library";
 import AdminDashboard from "./pages/AdminDashboard";
-
+import Settings from "./pages/Settings";
 
 // ---------- Scroll to top ----------
 function ScrollToTop() {
@@ -39,7 +43,6 @@ function ScrollToTop() {
 
   return null;
 }
-
 
 // ---------- Protected Route ----------
 function ProtectedRoute({children}) {
@@ -93,7 +96,6 @@ function ProtectedRoute({children}) {
   return children;
 }
 
-
 // ---------- Navbar ----------
 function Navbar(){
   const location = useLocation();
@@ -134,13 +136,12 @@ function Navbar(){
       borderBottom: "1px solid #eee",
       width: "100%"
     }}>
-      {/* Container that handles the centering and overflow */}
       <div style={{
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         padding: "10px 0",
-        overflowX: "auto", // Allows scrolling on small screens
+        overflowX: "auto",
         whiteSpace: "nowrap",
         WebkitOverflowScrolling: "touch"
       }}>
@@ -156,7 +157,6 @@ function Navbar(){
         </div>
       </div>
 
-      {/* Dropdown Menu */}
       {showMenu && (
         <div style={{
           position: "absolute",
@@ -167,9 +167,11 @@ function Navbar(){
           padding: "10px",
           boxShadow: "0 5px 20px rgba(0,0,0,.15)",
           zIndex: 2000,
-          width: "160px"
+          width: "175px"
         }}>
           <NavLink to="/products" style={menuItemStyle} onClick={()=>setShowMenu(false)}><Package size={18}/>Products</NavLink>
+          <NavLink to="/library" style={menuItemStyle} onClick={()=>setShowMenu(false)}><BookOpen size={18}/>Library</NavLink>
+          <NavLink to="/settings" style={menuItemStyle} onClick={()=>setShowMenu(false)}><SettingsIcon size={18}/>Settings</NavLink>
           {isAdmin && (
             <NavLink to="/admin" style={{...menuItemStyle, color:"#e74c3c", fontWeight:"bold"}} onClick={()=>setShowMenu(false)}>
               <Shield size={18} color="#e74c3c"/>Admin
@@ -243,12 +245,13 @@ function BackButtonHandler(){
 }
 
 // ---------- App ----------
-export default function App(){
+export default function Appm(){
   return (
     <Router>
       <ScrollToTop />
       <BackButtonHandler />
       <Navbar />
+      <OfflineStatusBanner />
       <div style={{ paddingTop: "20px", paddingBottom: "20px" }}>
         <Routes>
           <Route path="/login" element={<Login/>}/>
@@ -260,6 +263,8 @@ export default function App(){
           <Route path="/sedation" element={<ProtectedRoute><Sedation/></ProtectedRoute>}/>
           <Route path="/sedation/:id" element={<ProtectedRoute><Sedation/></ProtectedRoute>}/>
           <Route path="/products" element={<ProtectedRoute><Products/></ProtectedRoute>}/>
+          <Route path="/library" element={<ProtectedRoute><Library/></ProtectedRoute>}/>
+          <Route path="/settings" element={<ProtectedRoute><Settings/></ProtectedRoute>}/>
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard/></ProtectedRoute>}/>
         </Routes>
       </div>
