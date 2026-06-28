@@ -168,6 +168,50 @@ function BackButtonHandler() {
   return null;
 }
 
+function AppRoutes() {
+  const location = useLocation();
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const lastRefreshRef = useRef(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    function refreshAfterOfflineChange(event) {
+      if (location.pathname === "/login") return;
+      const kind = event?.detail?.kind;
+      if (kind && kind !== "records") return;
+      const now = Date.now();
+      if (now - lastRefreshRef.current < 1500) return;
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => {
+        lastRefreshRef.current = Date.now();
+        setRefreshVersion((version) => version + 1);
+      }, 250);
+    }
+
+    window.addEventListener("offline-data-changed", refreshAfterOfflineChange);
+    return () => {
+      window.removeEventListener("offline-data-changed", refreshAfterOfflineChange);
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, [location.pathname]);
+
+  return (
+    <Routes key={`${location.pathname}:${refreshVersion}`}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+      <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
+      <Route path="/client/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
+      <Route path="/patient/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
+      <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
+      <Route path="/sedation" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
+      <Route path="/sedation/:id" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
+      <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+      <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
+      <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <Router>
@@ -175,19 +219,7 @@ export default function App() {
       <BackButtonHandler />
       <Navbar /> 
       <OfflineStatusBanner />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-        <Route path="/client/:id" element={<ProtectedRoute><ClientDetail /></ProtectedRoute>} />
-        <Route path="/patient/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
-        <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
-        <Route path="/sedation" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
-        <Route path="/sedation/:id" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
-        <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
-        <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-      </Routes>
+      <AppRoutes />
     </Router>
   );
 }
