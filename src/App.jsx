@@ -19,17 +19,46 @@ import Sedation from "./pages/Sedation";
 import Products from "./pages/Products"; 
 import Library from "./pages/Library";
 import AdminDashboard from "./pages/AdminDashboard";
+import Settings from "./pages/Settings";
 
-// --- GLOBAL UNIFORM STYLING CONSTANTS ---
-const standardBtnProps = { borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", padding: "8px 14px", fontSize: "12px", boxSizing: "border-box", display: "inline-block", textAlign: "center", minWidth: "100px", width: "auto" };
-const blueBtn = { background: "#5b8fb9", color: "white", ...standardBtnProps };
+const MENU_PREF_KEY = "sp-home-menu-style";
+
+function getSavedMenuStyle() {
+  if (typeof window === "undefined") return "app";
+  return window.localStorage.getItem(MENU_PREF_KEY) || "app";
+}
+
+function navLinkStyle({ isActive }) {
+  return {
+    color: isActive ? "#1f4f6d" : "#5b8fb9",
+    background: isActive ? "#e6f0f7" : "transparent",
+    borderRadius: "8px",
+    padding: "8px 10px",
+    textDecoration: "none",
+    fontWeight: "bold",
+    fontSize: "13px",
+    whiteSpace: "nowrap",
+  };
+}
+
+function getNavItems(isAdmin) {
+  return [
+    { to: "/", label: "Home", end: true },
+    { to: "/clients", label: "Clients" },
+    { to: "/patients", label: "Patients" },
+    { to: "/sedation", label: "Sedation" },
+    { to: "/products", label: "Products" },
+    { to: "/library", label: "Library" },
+    { to: "/settings", label: "Settings" },
+    ...(isAdmin ? [{ to: "/admin", label: "Admin", admin: true }] : []),
+  ];
+}
 
 // --- HELPER: SCROLL TO TOP ON NAVIGATION ---
 function ScrollToTop() {
   const { pathname } = useLocation();
   
   useEffect(() => {
-    // Instantly snaps the page to the top
     window.scrollTo(0, 0);
   }, [pathname]);
   
@@ -59,9 +88,62 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function AppMenu({ navItems, logout }) {
+  return (
+    <div className="app-header" style={{ position: "relative" }}>
+      <nav className="header-nav" style={{ position: "relative", width: "100%" }}>
+        <div className="nav-container-inner" style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
+            <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none", flexShrink: 0 }}>&lt;</span>
+            <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center", flex: 1, padding: "10px 0", minWidth: 0 }}>
+              {navItems.map((item) => (
+                <NavLink key={item.to} to={item.to} end={item.end} className="nav-item" style={item.admin ? { color: "#e74c3c" } : undefined}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+            <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingLeft: "5px", userSelect: "none", flexShrink: 0 }}>&gt;</span>
+          </div>
+          <button onClick={logout} className="logout-btn-minimal" style={{ position: "relative", zIndex: 2, flexShrink: 0 }}>Logout</button>
+        </div>
+      </nav>
+
+      <style>{`
+        .nav-links-group::-webkit-scrollbar { display: none; }
+        .nav-links-group { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+    </div>
+  );
+}
+
+function App1Menu({ navItems, logout }) {
+  return (
+    <div className="app-header" style={{ background: "#f8fbfd", borderBottom: "1px solid #d6e6f1", padding: "10px 12px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", maxWidth: "1200px", margin: "0 auto" }}>
+        <strong style={{ color: "#2f5f7f", fontSize: "15px", whiteSpace: "nowrap" }}>SP Home Euth</strong>
+        <button onClick={logout} className="logout-btn-minimal" style={{ flexShrink: 0 }}>Logout</button>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", maxWidth: "1200px", margin: "10px auto 0" }}>
+        {navItems.map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.end} style={({ isActive }) => ({
+            ...navLinkStyle({ isActive }),
+            border: "1px solid #d6e6f1",
+            background: isActive ? "#dcecf5" : "white",
+            color: item.admin ? "#e74c3c" : (isActive ? "#1f4f6d" : "#3f6f93"),
+            boxShadow: isActive ? "0 2px 8px rgba(91,143,185,0.22)" : "0 1px 4px rgba(0,0,0,0.05)",
+          })}>
+            {item.label}
+          </NavLink>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Navbar() {
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [menuStyle, setMenuStyle] = useState(getSavedMenuStyle);
 
   useEffect(() => {
     async function checkAdmin() {
@@ -74,6 +156,18 @@ function Navbar() {
     checkAdmin();
   }, [location.pathname]);
 
+  useEffect(() => {
+    function handleMenuStyleChange(event) {
+      setMenuStyle(event?.detail?.menuStyle || getSavedMenuStyle());
+    }
+    window.addEventListener("menu-style-changed", handleMenuStyleChange);
+    window.addEventListener("storage", handleMenuStyleChange);
+    return () => {
+      window.removeEventListener("menu-style-changed", handleMenuStyleChange);
+      window.removeEventListener("storage", handleMenuStyleChange);
+    };
+  }, []);
+
   async function logout() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -81,50 +175,15 @@ function Navbar() {
 
   if (location.pathname === "/login") return null;
 
-  return (
-    <div className="app-header" style={{ position: "relative" }}>
-      <nav className="header-nav" style={{ position: "relative", width: "100%" }}>
-        <div className="nav-container-inner" style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", width: "100%" }}>
-          
-          <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
-            <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingRight: "5px", userSelect: "none", flexShrink: 0 }}>&lt;</span>
-            
-            <div className="nav-links-group" style={{ overflowX: "auto", display: "flex", whiteSpace: "nowrap", alignItems: "center", flex: 1, padding: "10px 0", minWidth: 0 }}>
-              <NavLink to="/" end className="nav-item">Home</NavLink>
-              <NavLink to="/clients" className="nav-item">Clients</NavLink>
-              <NavLink to="/patients" className="nav-item">Patients</NavLink> 
-              <NavLink to="/sedation" className="nav-item">Sedation</NavLink>
-              <NavLink to="/products" className="nav-item">Products</NavLink>
-              <NavLink to="/library" className="nav-item">Library</NavLink>
-              {isAdmin && <NavLink to="/admin" className="nav-item" style={{ color: "#e74c3c" }}>Admin</NavLink>}
-            </div>
-
-            <span style={{ color: "#5b8fb9", fontWeight: "bold", fontSize: "18px", paddingLeft: "5px", userSelect: "none", flexShrink: 0 }}>&gt;</span>
-          </div>
-
-          <button onClick={logout} className="logout-btn-minimal" style={{ position: "relative", zIndex: 2, flexShrink: 0 }}>Logout</button>
-        </div>
-      </nav>
-
-      <style>{`
-        .nav-links-group::-webkit-scrollbar {
-          display: none;
-        }
-        .nav-links-group {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
-    </div>
-  );
+  const navItems = getNavItems(isAdmin);
+  if (menuStyle === "app1") return <App1Menu navItems={navItems} logout={logout} />;
+  return <AppMenu navItems={navItems} logout={logout} />;
 }
 
 // FIXED: Native Hardware Back Button Link with Single-Instance Listener Protection
 function BackButtonHandler() {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Create a mutable path reference so the listener callback stays updated without duplicate attachments
   const currentPathRef = useRef(location.pathname);
   
   useEffect(() => {
@@ -135,29 +194,19 @@ function BackButtonHandler() {
     const setupHardwareLink = async () => {
       return await CapacitorApp.addListener('backButton', () => {
         const path = currentPathRef.current;
-        
-        // 1. Core structural exit paths
         if (path === "/" || path === "/login") {
           CapacitorApp.exitApp();
-        } 
-        // 2. Structured parent routing: Force patient profiles to return directly to the full records deck
-        else if (path.startsWith("/patient/")) {
+        } else if (path.startsWith("/patient/")) {
           navigate("/patients");
-        } 
-        // 3. Structured parent routing: Force specific client files to return directly to the general clients list
-        else if (path.startsWith("/client/")) {
+        } else if (path.startsWith("/client/")) {
           navigate("/clients");
-        } 
-        // 4. Default safe fallback (Traces chronological path back exactly one step without skipping)
-        else {
+        } else {
           navigate(-1);
         }
       });
     };
 
     const initiationPromise = setupHardwareLink();
-
-    // Clean up cleanly on unmount to make sure no duplicate event paths persist
     return () => {
       initiationPromise.then(handlerInstance => {
         if (handlerInstance) handlerInstance.remove();
@@ -207,6 +256,7 @@ function AppRoutes() {
       <Route path="/sedation/:id" element={<ProtectedRoute><Sedation /></ProtectedRoute>} />
       <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
       <Route path="/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
     </Routes>
   );
@@ -215,7 +265,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <Router>
-      <ScrollToTop /> {/* <--- FORCES SCROLL TO TOP ON PAGE CHANGE */}
+      <ScrollToTop />
       <BackButtonHandler />
       <Navbar /> 
       <OfflineStatusBanner />
